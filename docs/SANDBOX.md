@@ -24,7 +24,7 @@ The runner exposes start, status, list, and cancel methods. The chat tools repor
 
 ## Lifecycle and safety
 
-Each workspace maps to a separate SandboxRunner Durable Object identity. The runner validates the request before invoking the Container API, starts the named image with outbound internet disabled, and runs Python or Node directly. A per-task AbortController enforces the configured time limit while the Durable Object is active. Container inactivity timeout provides an additional cleanup boundary.
+Each workspace maps to a separate SandboxRunner Durable Object identity. The runner validates the request before invoking the Container API, starts the named image with outbound internet disabled, and runs Python or Node directly. A per-task AbortController enforces the configured time limit while the Durable Object is active. After the command exits, the Container is destroyed before the result is finalized; this also terminates child processes and prevents state from leaking into the next task.
 
 Task records include status, timestamps, exit code, and bounded output/error information. They intentionally exclude the source text. Only one job can be active per workspace. If a Durable Object restarts and loses its in-memory cancellation handle, the runner destroys its task-dedicated Container before recording cancellation.
 
@@ -34,7 +34,7 @@ The sandbox is still untrusted-code execution. The Container boundary is separat
 
 The runner uses Cloudflare's Durable Object Container API with the durable_object scheduling policy. Cloudflare currently documents that policy as beta. It is added as a new SQLite-backed Durable Object class, leaving the existing SpaceAgent class and v1 migration unchanged.
 
-A Workers Paid plan and Cloudflare Containers availability are required. The app's Wrangler build config points the named image at apps/space-ai/sandbox/Dockerfile. wrangler deploy must build and publish that image along with the Worker.
+A Workers Paid plan and Cloudflare Containers availability are required. The app's Wrangler build config points the named image at apps/space-ai/sandbox/Dockerfile. The Dockerfile starts from the public Node 24 Trixie slim image and installs Python 3 at build time. Wrangler 4.136 or newer is required for local development with the durable_object scheduling policy; this repo pins 4.157.0. wrangler deploy must build and publish that image along with the Worker.
 
 The CI workflow validates Wrangler types, TypeScript, policy unit tests, and the dashboard/Worker build. It does not prove that a Cloudflare Container image has deployed or that a real task can run.
 
