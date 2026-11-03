@@ -1,10 +1,36 @@
-# Codespaces OS Lab
+# space — Autonomous AI Workspace
 
-Eksperimen Windows VM yang mengutamakan disk persisten, startup non-destruktif, dan backup Google Cloud Storage.
+space diarahkan menjadi **satu AI utama dengan banyak kemampuan terintegrasi**: riset web, coding, file/document analysis, multimodal perception, memory, sandbox execution, hosting, dan evaluasi. Pengguna tetap berinteraksi dengan satu identitas dan satu pusat koordinasi.
 
-> **Status:** Windows VM hanya berfungsi bila Codespace benar-benar menyediakan Docker, `/dev/kvm`, `/dev/net/tun`, memori, dan disk yang cukup. Project ini tidak dapat menjamin Codespaces akan menyediakan semua itu atau menjamin RDP dapat dijangkau.
+> **Status saat ini:** repository masih berada pada tahap fondasi dan dokumentasi arsitektur. Dokumen visi di bawah adalah target/roadmap, bukan klaim bahwa semua kemampuan sudah tersedia. Codespaces saat ini adalah development workspace Linux; bukan Windows Cloud PC dan tidak menjalankan semua OS guest secara otomatis.
 
-## Apa yang diperbaiki
+## Dokumen desain utama
+
+- [Visi produk](docs/VISION.md)
+- [Arsitektur satu AI utama](docs/ARCHITECTURE.md)
+- [Keamanan, identitas, dan izin](docs/SECURITY-AND-PERMISSIONS.md)
+- [Multimodal dan persepsi](docs/MULTIMODAL-AND-PERCEPTION.md)
+- [Memori, evaluasi, dan self-improvement](docs/LEARNING-AND-SELF-IMPROVEMENT.md)
+- [Roadmap pengembangan](docs/ROADMAP.md)
+- [Batasan platform saat ini](docs/PLATFORM-LIMITS.md)
+
+## Prinsip penting
+
+- **Satu AI utama:** kemampuan khusus berupa tool/skill yang tunduk pada policy dan task ledger yang sama.
+- **Kerja berbasis bukti:** rencanakan, kerjakan, uji, dan laporkan apa yang benar-benar terverifikasi.
+- **Self-improvement terkendali:** perubahan diuji di branch/sandbox, dievaluasi, dan dapat di-rollback. Agent tidak boleh menaikkan izinnya sendiri atau mengubah policy keselamatan.
+- **Akses akun dengan izin sempit:** gunakan OAuth scope yang diperlukan per layanan, bukan password universal.
+- **Sandbox-first:** jangan menjalankan kode tak tepercaya di host.
+- **Persisten dan dapat dipulihkan:** job, checkpoint, dan data penting disimpan sesuai kebijakan retensi; backup harus diuji.
+- **Jujur terhadap limit:** tidak menjanjikan akurasi 100%, media tanpa batas, semua OS di satu host, atau 24/7 gratis tanpa kuota.
+
+## Status eksperimen Codespaces / Windows
+
+Bagian ini merupakan eksperimen lama yang tetap disimpan terpisah dari target Autonomous AI Workspace.
+
+Eksperimen Windows VM hanya dapat dicoba jika Codespace benar-benar menyediakan Docker, `/dev/kvm`, `/dev/net/tun`, memori, dan ruang disk yang memadai. Project tidak dapat menjamin Codespaces menyediakan semua itu atau menjamin RDP dapat dijangkau.
+
+### Apa yang disiapkan
 
 - Startup biasa tidak menjalankan `docker rm -f`, tidak membuat ulang disk, dan tidak menginstal ulang Windows.
 - `storage/data.img` menjadi disk tamu persisten dan dikecualikan dari Git.
@@ -13,9 +39,9 @@ Eksperimen Windows VM yang mengutamakan disk persisten, startup non-destruktif, 
 - Tidak ada fallback diam-diam ke QEMU TCG bila KVM tidak tersedia.
 - `scripts/stop-windows.sh` menghentikan Windows lalu menjalankan backup GCS jika telah dikonfigurasi.
 - Restore memeriksa SHA-256 dan menolak menimpa disk yang sudah ada.
-- Menu OS menjelaskan status Windows, macOS, dan Googlebook OS tanpa mengklaim semua guest OS bisa berjalan di Linux Codespaces.
+- Menu OS menjelaskan status Windows, macOS, dan Googlebook OS tanpa mengklaim semua guest OS bisa berjalan di Codespaces.
 
-## Memulai
+## Memulai eksperimen Codespaces
 
 1. Salin konfigurasi contoh:
 
@@ -29,7 +55,7 @@ Eksperimen Windows VM yang mengutamakan disk persisten, startup non-destruktif, 
    ./scripts/preflight.sh
    ```
 
-   Jika pemeriksaan gagal, jangan memulai VM. Khususnya, jika `/dev/kvm` tidak ada, Codespace ini bukan host yang sesuai untuk jalur Windows VM ini.
+   Jika pemeriksaan gagal, jangan memulai VM. Khususnya, jika `/dev/kvm` tidak ada atau ruang disk tidak cukup, Codespace ini bukan host yang sesuai untuk jalur Windows VM ini.
 
 3. Untuk instalasi Windows pertama kali saja:
 
@@ -87,8 +113,6 @@ Restore menolak berjalan jika `storage/data.img` sudah ada. Backup disk besar da
 - **Windows:** dapat dicoba jika preflight lulus.
 - **macOS:** tidak tersedia di Linux Codespaces; project tidak mengunduh image tidak resmi atau mem-bypass lisensi.
 - **Googlebook OS:** ditujukan untuk perangkat Googlebook dan tidak tersedia sebagai guest VM generik yang didukung di repo ini.
-
-Detail: [Batasan platform](docs/PLATFORM-LIMITS.md).
 
 ## AI developer tools di Windows
 
