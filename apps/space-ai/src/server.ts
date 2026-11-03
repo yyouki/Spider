@@ -5,6 +5,9 @@ import { convertToModelMessages, pruneMessages, stepCountIs, streamText, tool } 
 import { z } from "zod";
 import { requireOwnerAccess } from "./security/access";
 
+// Expose the separate Container-backed Durable Object to Wrangler.
+export { SandboxRunner } from "./sandbox/runner";
+
 const SYSTEM_PROMPT = [
   "You are space, one persistent AI workspace and the single user-facing AI identity.",
   "",
@@ -16,6 +19,9 @@ const SYSTEM_PROMPT = [
   "Never ask for passwords, one-time codes, private keys, session cookies, or raw biometric data.",
   "Use calculate for exact basic arithmetic and getCapabilities when asked what you can currently do.",
   "Use task-plan tools for multi-step requests. A saved plan is not evidence that its steps have been executed.",
+  "For explicit small code tasks, use runCode: it runs only Python or JavaScript in an isolated offline Linux container with strict source, time, and output limits.",
+  "Never claim code execution succeeded until getCodeTaskStatus reports succeeded. A queued task is not a completed task.",
+  "The sandbox has no public internet, app credentials, host shell, project repository mount, or unrestricted filesystem access.",
   "Respect the owner's saved autonomy preferences, but only use capabilities that are actually connected and authorized.",
   "Account integrations require provider-issued OAuth grants. Device access requires the operating system's own permission prompts.",
   "Actions that can publish, send, spend money, delete important data, change security settings, or affect other people require owner confirmation.",
@@ -24,7 +30,8 @@ const SYSTEM_PROMPT = [
   "Do not expose private internal reasoning; provide a concise explanation and relevant evidence.",
   "",
   "Current MVP: persistent chat, persistent task plans, arithmetic, and approved project memory.",
-  "Not connected: autonomous browsing, code execution, filesystem tools, image/audio/video understanding, OS runners, account integrations, and production self-updates."
+  "Deployment-gated source: isolated offline Python/JavaScript sandbox. It requires Cloudflare Workers Paid and a successful Container deployment before it can execute.",
+  "Not connected: autonomous browsing, project filesystem tools, image/audio/video understanding, OS runners, account integrations, and production self-updates."
 ].join("\n");
 
 const autonomySettingsSchema = z.object({
@@ -161,6 +168,9 @@ export class SpaceAgent extends AIChatAgent<Env> {
   async onChatMessage(_onFinish: unknown, options?: OnChatMessageOptions) {
     const workersai = createWorkersAI({ binding: this.env.AI });
 
+    // Manual mode captures an explicit-approval requirement before code enters the sandbox.
+    const requireCodeApproval = this.getAutonomySettings().settings.workspaceExecution === "manual";
+
     const result = streamText({
       model: workersai("@cf/zai-org/glm-4.7-flash"),
       system: SYSTEM_PROMPT,
@@ -205,18 +215,69 @@ export class SpaceAgent extends AIChatAgent<Env> {
               "Basic arithmetic",
               "Cloudflare Durable Object SQLite storage"
             ],
+            implementedButDeploymentGated: [
+              "Offline Python and JavaScript sandbox source (Workers Paid + Container deployment required)"
+            ],
             notConnectedYet: [
               "Autonomous web browsing",
-              "Code execution sandbox",
-              "Filesystem and project repository tools",
+              "Project filesystem and repository tools",
               "Image, audio, and video understanding",
-              "Android, Windows, macOS, and Linux OS runners",
+              "Android, Windows, macOS, and Linux device runners",
               "External account integrations",
               "Production self-updates"
             ],
             model: "@cf/zai-org/glm-4.7-flash",
             quota: "Workers AI free allocation is limited; monitor daily usage."
           })
+        }),
+
+        runCode: tool({
+          description: "Run a small Python or JavaScript program in the isolated offline Linux sandbox. No shell, internet, project files, or account credentials are available.",
+          inputSchema: z.object({
+            language: z.enum(["python", "javascript"]),
+            source: z.string().trim().min(1).max(16_000),
+            timeoutSeconds: z.number().int().min(1).max(30).default(10)
+          }),
+          needsApproval: requireCodeApproval,
+          execute: async ({ language, source, timeoutSeconds }) => {
+            // Re-check preferences so a switch to manual blocks a queued autonomous call.
+            if (this.getAutonomySettings().settings.workspaceExecution === "manual" && !requireCodeApproval) {
+              return { accepted: false, error: "Execution blocked because the owner switched workspace execution to manual." };
+            }
+            const namespace = this.env.SandboxRunner;
+            const id = namespace.idFromName("space-agent-" + this.ctx.id.toString());
+            return namespace.get(id).startCodeTask({ language, source, timeoutSeconds });
+          }
+        }),
+
+        getCodeTaskStatus: tool({
+          description: "Read the status and bounded output of a previously queued sandbox task.",
+          inputSchema: z.object({ taskId: z.string().uuid() }),
+          execute: async ({ taskId }) => {
+            const namespace = this.env.SandboxRunner;
+            const id = namespace.idFromName("space-agent-" + this.ctx.id.toString());
+            return namespace.get(id).getTaskStatus(taskId);
+          }
+        }),
+
+        listCodeTasks: tool({
+          description: "List recent sandbox execution records without returning submitted source code.",
+          inputSchema: z.object({}),
+          execute: async () => {
+            const namespace = this.env.SandboxRunner;
+            const id = namespace.idFromName("space-agent-" + this.ctx.id.toString());
+            return namespace.get(id).listTasks();
+          }
+        }),
+
+        cancelCodeTask: tool({
+          description: "Cancel an active sandbox task and retain its status record.",
+          inputSchema: z.object({ taskId: z.string().uuid() }),
+          execute: async ({ taskId }) => {
+            const namespace = this.env.SandboxRunner;
+            const id = namespace.idFromName("space-agent-" + this.ctx.id.toString());
+            return namespace.get(id).cancelTask(taskId);
+          }
         }),
 
         createTaskPlan: tool({
@@ -333,13 +394,14 @@ export default {
       return Response.json({
         status: "ok",
         app: "space-ai",
-        version: "0.3.0",
+        version: "0.4.0",
         agent: "SpaceAgent",
         model: "@cf/zai-org/glm-4.7-flash",
         capabilities: [
           "persistent-chat",
           "persistent-task-plans",
           "owner-configurable-autonomy-preferences",
+          "isolated-offline-sandbox-runner-source",
           "calculator",
           "approved-project-memory"
         ]
