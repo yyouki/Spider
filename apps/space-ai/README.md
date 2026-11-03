@@ -49,6 +49,8 @@ This policy helper does **not** deploy code. No production updater or deployment
 - Node.js 22 or a Node.js version supported by the pinned Vite/Wrangler toolchain.
 - A Cloudflare account permitted to use Workers AI and Durable Objects.
 - A Workers Paid plan and access to Cloudflare Containers are required to deploy the isolated sandbox runner. The durable_object Container scheduling policy is beta.
+- Wrangler 4.136 or newer is required for local development with this scheduling policy. This repository pins Wrangler 4.157.0.
+- A working Docker-compatible engine is required for local Container development and image builds.
 - Workers AI free quota is limited to 10,000 Neurons per day. Usage beyond the free allowance requires a paid Workers plan; some specific models require paid billing. This project selects a model currently listed as available on Workers Free, but quota and capacity still apply.
 - Agents use a SQLite-backed Durable Object. Current Workers Free limits include a 5 GB aggregate Durable Objects storage allocation. Keep chat, task plans, audit records, and project memory concise.
 
