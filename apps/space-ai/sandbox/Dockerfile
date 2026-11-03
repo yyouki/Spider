@@ -1,5 +1,5 @@
 # Use Cloudflare's Debian base image, which includes the Node.js runtime.
-FROM node:24-trixie-slim
+FROM node:24.20.0-trixie-slim
 
 USER root
 
