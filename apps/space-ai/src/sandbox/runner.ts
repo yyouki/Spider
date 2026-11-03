@@ -27,6 +27,7 @@ type CodeTaskRecord = {
 type ActiveRun = {
   controller: AbortController;
   cancelReason: "cancelled" | "timed_out" | null;
+  processExited: boolean;
   timeout: ReturnType<typeof setTimeout>;
 };
 
@@ -128,6 +129,7 @@ export class SandboxRunner extends DurableObject<Env> {
     const active: ActiveRun = {
       controller: new AbortController(),
       cancelReason: null,
+      processExited: false,
       timeout: setTimeout(() => {
         active.cancelReason = "timed_out";
         active.controller.abort();
@@ -181,7 +183,8 @@ export class SandboxRunner extends DurableObject<Env> {
     const active = this.activeRuns.get(taskId);
     if (active) {
       active.cancelReason = "cancelled";
-      active.controller.abort();
+      // An AbortSignal fired after exec exits can cause a runtime error.
+      if (!active.processExited) active.controller.abort();
 
       await this.persistTask({
         ...record,
@@ -250,8 +253,7 @@ export class SandboxRunner extends DurableObject<Env> {
         container.start({
           image: container.images.base,
           instance: "lite",
-          enableInternet: false,
-          entrypoint: ["sleep", "infinity"]
+          enableInternet: false
         });
       }
 
@@ -278,6 +280,7 @@ export class SandboxRunner extends DurableObject<Env> {
       const stdoutPromise = readBoundedStream(process.stdout);
       const stderrPromise = readBoundedStream(process.stderr);
       const exitCode = await process.exitCode;
+      active.processExited = true;
       clearTimeout(active.timeout);
       await container.destroy("Sandbox task completed; discard the ephemeral container.");
       const [stdout, stderr] = await Promise.all([stdoutPromise, stderrPromise]);
