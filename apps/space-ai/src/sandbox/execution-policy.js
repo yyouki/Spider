@@ -38,8 +38,7 @@ export function validateExecutionRequest(input) {
   ) {
     return {
       ok: false,
-      error: \`Timeout must be an integer from 1 to \${MAX_TIMEOUT_SECONDS} seconds.\`
-    };
+      error: "Timeout must be an integer from 1 to " + MAX_TIMEOUT_SECONDS + " seconds.\n    };
   }
 
   return {
@@ -71,5 +70,4 @@ export function limitOutput(value, maxBytes = MAX_OUTPUT_BYTES_PER_STREAM) {
 
   const decoder = new TextDecoder();
   const kept = decoder.decode(bytes.slice(0, maxBytes));
-  return \`\${kept}\\n...[output truncated]\`;
-}
+  return kept + "\\n...[output truncated]";\n}
