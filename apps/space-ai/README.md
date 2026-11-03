@@ -32,6 +32,12 @@ The owner can allow broad scopes that a provider explicitly offers, but access r
 
 Sending/publishing, spending money, deleting important data, changing account security, modifying access policies, or editing the agent's security rules always requires owner confirmation.
 
+## Offline Linux sandbox
+
+The sandbox accepts source-only Python or JavaScript tasks. It uses fixed executable argument arrays (no shell parsing), disables outbound internet, has a 16 KB UTF-8 source limit, a 10-second default timeout (maximum 30 seconds), bounded stdout/stderr retention (6 KB per stream), one active task per workspace, and a rolling history of 30 task records. Submitted source code is not written to Durable Object storage. The initial runner does not mount the project repository or receive application credentials. The selected lite Container size is platform-limited; this is not a general-purpose development VM. See the sandbox design and limits in docs/SANDBOX.md.
+
+The source integration is not a live deployment. The first actual execution must be verified after wrangler deploy on an eligible Workers Paid account.
+
 ## Self-update policy
 
 The `automatic_after_gates` preference is stored, and `src/self-update/release-gate.js` determines whether a low-risk candidate is eligible for future automatic promotion. Every required check and registered evaluation case must pass; there may be no critical/high/medium security findings; protected files must be unchanged; staging health, artifact integrity, budget approval, and rollback must all be verified.
@@ -42,6 +48,7 @@ This policy helper does **not** deploy code. No production updater or deployment
 
 - Node.js 22 or a Node.js version supported by the pinned Vite/Wrangler toolchain.
 - A Cloudflare account permitted to use Workers AI and Durable Objects.
+- A Workers Paid plan and access to Cloudflare Containers are required to deploy the isolated sandbox runner. The durable_object Container scheduling policy is beta.
 - Workers AI free quota is limited to 10,000 Neurons per day. Usage beyond the free allowance requires a paid Workers plan; some specific models require paid billing. This project selects a model currently listed as available on Workers Free, but quota and capacity still apply.
 - Agents use a SQLite-backed Durable Object. Current Workers Free limits include a 5 GB aggregate Durable Objects storage allocation. Keep chat, task plans, audit records, and project memory concise.
 
