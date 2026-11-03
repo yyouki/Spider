@@ -69,3 +69,61 @@ test("blocks promotion when risk is medium or high", () => {
   assert.equal(result.autoPromote, false);
   assert.ok(result.reasons.some((reason) => reason.includes("low-risk")));
 });
+
+
+test("blocks promotion when a required CI check fails", () => {
+  const evidence = passingEvidence();
+  evidence.requiredChecks[1].status = "failed";
+
+  const result = evaluateReleaseCandidate(evidence);
+  assert.equal(result.autoPromote, false);
+  assert.ok(result.reasons.some((reason) => reason.includes("Every required CI check")));
+});
+
+test("blocks promotion for unresolved security findings", () => {
+  for (const severity of ["critical", "high", "medium"]) {
+    const evidence = passingEvidence();
+    evidence.securityFindings[severity] = 1;
+
+    const result = evaluateReleaseCandidate(evidence);
+    assert.equal(result.autoPromote, false, severity);
+    assert.ok(result.reasons.some((reason) => reason.includes("security findings")));
+  }
+});
+
+test("blocks promotion when staging health is incomplete", () => {
+  const evidence = passingEvidence();
+  evidence.stagingHealth.passed = 7;
+
+  const result = evaluateReleaseCandidate(evidence);
+  assert.equal(result.autoPromote, false);
+  assert.ok(result.reasons.some((reason) => reason.includes("staging health")));
+});
+
+test("blocks promotion when artifact integrity has not been verified", () => {
+  const evidence = passingEvidence();
+  evidence.artifactIntegrityVerified = false;
+
+  const result = evaluateReleaseCandidate(evidence);
+  assert.equal(result.autoPromote, false);
+  assert.ok(result.reasons.some((reason) => reason.includes("artifact integrity")));
+});
+
+test("blocks promotion when the resource and cost budget is not approved", () => {
+  const evidence = passingEvidence();
+  evidence.budgetApproved = false;
+
+  const result = evaluateReleaseCandidate(evidence);
+  assert.equal(result.autoPromote, false);
+  assert.ok(result.reasons.some((reason) => reason.includes("budget")));
+});
+
+test("blocks promotion when the evaluation set or required check list is empty", () => {
+  const evidence = passingEvidence();
+  evidence.requiredChecks = [];
+  evidence.evaluation = { passed: 0, total: 0 };
+
+  const result = evaluateReleaseCandidate(evidence);
+  assert.equal(result.autoPromote, false);
+  assert.ok(result.reasons.length >= 2);
+});
