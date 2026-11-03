@@ -28,7 +28,7 @@ Each workspace maps to a separate SandboxRunner Durable Object identity. The run
 
 Task records include status, timestamps, exit code, and bounded output/error information. They intentionally exclude the source text. Only one job can be active per workspace. If a Durable Object restarts and loses its in-memory cancellation handle, the runner destroys its task-dedicated Container before recording cancellation.
 
-The sandbox is still untrusted-code execution. The Container boundary is separate from the Worker runtime; this does not remove all risk. Do not add secrets, project mounts, outbound network access, Docker socket access, or host credentials to this runner.
+The sandbox is still untrusted-code execution. The Container boundary is separate from the Worker runtime; this does not remove all risk. Under the durable_object scheduling policy, processes have root capabilities inside the Container VM; a numeric user option does not create a privilege boundary. The runner therefore relies on the VM boundary, no outbound internet, no credentials, and destruction of the entire per-task Container after execution. Do not add secrets, project mounts, outbound network access, Docker socket access, or host credentials to this runner.
 
 ## Deployment requirements
 
