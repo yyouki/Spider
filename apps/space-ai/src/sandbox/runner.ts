@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { validateExecutionRequest, buildExecutionCommand, limitOutput } from "./execution-policy.js";
+import { validateExecutionRequest, buildExecutionCommand, MAX_OUTPUT_BYTES_PER_STREAM } from "./execution-policy.js";
 
 type TaskStatus =
   | "queued"
@@ -43,7 +43,7 @@ async function readBoundedStream(
 
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
-  const maxBytes = 6_000;
+  const maxBytes = MAX_OUTPUT_BYTES_PER_STREAM;
   let retainedBytes = 0;
   let truncated = false;
 
@@ -72,8 +72,13 @@ async function readBoundedStream(
     offset += chunk.byteLength;
   }
 
-  const text = new TextDecoder().decode(combined);
-  return truncated ? limitOutput(text + "\n...[output truncated]") : text;
+  const decoder = new TextDecoder();
+  if (!truncated) return decoder.decode(combined);
+
+  // Reserve room for the truncation marker inside the output cap.
+  const marker = "\n...[output truncated]";
+  const markerBytes = new TextEncoder().encode(marker).byteLength;
+  return decoder.decode(combined.slice(0, Math.max(0, maxBytes - markerBytes))) + marker;
 }
 
 export class SandboxRunner extends DurableObject<Env> {
@@ -93,7 +98,14 @@ export class SandboxRunner extends DurableObject<Env> {
 
     // Close the race while checking durable state after a Durable Object restart.
     this.acceptingTask = true;
-    const existingTasks = await this.listTasks();
+    let existingTasks: CodeTaskRecord[];
+    try {
+      existingTasks = await this.listTasks();
+    } catch (error) {
+      this.acceptingTask = false;
+      throw error;
+    }
+
     const hasActiveTask = existingTasks.some((task) =>
       ["queued", "running", "cancelling"].includes(task.status)
     );
@@ -260,16 +272,15 @@ export class SandboxRunner extends DurableObject<Env> {
         }
       });
 
-      // Read both streams concurrently and bound retained output to protect DO memory.
-      const exitCodePromise = process.exitCode.then((exitCode) => {
-        clearTimeout(active.timeout);
-        return exitCode;
-      });
-      const [stdout, stderr, exitCode] = await Promise.all([
-        readBoundedStream(process.stdout),
-        readBoundedStream(process.stderr),
-        exitCodePromise
-      ]);
+      // Drain streams concurrently, but destroy the per-task Container as soon
+      // as the main process exits. This also terminates any child process that
+      // user code may have spawned and prevents cross-task state from lingering.
+      const stdoutPromise = readBoundedStream(process.stdout);
+      const stderrPromise = readBoundedStream(process.stderr);
+      const exitCode = await process.exitCode;
+      clearTimeout(active.timeout);
+      await container.destroy("Sandbox task completed; discard the ephemeral container.");
+      const [stdout, stderr] = await Promise.all([stdoutPromise, stderrPromise]);
 
       const finishedAt = Date.now();
       const status: TaskStatus = active.cancelReason === "timed_out"
@@ -312,6 +323,16 @@ export class SandboxRunner extends DurableObject<Env> {
       });
     } finally {
       clearTimeout(active.timeout);
+
+      // A failed startup or timeout must not leave an interactive container alive.
+      const container = this.ctx.container;
+      if (container?.running) {
+        try {
+          await container.destroy("Sandbox task ended; discard the ephemeral container.");
+        } catch {
+          // The runtime may already have stopped the container.
+        }
+      }
       this.activeRuns.delete(record.id);
     }
   }
