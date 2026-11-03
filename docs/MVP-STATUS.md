@@ -48,7 +48,7 @@ No live Cloudflare account is connected to this coding session. The latest sourc
 
 - Web search or autonomous browsing.
 - Arbitrary website interaction.
-- General shell execution, project-repository execution, or a persistent coding VM. The initial sandbox is restricted to bounded offline Python/JavaScript snippets.
+- General shell execution, project-repository execution, or a persistent coding VM. The initial sandbox is restricted to bounded offline Python/JavaScript snippets and destroys its Container after each run.
 - File and folder ingestion, read/write tools.
 - Image/document/audio/video processing.
 - Android, Windows, or macOS device runners. The Linux snippet runner is only source-configured and not yet deployed.
