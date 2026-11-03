@@ -2,7 +2,7 @@
 
 space is being built as **one primary AI with one identity and one orchestration core**. Browser research, coding, file management, multimodal perception, memory, sandbox execution, hosting, and self-improvement are capabilities of that core rather than separate user-facing bots.
 
-> **Current status:** the first AI MVP has persistent chat, a task-plan ledger, calculator, approved project memory, owner-configurable autonomy preferences, and a tested self-update release gate. The browser, coding sandbox, multimodal pipelines, account/device connectors, OS runners, and production updater are still future work.
+> **Current status:** the first AI MVP has persistent chat, a task-plan ledger, calculator, approved project memory, owner-configurable autonomy preferences, and a tested self-update release gate. The offline Python/JavaScript sandbox is implemented in source but still requires a Workers Paid Container deployment and live verification. Browser research, project filesystem tools, multimodal pipelines, account/device connectors, OS runners, and production updater remain future work.
 
 ## AI MVP
 
@@ -25,6 +25,7 @@ The settings do not activate tools or grant third-party permissions that have no
 - [Multimodal and perception](docs/MULTIMODAL-AND-PERCEPTION.md)
 - [Memory and continuous improvement](docs/LEARNING-AND-SELF-IMPROVEMENT.md)
 - [Self-update release policy](docs/SELF-UPDATE-POLICY.md)
+- [Isolated Linux sandbox](docs/SANDBOX.md)
 - [Implementation roadmap](docs/ROADMAP.md)
 - [MVP status](docs/MVP-STATUS.md)
 - [Platform limitations](docs/PLATFORM-LIMITS.md)
