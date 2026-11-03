@@ -1,5 +1,5 @@
 import { AIChatAgent, type OnChatMessageOptions } from "@cloudflare/ai-chat";
-import { routeAgentRequest } from "agents";
+import { callable, routeAgentRequest } from "agents";
 import { createWorkersAI } from "workers-ai-provider";
 import { convertToModelMessages, pruneMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
@@ -16,12 +16,34 @@ const SYSTEM_PROMPT = [
   "Never ask for passwords, one-time codes, private keys, session cookies, or raw biometric data.",
   "Use calculate for exact basic arithmetic and getCapabilities when asked what you can currently do.",
   "Use task-plan tools for multi-step requests. A saved plan is not evidence that its steps have been executed.",
+  "Respect the owner's saved autonomy preferences, but only use capabilities that are actually connected and authorized.",
+  "Account integrations require provider-issued OAuth grants. Device access requires the operating system's own permission prompts.",
+  "Actions that can publish, send, spend money, delete important data, change security settings, or affect other people require owner confirmation.",
+  "Do not change authentication, access controls, secrets handling, security policy, or approval rules as part of automatic self-update.",
   "Only save project memory when explicitly requested. Memory writes always require user approval.",
   "Do not expose private internal reasoning; provide a concise explanation and relevant evidence.",
   "",
   "Current MVP: persistent chat, persistent task plans, arithmetic, and approved project memory.",
   "Not connected: autonomous browsing, code execution, filesystem tools, image/audio/video understanding, OS runners, account integrations, and production self-updates."
 ].join("\n");
+
+const autonomySettingsSchema = z.object({
+  workspaceExecution: z.enum(["manual", "autonomous_sandbox"]),
+  browserResearch: z.enum(["manual", "read_only_auto"]),
+  projectFiles: z.enum(["ask_before_write", "selected_workspace"]),
+  selfUpdate: z.enum(["manual", "automatic_after_gates"])
+}).strict();
+
+export type AutonomySettings = z.infer<typeof autonomySettingsSchema>;
+
+export const DEFAULT_AUTONOMY_SETTINGS: AutonomySettings = {
+  workspaceExecution: "autonomous_sandbox",
+  browserResearch: "read_only_auto",
+  projectFiles: "selected_workspace",
+  selfUpdate: "automatic_after_gates"
+};
+
+type SettingsRow = { settings_json: string; updated_at: number };
 
 type MemoryRow = { key: string; value: string; updated_at: number };
 type TaskPlanRow = {
@@ -53,6 +75,80 @@ export class SpaceAgent extends AIChatAgent<Env> {
       status TEXT NOT NULL CHECK(status IN ('planned', 'cancelled')),
       created_at INTEGER NOT NULL
     )`;
+
+    // Owner preferences do not grant tools or provider permissions.
+    this.sql`CREATE TABLE IF NOT EXISTS autonomy_settings (
+      settings_id TEXT PRIMARY KEY,
+      settings_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`;
+
+    this.sql`CREATE TABLE IF NOT EXISTS autonomy_settings_audit (
+      id TEXT PRIMARY KEY,
+      settings_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`;
+  }
+
+  @callable()
+  getAutonomySettings() {
+    const rows = this.sql`SELECT settings_json, updated_at
+      FROM autonomy_settings WHERE settings_id = 'owner'`;
+    let settings = DEFAULT_AUTONOMY_SETTINGS;
+
+    if (rows[0]) {
+      try {
+        const parsed = autonomySettingsSchema.safeParse(JSON.parse(rows[0].settings_json));
+        if (parsed.success) settings = parsed.data;
+      } catch {
+        // Invalid persisted settings fail back to safe typed defaults.
+      }
+    }
+
+    return {
+      settings,
+      updatedAt: rows[0]?.updated_at ? new Date(rows[0].updated_at).toISOString() : null,
+      effectiveCapabilities: {
+        workspaceExecution: "not_connected_no_sandbox_runner",
+        browserResearch: "not_connected_no_browser_tool",
+        projectFiles: "not_connected_no_filesystem_tool",
+        selfUpdate: "policy_only_no_deployment_runner"
+      },
+      fixedSafetyRules: [
+        "External account writes, sending, publishing, spending, and destructive actions require owner confirmation.",
+        "Authentication, security policy, secrets, and approval controls cannot be changed by automatic self-update.",
+        "Third-party accounts require official OAuth consent and revocable scopes.",
+        "Device access uses native OS permission prompts; raw biometric data is never collected."
+      ]
+    };
+  }
+
+  @callable()
+  updateAutonomySettings(input: unknown) {
+    const parsed = autonomySettingsSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new Error("Invalid autonomy settings. Choose only the supported options.");
+    }
+
+    const settings = parsed.data;
+    const now = Date.now();
+    this.sql`INSERT INTO autonomy_settings (settings_id, settings_json, updated_at)
+      VALUES ('owner', ${JSON.stringify(settings)}, ${now})
+      ON CONFLICT(settings_id) DO UPDATE SET
+        settings_json = excluded.settings_json,
+        updated_at = excluded.updated_at`;
+
+    this.sql`INSERT INTO autonomy_settings_audit (id, settings_json, updated_at)
+      VALUES (${crypto.randomUUID()}, ${JSON.stringify(settings)}, ${now})`;
+
+    // Keep only the latest 50 preference changes.
+    this.sql`DELETE FROM autonomy_settings_audit
+      WHERE id NOT IN (
+        SELECT id FROM autonomy_settings_audit
+        ORDER BY updated_at DESC LIMIT 50
+      )`;
+
+    return this.getAutonomySettings();
   }
 
   async onChatMessage(_onFinish: unknown, options?: OnChatMessageOptions) {
@@ -98,6 +194,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
             available: [
               "Persistent chat history",
               "Persistent task plans",
+              "Owner-configurable autonomy preferences",
               "Basic arithmetic",
               "Cloudflare Durable Object SQLite storage"
             ],
@@ -229,12 +326,13 @@ export default {
       return Response.json({
         status: "ok",
         app: "space-ai",
-        version: "0.2.0",
+        version: "0.3.0",
         agent: "SpaceAgent",
         model: "@cf/zai-org/glm-4.7-flash",
         capabilities: [
           "persistent-chat",
           "persistent-task-plans",
+          "owner-configurable-autonomy-preferences",
           "calculator",
           "approved-project-memory"
         ]
