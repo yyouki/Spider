@@ -78,6 +78,7 @@ async function readBoundedStream(
 
 export class SandboxRunner extends DurableObject<Env> {
   private readonly activeRuns = new Map<string, ActiveRun>();
+  private acceptingTask = false;
 
   /** Start one bounded task and return a task ID without exposing shell access. */
   async startCodeTask(input: unknown) {
@@ -86,8 +87,19 @@ export class SandboxRunner extends DurableObject<Env> {
       throw new Error(validation.error);
     }
 
-    if (this.activeRuns.size > 0) {
+    if (this.acceptingTask || this.activeRuns.size > 0) {
       throw new Error("A sandbox task is already running for this workspace.");
+    }
+
+    // Close the race while checking durable state after a Durable Object restart.
+    this.acceptingTask = true;
+    const existingTasks = await this.listTasks();
+    const hasActiveTask = existingTasks.some((task) =>
+      ["queued", "running", "cancelling"].includes(task.status)
+    );
+    if (hasActiveTask) {
+      this.acceptingTask = false;
+      throw new Error("A previous sandbox task is still active. Inspect or cancel it before starting another.");
     }
 
     const { language, source, timeoutSeconds } = validation.value;
@@ -111,19 +123,27 @@ export class SandboxRunner extends DurableObject<Env> {
     };
 
     this.activeRuns.set(taskId, active);
-    await this.persistTask(record);
+    try {
+      await this.persistTask(record);
 
-    // The source is kept only in this in-memory execution closure, never in the ledger.
-    this.ctx.waitUntil(this.executeTask(record, source, active));
+      // The source is kept only in this in-memory execution closure, never in the ledger.
+      this.ctx.waitUntil(this.executeTask(record, source, active));
 
-    return {
-      accepted: true,
-      taskId,
-      status: "queued" as const,
-      language,
-      timeoutSeconds,
-      note: "Task queued in an isolated offline Linux container. Use getCodeTaskStatus to inspect the result."
-    };
+      return {
+        accepted: true,
+        taskId,
+        status: "queued" as const,
+        language,
+        timeoutSeconds,
+        note: "Task queued in an isolated offline Linux container. Use getCodeTaskStatus to inspect the result."
+      };
+    } catch (error) {
+      clearTimeout(active.timeout);
+      this.activeRuns.delete(taskId);
+      throw error;
+    } finally {
+      this.acceptingTask = false;
+    }
   }
 
   async getTaskStatus(taskId: string) {
@@ -150,19 +170,31 @@ export class SandboxRunner extends DurableObject<Env> {
     if (active) {
       active.cancelReason = "cancelled";
       active.controller.abort();
-    } else if (this.ctx.container?.running) {
+
+      await this.persistTask({
+        ...record,
+        status: "cancelling",
+        updatedAt: Date.now()
+      });
+      return { found: true, cancelled: true, status: "cancelling" as const };
+    }
+
+    if (this.ctx.container?.running) {
       // If the DO restarted and lost its in-memory process signal, destroy this
       // task-dedicated container rather than claiming the process was stopped.
       await this.ctx.container.destroy("Sandbox task cancelled by owner.");
     }
 
+    const finishedAt = Date.now();
     await this.persistTask({
       ...record,
-      status: "cancelling",
-      updatedAt: Date.now()
+      status: "cancelled",
+      updatedAt: finishedAt,
+      finishedAt,
+      error: "Execution was cancelled."
     });
 
-    return { found: true, cancelled: true, status: "cancelling" as const };
+    return { found: true, cancelled: true, status: "cancelled" as const };
   }
 
   private isTaskId(value: string): boolean {
