@@ -2,7 +2,7 @@
 
 space diarahkan menjadi **satu AI utama dengan banyak kemampuan terintegrasi**: riset web, coding, file/document analysis, multimodal perception, memory, sandbox execution, hosting, dan evaluasi. Pengguna tetap berinteraksi dengan satu identitas dan satu pusat koordinasi.
 
-> **Status:** MVP AI pertama tersedia di `apps/space-ai`. Saat ini ia memiliki chat persisten, kalkulator, pemeriksaan kapabilitas, dan project memory yang memerlukan persetujuan. Browser agent, coding sandbox, multimodal, OS runners, dan self-update produksi belum diimplementasikan.
+> **Status:** MVP AI pertama tersedia di `apps/space-ai`. Saat ini ia memiliki chat persisten, task ledger persisten untuk menyimpan rencana kerja, kalkulator, capability status, dan project memory yang memerlukan persetujuan. Browser agent, coding sandbox, multimodal, OS runners, dan self-update produksi belum diimplementasikan.
 
 ## Mulai dari AI MVP
 
@@ -16,6 +16,7 @@ Lihat [apps/space-ai](apps/space-ai/README.md) untuk persiapan lokal, konfiguras
 - [Multimodal dan persepsi](docs/MULTIMODAL-AND-PERCEPTION.md)
 - [Memori, evaluasi, dan self-improvement](docs/LEARNING-AND-SELF-IMPROVEMENT.md)
 - [Roadmap pengembangan](docs/ROADMAP.md)
+- [Status implementasi MVP](docs/MVP-STATUS.md)
 - [Batasan platform saat ini](docs/PLATFORM-LIMITS.md)
 
 ## Prinsip penting
