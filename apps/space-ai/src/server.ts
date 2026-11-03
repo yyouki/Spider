@@ -96,18 +96,25 @@ export class SpaceAgent extends AIChatAgent<Env> {
       FROM autonomy_settings WHERE settings_id = 'owner'`;
     let settings = DEFAULT_AUTONOMY_SETTINGS;
 
-    if (rows[0]) {
+    const persistedJson = rows[0]?.settings_json;
+    if (typeof persistedJson === "string") {
       try {
-        const parsed = autonomySettingsSchema.safeParse(JSON.parse(rows[0].settings_json));
+        const parsed = autonomySettingsSchema.safeParse(JSON.parse(persistedJson));
         if (parsed.success) settings = parsed.data;
       } catch {
         // Invalid persisted settings fail back to safe typed defaults.
       }
     }
 
+    const updatedAtValue = rows[0]?.updated_at;
+    const updatedAt =
+      typeof updatedAtValue === "number" || typeof updatedAtValue === "string"
+        ? new Date(updatedAtValue).toISOString()
+        : null;
+
     return {
       settings,
-      updatedAt: rows[0]?.updated_at ? new Date(rows[0].updated_at).toISOString() : null,
+      updatedAt,
       effectiveCapabilities: {
         workspaceExecution: "not_connected_no_sandbox_runner",
         browserResearch: "not_connected_no_browser_tool",
