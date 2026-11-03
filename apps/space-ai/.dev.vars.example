@@ -1,0 +1,9 @@
+# Copy to .dev.vars for local-only testing.
+# This bypass is never read by a production deployment.
+DEPLOYMENT_ENV=development
+ALLOW_LOCAL_DEV_AUTH_BYPASS=true
+
+# Production deployment requires all three Cloudflare Access values.
+ACCESS_TEAM_DOMAIN=
+ACCESS_AUD=
+ACCESS_ALLOWED_EMAIL=

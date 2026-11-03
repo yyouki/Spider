@@ -1,0 +1,34 @@
+{
+  "name": "space-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The first persistent single-core AI workspace for space.",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "types": "wrangler types env.d.ts",
+    "check": "npm run types && tsc --noEmit",
+    "deploy": "npm run check && vite build && wrangler deploy"
+  },
+  "dependencies": {
+    "@cloudflare/ai-chat": "0.9.3",
+    "agents": "0.17.4",
+    "ai": "6.0.197",
+    "jose": "6.1.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "workers-ai-provider": "3.2.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.46.0",
+    "@types/node": "26.0.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "typescript": "6.0.3",
+    "vite": "8.1.0",
+    "wrangler": "4.113.0"
+  }
+}

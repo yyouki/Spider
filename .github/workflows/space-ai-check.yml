@@ -1,0 +1,38 @@
+name: Check space AI MVP
+
+on:
+  pull_request:
+    paths:
+      - "apps/space-ai/**"
+      - ".github/workflows/space-ai-check.yml"
+      - "README.md"
+      - "docs/**"
+  push:
+    branches:
+      - main
+      - docs/autonomous-ai-core-vision
+    paths:
+      - "apps/space-ai/**"
+      - ".github/workflows/space-ai-check.yml"
+      - "README.md"
+      - "docs/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/space-ai
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Type-check and generate Cloudflare bindings
+        run: npm run check
+      - name: Build the Worker and dashboard
+        run: npm run build
