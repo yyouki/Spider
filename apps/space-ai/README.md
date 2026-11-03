@@ -1,4 +1,4 @@
-# space AI — MVP 0.2
+# space AI — MVP 0.3
 
 A first, deliberately small implementation of the single-core space AI workspace.
 
@@ -8,6 +8,12 @@ A first, deliberately small implementation of the single-core space AI workspace
 - Streaming text chat from a mobile-first React interface.
 - Persistent chat history and resumable chat state through Cloudflare Agents / Durable Objects.
 - A task ledger for saving, listing, and cancelling plans. A saved plan is not executed automatically.
+- Owner-configurable autonomy preferences stored in the Agent's SQLite database:
+  - autonomous execution inside a future isolated sandbox;
+  - automatic read-only browser research once a browser tool is connected;
+  - file access limited to a selected workspace;
+  - automatic promotion preference for eligible low-risk self-updates after every release gate passes.
+- A deterministic self-update release gate with unit tests.
 - A calculator tool for exact basic arithmetic.
 - A capability-status tool that reports what is really connected.
 - Project memory stored in the Agent's SQLite database. Saving a memory requires explicit user approval in the UI.
@@ -16,14 +22,28 @@ A first, deliberately small implementation of the single-core space AI workspace
 
 ## Not included yet
 
-Autonomous browser, general-purpose shell/code execution, file and folder ingestion, image/video/audio understanding, Android/Windows/macOS runners, Gmail or other account integrations, and production self-updates are not connected. The AI is instructed to say so rather than pretend those tools exist.
+Autonomous browser, general-purpose shell/code execution, file and folder ingestion, image/video/audio understanding, Android/Windows/macOS runners, Gmail or other account integrations, and a production updater are not connected. The AI and UI are instructed to say so rather than pretend those capabilities exist.
+
+## Autonomy, accounts, and devices
+
+The Autonomy panel saves the owner's preferred operating mode. A saved preference does not grant an OAuth scope, Android permission, or create an unavailable sandbox/browser. Each account connection must use the provider's official OAuth consent screen and revocable scopes. Device features must use native Android permission prompts.
+
+The owner can allow broad scopes that a provider explicitly offers, but access remains limited to the connected account, the provider's consent, and the app's published integration. Never paste passwords, MFA codes, cookies, or private keys into the agent.
+
+Sending/publishing, spending money, deleting important data, changing account security, modifying access policies, or editing the agent's security rules always requires owner confirmation.
+
+## Self-update policy
+
+The `automatic_after_gates` preference is stored, and `src/self-update/release-gate.js` determines whether a low-risk candidate is eligible for future automatic promotion. Every required check and registered evaluation case must pass; there may be no critical/high/medium security findings; protected files must be unchanged; staging health, artifact integrity, budget approval, and rollback must all be verified.
+
+This policy helper does **not** deploy code. No production updater or deployment credential is connected yet. The release gate's unit tests run in CI. Passing every registered test is not mathematical proof that all possible defects are absent.
 
 ## Requirements
 
 - Node.js 22 or a Node.js version supported by the pinned Vite/Wrangler toolchain.
 - A Cloudflare account permitted to use Workers AI and Durable Objects.
 - Workers AI free quota is limited to 10,000 Neurons per day. Usage beyond the free allowance requires a paid Workers plan; some specific models require paid billing. This project selects a model currently listed as available on Workers Free, but quota and capacity still apply.
-- Agents use a SQLite-backed Durable Object. Current Workers Free limits include a 5 GB aggregate Durable Objects storage allocation. Keep chat and project memory concise.
+- Agents use a SQLite-backed Durable Object. Current Workers Free limits include a 5 GB aggregate Durable Objects storage allocation. Keep chat, task plans, audit records, and project memory concise.
 
 Check current limits before deploying:
 - https://developers.cloudflare.com/workers-ai/platform/pricing/
@@ -43,7 +63,7 @@ npm run dev -- --host 0.0.0.0
 
 Workers AI is configured as a remote binding, so local development calls Cloudflare and requires Wrangler authentication. In a Codespace, keep the forwarded Vite port private. The local auth bypass is read only from `.dev.vars`; it is not a production variable and must never be enabled for a deployed Worker.
 
-Open the forwarded Vite port from the Codespaces Ports panel. If the model request is rejected, inspect Workers AI quota/model availability rather than changing to a paid model automatically.
+Open the forwarded Vite port from the Codespaces Ports panel.
 
 ## Production access — required before deployment
 
@@ -62,13 +82,13 @@ Open the forwarded Vite port from the Codespaces Ports panel. If the model reque
    npm run deploy
    ```
 
-The Worker validates the `Cf-Access-Jwt-Assertion` signature, issuer, audience, and allowed email before forwarding chat/API requests. It fails closed if Access settings are missing or invalid. Cloudflare Access must also protect the complete Worker so static assets are behind the login page.
+The Worker validates the `Cf-Access-Jwt-Assertion` signature, issuer, audience, and allowed email before forwarding agent/API requests. It fails closed if Access settings are missing or invalid. Cloudflare Access must also protect the complete Worker so static assets are behind the login page.
 
-Do not put OAuth tokens, passwords, private keys, or service-account files in this repository. Never put real secrets in `wrangler.jsonc`, `.dev.vars.example`, or another committed file.
+Do not put OAuth tokens, passwords, private keys, or service-account files in this repository.
 
 ## Data and persistence
 
-Chat history, task plans, and approved project notes live in the Durable Object SQLite storage. They are not stored in Git. Clearing chat history does not delete task plans or approved project-memory notes. A separate memory management UI and export/delete controls are future work; do not store sensitive personal information in the MVP.
+Chat history, task plans, autonomy preferences, settings audit entries, and approved project notes live in the Durable Object SQLite storage. They are not stored in Git. Clearing chat history does not delete settings, task plans, or approved project-memory notes. Memory export/delete UI is future work; do not store sensitive personal information in the MVP.
 
 This is persistent application state, not a backup guarantee. Configure and test an independent export/backup strategy before relying on it for important data.
 
@@ -80,8 +100,4 @@ npm run check
 npm run build
 ```
 
-CI runs these checks on pull requests. A successful build does not verify a real Cloudflare deployment, Access policy, account quota, or model availability.
-
-## License
-
-The repository's root license governs this project. Review third-party package and model licenses separately before redistributing or commercializing a deployment.
+CI runs TypeScript/binding checks, release-gate unit tests, and a production build. A successful build does not verify a real Cloudflare deployment, Access policy, account quota, or model availability.

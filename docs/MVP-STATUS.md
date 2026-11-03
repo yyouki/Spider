@@ -1,6 +1,6 @@
 # space AI MVP status
 
-Last implementation pass: November 3, 2026.
+Last implementation pass: November 4, 2026.
 
 ## Implemented in source
 
@@ -13,35 +13,50 @@ Last implementation pass: November 3, 2026.
 | Exact calculator tool | Implemented in source | `calculate` tool |
 | Capability reporting | Implemented in source | `getCapabilities` tool |
 | Project memory | Implemented in source | SQLite table with approval-required writes |
+| Owner autonomy settings | Implemented in source | callable getter/updater, SQLite persistence, mobile settings UI |
+| Self-update release policy | Implemented in source | deterministic release gate + Node unit tests |
 | Private owner access | Implemented in source | Cloudflare Access JWT issuer/audience/email validation |
-| Build/type-check workflow | Added | `.github/workflows/space-ai-check.yml` |
+| CI build and test workflow | Added | `.github/workflows/space-ai-check.yml` |
+
+## Autonomy settings versus actual access
+
+The owner can save preferences for future sandbox execution, read-only browser research, selected-workspace file management, and automatic promotion of eligible low-risk updates. Those preferences do not activate missing tools or grant permissions to a third-party provider.
+
+Account access must be implemented through official OAuth consent with scopes granted by the account owner. Android/device features must use OS permission prompts. The MVP has no account or device connector.
+
+External writes and high-impact actions (send/publish, spend, delete important data, change security/access controls) remain owner-confirmation actions.
+
+## Self-update
+
+The self-update preference and deterministic release gate are implemented. Promotion can only be considered for low-risk application changes after all declared checks and evaluation cases pass, protected areas remain unchanged, security findings are zero at critical/high/medium levels, rollback and staging are verified, artifact integrity passes, and budget approval is present.
+
+No production updater or deploy credential is connected. Therefore automatic self-update is not active.
 
 ## Not yet verified
 
-The repository integration does not have a live Cloudflare account attached to this coding session. Therefore none of these are claimed as successful:
-- npm dependency installation in the user's Codespace (GitHub Actions CI is separate);
-- TypeScript check or Vite production build in the live Cloudflare runtime;
-- Cloudflare Workers deployment;
+No live Cloudflare account is connected to this coding session. The latest source change must pass its own GitHub Actions run. The following remain unverified:
+- npm dependency installation and build for the latest autonomy settings change;
+- actual callable RPC behavior after deployment;
+- Cloudflare deployment;
 - Cloudflare Access policy setup;
 - actual Workers AI generation/model capacity;
-- chat/task/memory persistence across a real deploy/restart;
-- backup/export/restore of Durable Object data.
-
-A successful GitHub Actions build verifies source compilation, not live Cloudflare deployment or account quota.
+- chat/task/settings persistence across a real restart/deploy;
+- database backup/export/restore.
 
 ## Explicitly not implemented
 
 - Web search or autonomous browsing.
 - Arbitrary website interaction.
 - General shell execution or code sandbox.
+- File and folder ingestion, read/write tools.
 - Image/document/audio/video processing.
 - Android, Windows, macOS, or Linux VM runners.
 - Gmail, GitHub, or other third-party account OAuth connectors.
-- Self-modifying code deployment.
+- A production self-update/deployment worker.
 - Scheduled 24/7 autonomous research.
 - Memory/task export and deletion UI.
 
-These features must be implemented as separate, permissioned modules. They must not be advertised as available until tested.
+These features must not be advertised as available until implemented and tested.
 
 ## Cost and privacy boundaries
 

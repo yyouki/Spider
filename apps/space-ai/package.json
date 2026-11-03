@@ -1,6 +1,6 @@
 {
   "name": "space-ai",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "The first persistent single-core AI workspace for space.",
@@ -8,7 +8,8 @@
     "dev": "vite dev",
     "build": "vite build",
     "types": "wrangler types env.d.ts",
-    "check": "npm run types && tsc --noEmit",
+    "test": "node --test src/self-update/release-gate.test.js",
+    "check": "npm run types && tsc --noEmit && npm test",
     "deploy": "npm run check && vite build && wrangler deploy"
   },
   "dependencies": {
