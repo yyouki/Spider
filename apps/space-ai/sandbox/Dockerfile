@@ -1,4 +1,4 @@
-# Use Cloudflare's Debian base image, which includes the Node.js runtime.
+# Use a pinned public Node.js image on Debian Trixie.
 FROM node:24.20.0-trixie-slim
 
 USER root
