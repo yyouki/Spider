@@ -155,30 +155,6 @@ export async function requireOwnerAccess(
   };
 }
 
-/** Revoke the temporary GitHub OAuth grant after reading the authenticated account. */
-async function revokeGitHubGrant(
-  clientId: string,
-  clientSecret: string,
-  accessToken: string
-): Promise<boolean> {
-  const credentials = btoa(`${clientId}:${clientSecret}`);
-  const response = await fetch(
-    `https://api.github.com/applications/${encodeURIComponent(clientId)}/grant`,
-    {
-      method: "DELETE",
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        Accept: "application/vnd.github+json",
-        "Content-Type": "application/json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "space-ai"
-      },
-      body: JSON.stringify({ access_token: accessToken })
-    }
-  );
-  return response.status === 204;
-}
-
 /** Handle OAuth routes before protected API and Agent routing. */
 export async function handleAuthRequest(
   request: Request,
@@ -196,7 +172,7 @@ export async function handleAuthRequest(
     const authorize = new URL("https://github.com/login/oauth/authorize");
     authorize.searchParams.set("client_id", env.GITHUB_OAUTH_CLIENT_ID);
     authorize.searchParams.set("redirect_uri", callback);
-    authorize.searchParams.set("scope", "read:user offline_access");
+    authorize.searchParams.set("scope", "read:user");
     authorize.searchParams.set("state", state);
 
     const headers = new Headers({ Location: authorize.toString(), "Cache-Control": "no-store" });
@@ -269,7 +245,6 @@ export async function handleAuthRequest(
         }
       });
       if (!userResponse.ok) {
-        await revokeGitHubGrant(env.GITHUB_OAUTH_CLIENT_ID, env.GITHUB_OAUTH_CLIENT_SECRET, tokenData.access_token);
         return new Response("Could not verify the GitHub account.", {
           status: 502,
           headers: clearHeaders
@@ -280,18 +255,7 @@ export async function handleAuthRequest(
       const allowed = typeof user.login === "string" &&
         user.login.toLowerCase() === env.GITHUB_OWNER_LOGIN.toLowerCase();
 
-      // The OAuth access is used only to verify the username, then immediately revoked.
-      const revoked = await revokeGitHubGrant(
-        env.GITHUB_OAUTH_CLIENT_ID,
-        env.GITHUB_OAUTH_CLIENT_SECRET,
-        tokenData.access_token
-      );
-      if (!revoked) {
-        return new Response("GitHub sign-in could not safely finish because its temporary access grant was not revoked.", {
-          status: 502,
-          headers: clearHeaders
-        });
-      }
+      // Use the short-lived read:user token only for this lookup; never persist it.
       if (!allowed || typeof user.login !== "string") {
         return new Response("This GitHub account is not allowed to access this private workspace.", {
           status: 403,

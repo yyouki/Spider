@@ -3,7 +3,6 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { buildDockerRun, truncateUtf8, validateSandboxInput, MAX_OUTPUT_BYTES } from "./sandbox-runtime.mjs";
 
 const hostEnv = {
@@ -143,6 +142,4 @@ async function main() {
   await writeFile(outputFile, Buffer.concat([resultIv, ciphertext, cipher.getAuthTag()]), { mode: 0o600 });
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  await main();
-}
+await main();

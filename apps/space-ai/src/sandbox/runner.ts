@@ -36,6 +36,12 @@ function fromBase64(value: string): Uint8Array {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+function asArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 export class SandboxRunner extends DurableObject<Env> {
   private submitting = false;
 
@@ -62,7 +68,7 @@ export class SandboxRunner extends DurableObject<Env> {
   }
 
   private async encryptSource(source: string, keyBytes: Uint8Array): Promise<string> {
-    const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt"]);
+    const key = await crypto.subtle.importKey("raw", asArrayBuffer(keyBytes), "AES-GCM", false, ["encrypt"]);
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const ciphertext = await crypto.subtle.encrypt(
       { name: "AES-GCM", iv, tagLength: 128 },
@@ -98,11 +104,11 @@ export class SandboxRunner extends DurableObject<Env> {
 
     const keyBytes = fromBase64(encodedKey);
     if (keyBytes.byteLength !== 32) throw new Error("Sandbox task key is invalid.");
-    const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
+    const key = await crypto.subtle.importKey("raw", asArrayBuffer(keyBytes), "AES-GCM", false, ["decrypt"]);
     const plaintext = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: encrypted.subarray(0, 12), tagLength: 128 },
+      { name: "AES-GCM", iv: asArrayBuffer(encrypted.subarray(0, 12)), tagLength: 128 },
       key,
-      encrypted.subarray(12)
+      asArrayBuffer(encrypted.subarray(12))
     );
     const result = JSON.parse(new TextDecoder().decode(plaintext)) as {
       status?: TaskStatus;
