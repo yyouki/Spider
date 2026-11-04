@@ -12,3 +12,4 @@
 *.img.gz.sha256
 gcloud-credentials*.json
 service-account*.json
+.cloudflare-secrets.json

@@ -1,4 +1,4 @@
-# space AI — MVP 0.3
+# space AI — MVP 0.4
 
 A first, deliberately small implementation of the single-core space AI workspace.
 
@@ -9,7 +9,7 @@ A first, deliberately small implementation of the single-core space AI workspace
 - Persistent chat history and resumable chat state through Cloudflare Agents / Durable Objects.
 - A task ledger for saving, listing, and cancelling plans. A saved plan is not executed automatically.
 - Owner-configurable autonomy preferences stored in the Agent's SQLite database:
-  - autonomous execution inside a future isolated sandbox;
+  - autonomous execution of bounded Python/JavaScript tasks in the isolated offline Linux sandbox (deployment-gated);
   - automatic read-only browser research once a browser tool is connected;
   - file access limited to a selected workspace;
   - automatic promotion preference for eligible low-risk self-updates after every release gate passes.
@@ -22,7 +22,7 @@ A first, deliberately small implementation of the single-core space AI workspace
 
 ## Not included yet
 
-Autonomous browser, general-purpose shell/code execution, file and folder ingestion, image/video/audio understanding, Android/Windows/macOS runners, Gmail or other account integrations, and a production updater are not connected. The AI and UI are instructed to say so rather than pretend those capabilities exist.
+Autonomous browser, project filesystem tools, image/video/audio understanding, Android/Windows/macOS device runners, Gmail or other account integrations, and a production updater are not connected. The sandbox is implemented in source but is not active until Cloudflare deployment and runtime verification. The AI and UI are instructed to say so rather than pretend those capabilities exist.
 
 ## Autonomy, accounts, and devices
 
@@ -74,26 +74,13 @@ Workers AI is configured as a remote binding, so local development calls Cloudfl
 
 Open the forwarded Vite port from the Codespaces Ports panel.
 
-## Production access — required before deployment
+## Production deployment
 
-**Do not deploy this app as a public chat endpoint.** Before making it available:
+Use the manual [Cloudflare deployment workflow](../../.github/workflows/deploy-space-ai.yml) after completing the setup in [Cloudflare deployment guide](../../docs/CLOUDFLARE-DEPLOYMENT.md). The workflow only runs from `main` after the operator types `DEPLOY` and GitHub's `production` environment secrets are present.
 
-1. Create a Cloudflare Access self-hosted application protecting the entire `space-ai` Worker.
-2. Add an Allow policy for the one owner account only. Do not allow public/Everyone access.
-3. Configure Worker variables:
-   - `ACCESS_TEAM_DOMAIN`: for example `https://your-team.cloudflareaccess.com`.
-   - `ACCESS_AUD`: the Access application's Audience (AUD) tag.
-   - `ACCESS_ALLOWED_EMAIL`: the exact email permitted to use this private workspace.
-   - `DEPLOYMENT_ENV`: `production`.
-4. Deploy:
+The required Worker secrets are declared in `wrangler.jsonc` and are uploaded encrypted with the deployment. The Worker continues to fail closed if Cloudflare Access values are missing or invalid. Protect the entire deployed hostname with a Cloudflare Access application that allows only the owner identity.
 
-   ```bash
-   npm run deploy
-   ```
-
-The Worker validates the `Cf-Access-Jwt-Assertion` signature, issuer, audience, and allowed email before forwarding agent/API requests. It fails closed if Access settings are missing or invalid. Cloudflare Access must also protect the complete Worker so static assets are behind the login page.
-
-Do not put OAuth tokens, passwords, private keys, or service-account files in this repository.
+Do not commit `.dev.vars`, `.cloudflare-secrets.json`, OAuth tokens, passwords, private keys, or service-account files.
 
 ## Data and persistence
 
