@@ -413,7 +413,7 @@ export default {
           "persistent-chat",
           "persistent-task-plans",
           "owner-configurable-autonomy-preferences",
-          "isolated-offline-sandbox-runner-source",
+          "github-actions-offline-sandbox-runner",
           "calculator",
           "approved-project-memory"
         ]
