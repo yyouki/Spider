@@ -1,6 +1,6 @@
 {
   "name": "space-ai",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "description": "The first persistent single-core AI workspace for space.",
@@ -8,7 +8,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "types": "wrangler types env.d.ts",
-    "test": "node --test src/self-update/release-gate.test.js src/sandbox/execution-policy.test.js",
+    "test": "node --test src/self-update/release-gate.test.js src/sandbox/execution-policy.test.js ../../scripts/sandbox-runtime.test.mjs",
     "check": "npm run types && tsc --noEmit && npm test",
     "deploy": "npm run check && vite build && wrangler deploy"
   },
@@ -16,7 +16,7 @@
     "@cloudflare/ai-chat": "0.9.3",
     "agents": "0.17.4",
     "ai": "6.0.197",
-    "jose": "6.1.0",
+    "fflate": "0.8.2",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "workers-ai-provider": "3.2.1",

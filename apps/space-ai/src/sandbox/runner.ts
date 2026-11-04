@@ -1,342 +1,289 @@
 import { DurableObject } from "cloudflare:workers";
-import { validateExecutionRequest, buildExecutionCommand, MAX_OUTPUT_BYTES_PER_STREAM } from "./execution-policy.js";
+import { unzipSync } from "fflate";
+import { MAX_OUTPUT_BYTES_PER_STREAM, validateExecutionRequest } from "./execution-policy.js";
 
-type TaskStatus =
-  | "queued"
-  | "running"
-  | "succeeded"
-  | "failed"
-  | "cancelling"
-  | "cancelled"
-  | "timed_out";
-
-type CodeTaskRecord = {
+type TaskStatus = "queued" | "running" | "succeeded" | "failed" | "cancelling" | "cancelled" | "timed_out";
+type Task = {
   id: string;
   language: "python" | "javascript";
   status: TaskStatus;
   createdAt: number;
   updatedAt: number;
-  startedAt?: number;
   finishedAt?: number;
-  exitCode?: number;
+  exitCode?: number | null;
   stdout?: string;
   stderr?: string;
   error?: string;
+  workflowRunId?: number;
 };
+type StoredTask = Task & { resultKey?: string };
+type WorkflowRun = { id: number; display_title?: string; status: string; conclusion: string | null };
+type Artifact = { name: string; expired: boolean; archive_download_url: string };
 
-type ActiveRun = {
-  controller: AbortController;
-  cancelReason: "cancelled" | "timed_out" | null;
-  processExited: boolean;
-  timeout: ReturnType<typeof setTimeout>;
-};
+const API_ROOT = "https://api.github.com/repos/yyouki/space";
+const WORKFLOW = "sandbox-run.yml";
+const PREFIX = "code-task:";
+const HISTORY_LIMIT = 30;
+const TERMINAL: TaskStatus[] = ["succeeded", "failed", "cancelled", "timed_out"];
 
-const TASK_PREFIX = "code-task:";
-const TASK_HISTORY_LIMIT = 30;
-const TASK_LIST_LIMIT = 20;
-const CONTAINER_IDLE_TIMEOUT_MS = 60_000;
-
-/** Drain output streams while retaining only a small, bounded prefix. */
-async function readBoundedStream(
-  stream: ReadableStream<Uint8Array> | null | undefined
-): Promise<string> {
-  if (!stream) return "";
-
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  const maxBytes = MAX_OUTPUT_BYTES_PER_STREAM;
-  let retainedBytes = 0;
-  let truncated = false;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-
-      const remaining = maxBytes - retainedBytes;
-      if (remaining > 0) {
-        const chunk = value.slice(0, remaining);
-        chunks.push(chunk);
-        retainedBytes += chunk.byteLength;
-      }
-      if (value.byteLength > remaining) truncated = true;
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const combined = new Uint8Array(retainedBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    combined.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  const decoder = new TextDecoder();
-  if (!truncated) return decoder.decode(combined);
-
-  // Reserve room for the truncation marker inside the output cap.
-  const marker = "\n...[output truncated]";
-  const markerBytes = new TextEncoder().encode(marker).byteLength;
-  return decoder.decode(combined.slice(0, Math.max(0, maxBytes - markerBytes))) + marker;
+function base64(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+function fromBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
 export class SandboxRunner extends DurableObject<Env> {
-  private readonly activeRuns = new Map<string, ActiveRun>();
-  private acceptingTask = false;
+  private submitting = false;
 
-  /** Start one bounded task and return a task ID without exposing shell access. */
-  async startCodeTask(input: unknown) {
-    const validation = validateExecutionRequest(input);
-    if (!validation.ok) {
-      throw new Error(validation.error);
-    }
+  private publicTask(task: StoredTask): Task {
+    const { resultKey: _secret, ...safe } = task;
+    return safe;
+  }
 
-    if (this.acceptingTask || this.activeRuns.size > 0) {
-      throw new Error("A sandbox task is already running for this workspace.");
-    }
-
-    // Close the race while checking durable state after a Durable Object restart.
-    this.acceptingTask = true;
-    let existingTasks: CodeTaskRecord[];
-    try {
-      existingTasks = await this.listTasks();
-    } catch (error) {
-      this.acceptingTask = false;
-      throw error;
-    }
-
-    const hasActiveTask = existingTasks.some((task) =>
-      ["queued", "running", "cancelling"].includes(task.status)
+  private async github(path: string, init: RequestInit = {}): Promise<Response> {
+    const token = this.env.GITHUB_ACTIONS_TOKEN;
+    if (!token) throw new Error("GitHub Actions integration is not configured.");
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", "Bearer " + token);
+    headers.set("Accept", "application/vnd.github+json");
+    headers.set("X-GitHub-Api-Version", "2022-11-28");
+    headers.set("User-Agent", "space-ai-sandbox");
+    if (init.body) headers.set("Content-Type", "application/json");
+    const response = await fetch(
+      path.startsWith("https://") ? path : API_ROOT + "/" + path,
+      { ...init, headers }
     );
-    if (hasActiveTask) {
-      this.acceptingTask = false;
-      throw new Error("A previous sandbox task is still active. Inspect or cancel it before starting another.");
-    }
+    if (!response.ok) throw new Error("GitHub Actions API returned HTTP " + response.status + ".");
+    return response;
+  }
 
-    const { language, source, timeoutSeconds } = validation.value;
-    const taskId = crypto.randomUUID();
-    const now = Date.now();
-    const record: CodeTaskRecord = {
-      id: taskId,
-      language,
-      status: "queued",
-      createdAt: now,
-      updatedAt: now
+  private async encryptSource(source: string, keyBytes: Uint8Array): Promise<string> {
+    const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt"]);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv, tagLength: 128 },
+      key,
+      new TextEncoder().encode(source)
+    );
+    const payload = new Uint8Array(iv.length + ciphertext.byteLength);
+    payload.set(iv, 0);
+    payload.set(new Uint8Array(ciphertext), iv.length);
+    // Only ciphertext is stored in the public GitHub workflow event.
+    return base64(payload);
+  }
+
+  private async findRun(taskId: string): Promise<WorkflowRun | null> {
+    const query = new URLSearchParams({ event: "workflow_dispatch", branch: "main", per_page: "100" });
+    const response = await this.github("actions/workflows/" + WORKFLOW + "/runs?" + query.toString());
+    const data = await response.json() as { workflow_runs?: WorkflowRun[] };
+    const title = "space-sandbox-" + taskId;
+    return data.workflow_runs?.find((run) => run.display_title === title) ?? null;
+  }
+
+  private async readArtifact(runId: number, taskId: string, encodedKey: string) {
+    const response = await this.github("actions/runs/" + runId + "/artifacts?per_page=100");
+    const data = await response.json() as { artifacts?: Artifact[] };
+    const artifact = data.artifacts?.find((item) => item.name === "space-result-" + taskId && !item.expired);
+    if (!artifact) throw new Error("Sandbox result artifact is not available yet.");
+
+    const zipResponse = await this.github(artifact.archive_download_url);
+    const zip = new Uint8Array(await zipResponse.arrayBuffer());
+    if (zip.byteLength > 1_000_000) throw new Error("Sandbox result artifact is unexpectedly large.");
+    const encrypted = unzipSync(zip)["result.bin"];
+    if (!encrypted || encrypted.byteLength < 28) throw new Error("Sandbox result artifact is malformed.");
+
+    const keyBytes = fromBase64(encodedKey);
+    if (keyBytes.byteLength !== 32) throw new Error("Sandbox task key is invalid.");
+    const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
+    const plaintext = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: encrypted.subarray(0, 12), tagLength: 128 },
+      key,
+      encrypted.subarray(12)
+    );
+    const result = JSON.parse(new TextDecoder().decode(plaintext)) as {
+      status?: TaskStatus;
+      exitCode?: number | null;
+      stdout?: string;
+      stderr?: string;
+      error?: string;
     };
-
-    const active: ActiveRun = {
-      controller: new AbortController(),
-      cancelReason: null,
-      processExited: false,
-      timeout: setTimeout(() => {
-        active.cancelReason = "timed_out";
-        active.controller.abort();
-      }, timeoutSeconds * 1_000)
+    if (!result.status || !TERMINAL.includes(result.status)) throw new Error("Sandbox result status is invalid.");
+    return {
+      status: result.status,
+      exitCode: typeof result.exitCode === "number" ? result.exitCode : null,
+      stdout: String(result.stdout ?? "").slice(0, MAX_OUTPUT_BYTES_PER_STREAM),
+      stderr: String(result.stderr ?? "").slice(0, MAX_OUTPUT_BYTES_PER_STREAM),
+      ...(result.error ? { error: String(result.error).slice(0, 500) } : {})
     };
-
-    this.activeRuns.set(taskId, active);
-    try {
-      await this.persistTask(record);
-
-      // The source is kept only in this in-memory execution closure, never in the ledger.
-      this.ctx.waitUntil(this.executeTask(record, source, active));
-
-      return {
-        accepted: true,
-        taskId,
-        status: "queued" as const,
-        language,
-        timeoutSeconds,
-        note: "Task queued in an isolated offline Linux container. Use getCodeTaskStatus to inspect the result."
-      };
-    } catch (error) {
-      clearTimeout(active.timeout);
-      this.activeRuns.delete(taskId);
-      throw error;
-    } finally {
-      this.acceptingTask = false;
-    }
   }
 
-  async getTaskStatus(taskId: string) {
-    if (!this.isTaskId(taskId)) throw new Error("Invalid task ID.");
-    return (await this.ctx.storage.get<CodeTaskRecord>(TASK_PREFIX + taskId)) ?? null;
-  }
-
-  async listTasks() {
-    const entries = await this.ctx.storage.list<CodeTaskRecord>({ prefix: TASK_PREFIX });
-    return Array.from(entries.values())
-      .sort((left, right) => right.createdAt - left.createdAt)
-      .slice(0, TASK_LIST_LIMIT);
-  }
-
-  async cancelTask(taskId: string) {
-    const record = await this.getTaskStatus(taskId);
-    if (!record) return { found: false, cancelled: false };
-
-    if (["succeeded", "failed", "cancelled", "timed_out"].includes(record.status)) {
-      return { found: true, cancelled: false, status: record.status };
-    }
-
-    const active = this.activeRuns.get(taskId);
-    if (active) {
-      active.cancelReason = "cancelled";
-      // An AbortSignal fired after exec exits can cause a runtime error.
-      if (!active.processExited) active.controller.abort();
-
-      await this.persistTask({
-        ...record,
-        status: "cancelling",
-        updatedAt: Date.now()
-      });
-      return { found: true, cancelled: true, status: "cancelling" as const };
-    }
-
-    if (this.ctx.container?.running) {
-      // If the DO restarted and lost its in-memory process signal, destroy this
-      // task-dedicated container rather than claiming the process was stopped.
-      await this.ctx.container.destroy("Sandbox task cancelled by owner.");
-    }
-
-    const finishedAt = Date.now();
-    await this.persistTask({
-      ...record,
-      status: "cancelled",
-      updatedAt: finishedAt,
-      finishedAt,
-      error: "Execution was cancelled."
-    });
-
-    return { found: true, cancelled: true, status: "cancelled" as const };
-  }
-
-  private isTaskId(value: string): boolean {
-    return typeof value === "string" &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-  }
-
-  private async persistTask(record: CodeTaskRecord) {
-    await this.ctx.storage.put(TASK_PREFIX + record.id, record);
-
-    // Retain only the latest bounded history; source code is never persisted.
-    const entries = await this.ctx.storage.list<CodeTaskRecord>({ prefix: TASK_PREFIX });
-    const oldest = Array.from(entries.entries())
-      .sort((left, right) => right[1].createdAt - left[1].createdAt)
-      .slice(TASK_HISTORY_LIMIT);
-
+  private async persist(task: StoredTask): Promise<void> {
+    await this.ctx.storage.put(PREFIX + task.id, task);
+    const rows = await this.ctx.storage.list<StoredTask>({ prefix: PREFIX });
+    const oldest = [...rows.entries()]
+      .sort((a, b) => b[1].createdAt - a[1].createdAt)
+      .slice(HISTORY_LIMIT);
     await Promise.all(oldest.map(([key]) => this.ctx.storage.delete(key)));
   }
 
-  private async executeTask(
-    record: CodeTaskRecord,
-    source: string,
-    active: ActiveRun
-  ): Promise<void> {
-    const startedAt = Date.now();
+  async startCodeTask(input: unknown) {
+    const validation = validateExecutionRequest(input);
+    if (!validation.ok) throw new Error(validation.error);
+    if (this.submitting) throw new Error("A sandbox task is already being submitted.");
+
+    this.submitting = true;
+    try {
+      const rows = await this.ctx.storage.list<StoredTask>({ prefix: PREFIX });
+      if ([...rows.values()].some((task) => ["queued", "running", "cancelling"].includes(task.status))) {
+        throw new Error("A sandbox task is already active for this workspace.");
+      }
+
+      const { language, source, timeoutSeconds } = validation.value;
+      const id = crypto.randomUUID();
+      const now = Date.now();
+      const keyBytes = crypto.getRandomValues(new Uint8Array(32));
+      const resultKey = base64(keyBytes);
+      const task: StoredTask = {
+        id,
+        language,
+        status: "queued",
+        createdAt: now,
+        updatedAt: now,
+        resultKey
+      };
+      await this.persist(task);
+
+      try {
+        const sourceEncrypted = await this.encryptSource(source, keyBytes);
+        await this.github("actions/workflows/" + WORKFLOW + "/dispatches", {
+          method: "POST",
+          body: JSON.stringify({
+            ref: "main",
+            inputs: {
+              task_id: id,
+              language,
+              task_key: resultKey,
+              source_encrypted: sourceEncrypted,
+              timeout_seconds: String(timeoutSeconds)
+            }
+          })
+        });
+      } catch (error) {
+        const finishedAt = Date.now();
+        await this.persist({
+          ...task,
+          resultKey: undefined,
+          status: "failed",
+          updatedAt: finishedAt,
+          finishedAt,
+          error: error instanceof Error ? error.message : "Could not dispatch sandbox task."
+        });
+        throw error;
+      }
+
+      return {
+        accepted: true,
+        taskId: id,
+        status: "queued" as const,
+        language,
+        timeoutSeconds,
+        note: "Submitted to a temporary GitHub-hosted Linux runner. Poll getCodeTaskStatus for the result."
+      };
+    } finally {
+      this.submitting = false;
+    }
+  }
+
+  async getTaskStatus(taskId: string): Promise<Task | null> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId)) {
+      throw new Error("Invalid task ID.");
+    }
+    const task = await this.ctx.storage.get<StoredTask>(PREFIX + taskId);
+    if (!task) return null;
+    if (TERMINAL.includes(task.status)) return this.publicTask(task);
+
+    const run = await this.findRun(taskId);
+    if (!run) return this.publicTask(task);
+
+    if (run.status !== "completed") {
+      const updated: StoredTask = {
+        ...task,
+        status: run.status === "in_progress" ? "running" : task.status,
+        workflowRunId: run.id,
+        updatedAt: Date.now()
+      };
+      await this.persist(updated);
+      return this.publicTask(updated);
+    }
+
+    if (run.conclusion !== "success") {
+      const finishedAt = Date.now();
+      const updated: StoredTask = {
+        ...task,
+        resultKey: undefined,
+        status: run.conclusion === "cancelled" ? "cancelled" : run.conclusion === "timed_out" ? "timed_out" : "failed",
+        workflowRunId: run.id,
+        updatedAt: finishedAt,
+        finishedAt,
+        error: "GitHub Actions finished with conclusion: " + (run.conclusion ?? "unknown") + "."
+      };
+      await this.persist(updated);
+      return this.publicTask(updated);
+    }
 
     try {
-      await this.persistTask({
-        ...record,
-        status: "running",
-        startedAt,
-        updatedAt: startedAt
-      });
-
-      const container = this.ctx.container;
-      if (!container) {
-        throw new Error("The SandboxRunner container binding is not configured.");
-      }
-
-      if (!container.running) {
-        container.start({
-          image: container.images.base,
-          instance: "lite",
-          enableInternet: false
-        });
-      }
-
-      await container.setInactivityTimeout(CONTAINER_IDLE_TIMEOUT_MS);
-
-      if (active.controller.signal.aborted) {
-        throw new Error("Execution was cancelled before the process started.");
-      }
-
-      const command = buildExecutionCommand(record.language, source);
-      const process = await container.exec(command, {
-        cwd: "/workspace",
-        signal: active.controller.signal,
-        env: {
-          HOME: "/tmp",
-          TMPDIR: "/tmp",
-          PYTHONDONTWRITEBYTECODE: "1"
-        }
-      });
-
-      // Drain streams concurrently, but destroy the per-task Container as soon
-      // as the main process exits. This also terminates any child process that
-      // user code may have spawned and prevents cross-task state from lingering.
-      const stdoutPromise = readBoundedStream(process.stdout);
-      const stderrPromise = readBoundedStream(process.stderr);
-      const exitCode = await process.exitCode;
-      active.processExited = true;
-      clearTimeout(active.timeout);
-      await container.destroy("Sandbox task completed; discard the ephemeral container.");
-      const [stdout, stderr] = await Promise.all([stdoutPromise, stderrPromise]);
-
+      if (!task.resultKey) throw new Error("Sandbox task key is missing.");
+      const result = await this.readArtifact(run.id, taskId, task.resultKey);
       const finishedAt = Date.now();
-      const status: TaskStatus = active.cancelReason === "timed_out"
-        ? "timed_out"
-        : active.cancelReason === "cancelled"
-          ? "cancelled"
-          : exitCode === 0
-            ? "succeeded"
-            : "failed";
-
-      await this.persistTask({
-        ...record,
-        status,
-        startedAt,
-        finishedAt,
+      const updated: StoredTask = {
+        ...task,
+        ...result,
+        resultKey: undefined,
+        workflowRunId: run.id,
         updatedAt: finishedAt,
-        exitCode,
-        stdout,
-        stderr
-      });
+        finishedAt
+      };
+      await this.persist(updated);
+      return this.publicTask(updated);
     } catch {
-      const finishedAt = Date.now();
-      const status: TaskStatus = active.cancelReason === "timed_out"
-        ? "timed_out"
-        : active.cancelReason === "cancelled"
-          ? "cancelled"
-          : "failed";
-
-      await this.persistTask({
-        ...record,
-        status,
-        startedAt,
-        finishedAt,
-        updatedAt: finishedAt,
-        error: status === "timed_out"
-          ? "Execution reached its configured time limit."
-          : status === "cancelled"
-            ? "Execution was cancelled."
-            : "Sandbox startup or execution failed. Verify the Workers Paid plan and container deployment."
+      // Artifact upload may finish shortly after the workflow reports success.
+      return this.publicTask({
+        ...task,
+        status: "running",
+        workflowRunId: run.id,
+        error: "The runner finished; waiting for its encrypted result artifact."
       });
-    } finally {
-      clearTimeout(active.timeout);
-
-      // A failed startup or timeout must not leave an interactive container alive.
-      const container = this.ctx.container;
-      if (container?.running) {
-        try {
-          await container.destroy("Sandbox task ended; discard the ephemeral container.");
-        } catch {
-          // The runtime may already have stopped the container.
-        }
-      }
-      this.activeRuns.delete(record.id);
     }
+  }
+
+  async listTasks(): Promise<Task[]> {
+    const rows = await this.ctx.storage.list<StoredTask>({ prefix: PREFIX });
+    return [...rows.values()]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 20)
+      .map((task) => this.publicTask(task));
+  }
+
+  async cancelTask(taskId: string) {
+    const task = await this.ctx.storage.get<StoredTask>(PREFIX + taskId);
+    if (!task) return { found: false, cancelled: false };
+    if (TERMINAL.includes(task.status)) return { found: true, cancelled: false, status: task.status };
+    const run = await this.findRun(taskId);
+    if (!run || run.status === "completed") {
+      return { found: true, cancelled: false, status: task.status };
+    }
+    await this.github("actions/runs/" + run.id + "/cancel", { method: "POST" });
+    const updated: StoredTask = {
+      ...task,
+      status: "cancelling",
+      workflowRunId: run.id,
+      updatedAt: Date.now()
+    };
+    await this.persist(updated);
+    return { found: true, cancelled: true, status: "cancelling" as const };
   }
 }

@@ -2,14 +2,14 @@
 
 space is being built as **one primary AI with one identity and one orchestration core**. Browser research, coding, file management, multimodal perception, memory, sandbox execution, hosting, and self-improvement are capabilities of that core rather than separate user-facing bots.
 
-> **Current status:** the first AI MVP has persistent chat, a task-plan ledger, calculator, approved project memory, owner-configurable autonomy preferences, and a tested self-update release gate. The offline Python/JavaScript sandbox is implemented in source but still requires a Workers Paid Container deployment and live verification. Production deployment is exposed through a manual GitHub Actions workflow that requires explicit confirmation and owner-configured secrets. Browser research, project filesystem tools, multimodal pipelines, account/device connectors, OS runners, and production updater remain future work.
+> **Current implementation direction:** Cloudflare Workers Free hosts the app and Durable Objects SQLite stores chat, preferences, plans, and project memory. GitHub OAuth restricts access to the repository owner. Small Python/JavaScript snippets run on temporary GitHub-hosted Linux runners inside restricted offline Docker containers. This avoids Cloudflare Containers and Workers Paid, but it is not unlimited compute and still requires a successful deployment and runtime verification.
 
 ## AI MVP
 
 Start with [apps/space-ai](apps/space-ai/README.md) for local development and deployment requirements.
 
 The dashboard's **Autonomy** panel stores the owner's preferred operating modes:
-- bounded Python/JavaScript execution inside an isolated offline sandbox after deployment is verified;
+- bounded Python/JavaScript execution in a temporary offline container;
 - automatic read-only research once a browser tool exists;
 - file operations within a selected workspace;
 - automatic promotion of eligible low-risk updates after every required release gate passes.
@@ -26,7 +26,7 @@ The settings do not activate tools or grant third-party permissions that have no
 - [Memory and continuous improvement](docs/LEARNING-AND-SELF-IMPROVEMENT.md)
 - [Self-update release policy](docs/SELF-UPDATE-POLICY.md)
 - [Isolated Linux sandbox](docs/SANDBOX.md)
-- [Cloudflare deployment guide](docs/CLOUDFLARE-DEPLOYMENT.md)
+- [Free-tier deployment guide](docs/CLOUDFLARE-DEPLOYMENT.md)
 - [Implementation roadmap](docs/ROADMAP.md)
 - [MVP status](docs/MVP-STATUS.md)
 - [Platform limitations](docs/PLATFORM-LIMITS.md)
@@ -49,5 +49,6 @@ The Windows VM experiment remains separate from the AI workspace. It requires a 
 
 - Never commit `.env`, `.dev.vars`, OAuth tokens, service-account JSON, cookies, passwords, or private keys.
 - Never commit VM disk images or private user data.
-- Protect the deployed Worker with Cloudflare Access and a single-owner allow-list before deployment.
+- Protect all Agent/API/WebSocket routes with the owner-only GitHub OAuth session.
+- The sandbox job receives no repository write token, deployment credentials, persistent volume, or host directory mount.
 - Do not treat a successful CI build as proof of live deployment or provider availability.

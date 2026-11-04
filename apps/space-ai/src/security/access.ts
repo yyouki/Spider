@@ -1,97 +1,335 @@
-import { createRemoteJWKSet, jwtVerify } from "jose";
-
-type AccessEnvironment = {
-  ACCESS_TEAM_DOMAIN: string;
-  ACCESS_AUD: string;
-  ACCESS_ALLOWED_EMAIL: string;
+type AuthEnvironment = {
+  GITHUB_OAUTH_CLIENT_ID: string;
+  GITHUB_OAUTH_CLIENT_SECRET: string;
+  GITHUB_OWNER_LOGIN: string;
+  SESSION_SECRET: string;
   DEPLOYMENT_ENV: string;
   ALLOW_LOCAL_DEV_AUTH_BYPASS?: string;
 };
 
-type AccessResult =
-  | { ok: true; email: string }
-  | { ok: false; response: Response };
+export type OwnerSession = {
+  login: string;
+  expiresAt: number;
+};
 
-const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+const SESSION_COOKIE = "__Host-space_session";
+const STATE_COOKIE = "space_oauth_state";
+const SESSION_SECONDS = 7 * 24 * 60 * 60;
+const encoder = new TextEncoder();
 
-function jsonError(status: number, message: string): Response {
-  return Response.json({ error: message }, { status });
+function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+function base64UrlDecode(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function cookieValue(request: Request, name: string): string | null {
+  const cookies = request.headers.get("cookie") ?? "";
+  for (const entry of cookies.split(";")) {
+    const separator = entry.indexOf("=");
+    if (separator < 0) continue;
+    if (entry.slice(0, separator).trim() === name) {
+      return entry.slice(separator + 1).trim();
+    }
+  }
+  return null;
+}
+
+function secureCookie(name: string, value: string, options: { path: string; maxAge: number }): string {
+  return [
+    `${name}=${value}`,
+    `Path=${options.path}`,
+    `Max-Age=${options.maxAge}`,
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax"
+  ].join("; ");
+}
+
+function constantTimeEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
+}
+
+async function hmac(value: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(value));
+  return base64UrlEncode(new Uint8Array(signature));
+}
+
+function oauthReady(env: AuthEnvironment): boolean {
+  return Boolean(
+    env.GITHUB_OAUTH_CLIENT_ID &&
+    env.GITHUB_OAUTH_CLIENT_SECRET &&
+    env.GITHUB_OWNER_LOGIN &&
+    env.SESSION_SECRET &&
+    env.SESSION_SECRET.length >= 32
+  );
+}
+
+function localBypass(env: AuthEnvironment): boolean {
+  return env.DEPLOYMENT_ENV !== "production" &&
+    env.ALLOW_LOCAL_DEV_AUTH_BYPASS === "true";
+}
+
+export async function getOwnerSession(
+  request: Request,
+  env: AuthEnvironment
+): Promise<OwnerSession | null> {
+  if (localBypass(env)) {
+    return {
+      login: env.GITHUB_OWNER_LOGIN || "local-development",
+      expiresAt: Number.MAX_SAFE_INTEGER
+    };
+  }
+  if (!oauthReady(env)) return null;
+
+  const token = cookieValue(request, SESSION_COOKIE);
+  if (!token) return null;
+
+  const separator = token.lastIndexOf(".");
+  if (separator <= 0) return null;
+
+  const payloadPart = token.slice(0, separator);
+  const signaturePart = token.slice(separator + 1);
+  let expectedSignature: string;
+  let payload: { login?: unknown; expiresAt?: unknown };
+
+  try {
+    expectedSignature = await hmac(payloadPart, env.SESSION_SECRET);
+    if (!constantTimeEqual(signaturePart, expectedSignature)) return null;
+    payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadPart))) as {
+      login?: unknown;
+      expiresAt?: unknown;
+    };
+  } catch {
+    return null;
+  }
+
+  if (
+    typeof payload.login !== "string" ||
+    payload.login.toLowerCase() !== env.GITHUB_OWNER_LOGIN.toLowerCase() ||
+    typeof payload.expiresAt !== "number" ||
+    payload.expiresAt <= Date.now()
+  ) {
+    return null;
+  }
+
+  return { login: payload.login, expiresAt: payload.expiresAt };
 }
 
 export async function requireOwnerAccess(
   request: Request,
-  env: AccessEnvironment
-): Promise<AccessResult> {
-  // This bypass is only read from local .dev.vars; production defaults to fail-closed.
-  if (
-    env.DEPLOYMENT_ENV !== "production" &&
-    env.ALLOW_LOCAL_DEV_AUTH_BYPASS === "true"
-  ) {
-    return { ok: true, email: "local-development" };
-  }
+  env: AuthEnvironment
+): Promise<{ ok: true; session: OwnerSession } | { ok: false; response: Response }> {
+  const session = await getOwnerSession(request, env);
+  if (session) return { ok: true, session };
 
-  const teamDomain = env.ACCESS_TEAM_DOMAIN?.trim();
-  const audience = env.ACCESS_AUD?.trim();
-  const allowedEmail = env.ACCESS_ALLOWED_EMAIL?.trim().toLowerCase();
-
-  // Fail closed: a fresh deployment is inaccessible until Access is configured.
-  if (!teamDomain || !audience || !allowedEmail) {
+  if (!oauthReady(env)) {
     return {
       ok: false,
-      response: jsonError(
-        503,
-        "Private access is not configured. Configure Cloudflare Access before using space."
-      )
+      response: Response.json({ error: "GitHub owner login is not configured." }, { status: 503 })
     };
   }
 
-  let issuer: string;
-  try {
-    const parsed = new URL(teamDomain);
-    if (parsed.protocol !== "https:" || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-      throw new Error("Invalid Cloudflare Access team domain.");
+  return {
+    ok: false,
+    response: Response.json({ error: "Sign in with the owner GitHub account." }, { status: 401 })
+  };
+}
+
+/** Revoke the temporary GitHub OAuth grant after reading the authenticated account. */
+async function revokeGitHubGrant(
+  clientId: string,
+  clientSecret: string,
+  accessToken: string
+): Promise<boolean> {
+  const credentials = btoa(`${clientId}:${clientSecret}`);
+  const response = await fetch(
+    `https://api.github.com/applications/${encodeURIComponent(clientId)}/grant`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "space-ai"
+      },
+      body: JSON.stringify({ access_token: accessToken })
     }
-    issuer = parsed.origin;
-  } catch {
-    return {
-      ok: false,
-      response: jsonError(503, "ACCESS_TEAM_DOMAIN must be an HTTPS Cloudflare Access team domain.")
-    };
-  }
+  );
+  return response.status === 204;
+}
 
-  const token = request.headers.get("cf-access-jwt-assertion");
-  if (!token) {
-    return {
-      ok: false,
-      response: jsonError(401, "Cloudflare Access authentication is required.")
-    };
-  }
+/** Handle OAuth routes before protected API and Agent routing. */
+export async function handleAuthRequest(
+  request: Request,
+  env: AuthEnvironment
+): Promise<Response | null> {
+  const url = new URL(request.url);
 
-  try {
-    let jwks = jwksByIssuer.get(issuer);
-    if (!jwks) {
-      jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
-      jwksByIssuer.set(issuer, jwks);
+  if (url.pathname === "/auth/github" && request.method === "GET") {
+    if (!oauthReady(env)) {
+      return Response.json({ error: "GitHub OAuth is not configured." }, { status: 503 });
     }
 
-    const { payload } = await jwtVerify(token, jwks, {
-      issuer,
-      audience
+    const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
+    const callback = new URL("/auth/github/callback", url.origin).toString();
+    const authorize = new URL("https://github.com/login/oauth/authorize");
+    authorize.searchParams.set("client_id", env.GITHUB_OAUTH_CLIENT_ID);
+    authorize.searchParams.set("redirect_uri", callback);
+    authorize.searchParams.set("scope", "read:user offline_access");
+    authorize.searchParams.set("state", state);
+
+    const headers = new Headers({ Location: authorize.toString(), "Cache-Control": "no-store" });
+    headers.append("Set-Cookie", secureCookie(STATE_COOKIE, state, {
+      path: "/auth/github/callback",
+      maxAge: 10 * 60
+    }));
+    return new Response(null, { status: 302, headers });
+  }
+
+  if (url.pathname === "/auth/github/callback" && request.method === "GET") {
+    const clearState = secureCookie(STATE_COOKIE, "", {
+      path: "/auth/github/callback",
+      maxAge: 0
     });
+    const clearHeaders = new Headers({ "Cache-Control": "no-store" });
+    clearHeaders.append("Set-Cookie", clearState);
 
-    const email = typeof payload.email === "string" ? payload.email.toLowerCase() : "";
-    if (!email || email !== allowedEmail) {
-      return {
-        ok: false,
-        response: jsonError(403, "This Cloudflare Access identity is not authorized for this private workspace.")
-      };
+    if (!oauthReady(env)) {
+      return new Response("GitHub OAuth is not configured.", { status: 503, headers: clearHeaders });
     }
 
-    return { ok: true, email };
-  } catch {
-    return {
-      ok: false,
-      response: jsonError(401, "The Cloudflare Access token is missing, expired, or invalid.")
-    };
+    const returnedState = url.searchParams.get("state") ?? "";
+    const savedState = cookieValue(request, STATE_COOKIE) ?? "";
+    const code = url.searchParams.get("code") ?? "";
+    if (!code || !returnedState || !constantTimeEqual(returnedState, savedState)) {
+      return new Response("GitHub sign-in state is missing or invalid. Please try again.", {
+        status: 400,
+        headers: clearHeaders
+      });
+    }
+
+    const callback = new URL("/auth/github/callback", url.origin).toString();
+    try {
+      const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "User-Agent": "space-ai"
+        },
+        body: JSON.stringify({
+          client_id: env.GITHUB_OAUTH_CLIENT_ID,
+          client_secret: env.GITHUB_OAUTH_CLIENT_SECRET,
+          code,
+          redirect_uri: callback
+        })
+      });
+      if (!tokenResponse.ok) {
+        return new Response("GitHub token exchange failed. Please try again.", {
+          status: 502,
+          headers: clearHeaders
+        });
+      }
+
+      const tokenData = await tokenResponse.json() as { access_token?: string };
+      if (!tokenData.access_token) {
+        return new Response("GitHub did not authorize this sign-in.", {
+          status: 401,
+          headers: clearHeaders
+        });
+      }
+
+      const userResponse = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "space-ai"
+        }
+      });
+      if (!userResponse.ok) {
+        await revokeGitHubGrant(env.GITHUB_OAUTH_CLIENT_ID, env.GITHUB_OAUTH_CLIENT_SECRET, tokenData.access_token);
+        return new Response("Could not verify the GitHub account.", {
+          status: 502,
+          headers: clearHeaders
+        });
+      }
+
+      const user = await userResponse.json() as { login?: string };
+      const allowed = typeof user.login === "string" &&
+        user.login.toLowerCase() === env.GITHUB_OWNER_LOGIN.toLowerCase();
+
+      // The OAuth access is used only to verify the username, then immediately revoked.
+      const revoked = await revokeGitHubGrant(
+        env.GITHUB_OAUTH_CLIENT_ID,
+        env.GITHUB_OAUTH_CLIENT_SECRET,
+        tokenData.access_token
+      );
+      if (!revoked) {
+        return new Response("GitHub sign-in could not safely finish because its temporary access grant was not revoked.", {
+          status: 502,
+          headers: clearHeaders
+        });
+      }
+      if (!allowed || typeof user.login !== "string") {
+        return new Response("This GitHub account is not allowed to access this private workspace.", {
+          status: 403,
+          headers: clearHeaders
+        });
+      }
+
+      const payload = base64UrlEncode(encoder.encode(JSON.stringify({
+        login: user.login,
+        expiresAt: Date.now() + SESSION_SECONDS * 1000
+      })));
+      const sessionToken = `${payload}.${await hmac(payload, env.SESSION_SECRET)}`;
+      const headers = new Headers({
+        Location: "/",
+        "Cache-Control": "no-store"
+      });
+      headers.append("Set-Cookie", clearState);
+      headers.append("Set-Cookie", secureCookie(SESSION_COOKIE, sessionToken, {
+        path: "/",
+        maxAge: SESSION_SECONDS
+      }));
+      return new Response(null, { status: 302, headers });
+    } catch {
+      return new Response("GitHub sign-in could not be completed. Please try again.", {
+        status: 502,
+        headers: clearHeaders
+      });
+    }
   }
+
+  if (url.pathname === "/auth/logout" && request.method === "POST") {
+    if (request.headers.get("origin") !== url.origin) {
+      return Response.json({ error: "Invalid request origin." }, { status: 403 });
+    }
+    const headers = new Headers({ "Cache-Control": "no-store" });
+    headers.append("Set-Cookie", secureCookie(SESSION_COOKIE, "", { path: "/", maxAge: 0 }));
+    return new Response(null, { status: 204, headers });
+  }
+
+  return null;
 }

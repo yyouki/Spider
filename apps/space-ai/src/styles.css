@@ -227,3 +227,22 @@ button, textarea { font: inherit; }
   .setting-row select { width: 100%; }
   .settings-footer { align-items: flex-start; flex-direction: column; }
 }
+
+/* Private GitHub OAuth entry screen */
+.auth-shell {
+  min-height: 100dvh; display: grid; place-items: center; padding: 24px;
+  background: radial-gradient(circle at 50% 0%, rgba(129,140,248,.13), transparent 42%), #0b0d13;
+}
+.auth-card {
+  width: min(100%, 390px); padding: 30px; text-align: center;
+  border: 1px solid rgba(255,255,255,.1); border-radius: 20px;
+  background: rgba(25,29,40,.94); box-shadow: 0 24px 80px rgba(0,0,0,.28);
+}
+.auth-card .brand-mark { margin: 0 auto 18px; }
+.auth-card h1 { margin: 8px 0; color: #f4f5f8; font-size: 30px; }
+.auth-card p:not(.eyebrow) { color: #9ba4b7; font-size: 13px; line-height: 1.6; }
+.auth-button {
+  display: block; margin-top: 22px; border-radius: 10px; padding: 12px 16px;
+  background: #a5b4fc; color: #111827; font-size: 13px; font-weight: 700; text-decoration: none;
+}
+.auth-button:focus-visible { outline: 2px solid #eef2ff; outline-offset: 3px; }

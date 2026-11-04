@@ -1,4 +1,4 @@
-name: Deploy space AI to Cloudflare
+name: Deploy space AI to Cloudflare Free
 
 on:
   workflow_dispatch:
@@ -11,9 +11,9 @@ on:
 jobs:
   deploy:
     if: ${{ github.ref == 'refs/heads/main' && inputs.confirm_production == 'DEPLOY' }}
-    name: Deploy Worker and Container image
+    name: Deploy Worker and dashboard
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
       contents: read
     environment: production
@@ -25,9 +25,10 @@ jobs:
         working-directory: apps/space-ai
     steps:
       - name: Check out main
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: main
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -37,46 +38,52 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          ACCESS_TEAM_DOMAIN: ${{ secrets.ACCESS_TEAM_DOMAIN }}
-          ACCESS_AUD: ${{ secrets.ACCESS_AUD }}
-          ACCESS_ALLOWED_EMAIL: ${{ secrets.ACCESS_ALLOWED_EMAIL }}
+          GITHUB_OAUTH_CLIENT_ID: ${{ secrets.GITHUB_OAUTH_CLIENT_ID }}
+          GITHUB_OAUTH_CLIENT_SECRET: ${{ secrets.GITHUB_OAUTH_CLIENT_SECRET }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          GITHUB_ACTIONS_TOKEN: ${{ secrets.GITHUB_ACTIONS_TOKEN }}
         run: |
           set -euo pipefail
-          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID ACCESS_TEAM_DOMAIN ACCESS_AUD ACCESS_ALLOWED_EMAIL; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "::error::Missing required production environment secret: ${name}"
-              exit 1
-            fi
-          done
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$GITHUB_OAUTH_CLIENT_ID"
+          test -n "$GITHUB_OAUTH_CLIENT_SECRET"
+          test -n "$SESSION_SECRET"
+          test -n "$GITHUB_ACTIONS_TOKEN"
+          node -e "if ((process.env.SESSION_SECRET || '').length < 32) process.exit(1)"
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Type-check and run all tests
         run: npm run check
       - name: Build the Worker and dashboard
         run: npm run build
-      - name: Create an ephemeral secrets upload file
+      - name: Create encrypted Worker secrets upload file
         shell: bash
         env:
-          ACCESS_TEAM_DOMAIN: ${{ secrets.ACCESS_TEAM_DOMAIN }}
-          ACCESS_AUD: ${{ secrets.ACCESS_AUD }}
-          ACCESS_ALLOWED_EMAIL: ${{ secrets.ACCESS_ALLOWED_EMAIL }}
+          GITHUB_OAUTH_CLIENT_ID: ${{ secrets.GITHUB_OAUTH_CLIENT_ID }}
+          GITHUB_OAUTH_CLIENT_SECRET: ${{ secrets.GITHUB_OAUTH_CLIENT_SECRET }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          GITHUB_ACTIONS_TOKEN: ${{ secrets.GITHUB_ACTIONS_TOKEN }}
         run: |
           set -euo pipefail
           node <<'NODE'
           const { writeFileSync } = require('node:fs');
-          const names = ['ACCESS_TEAM_DOMAIN', 'ACCESS_AUD', 'ACCESS_ALLOWED_EMAIL'];
+          const names = [
+            'GITHUB_OAUTH_CLIENT_ID',
+            'GITHUB_OAUTH_CLIENT_SECRET',
+            'SESSION_SECRET',
+            'GITHUB_ACTIONS_TOKEN'
+          ];
           const values = Object.fromEntries(names.map((name) => [name, process.env[name]]));
-          if (!values.ACCESS_TEAM_DOMAIN.startsWith('https://')) {
-            throw new Error('ACCESS_TEAM_DOMAIN must use HTTPS.');
-          }
+          if (values.SESSION_SECRET.length < 32) throw new Error('SESSION_SECRET is too short.');
           writeFileSync('.cloudflare-secrets.json', JSON.stringify(values), { mode: 0o600 });
           NODE
-      - name: Deploy to Cloudflare
+      - name: Deploy to Cloudflare Workers
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --secrets-file .cloudflare-secrets.json
-      - name: Remove ephemeral secrets file
+      - name: Remove temporary secret file
         if: always()
         shell: bash
         run: rm -f .cloudflare-secrets.json

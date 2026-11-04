@@ -1,4 +1,4 @@
-# space AI — MVP 0.4
+# space AI — MVP 0.5
 
 A first, deliberately small implementation of the single-core space AI workspace.
 
@@ -6,85 +6,75 @@ A first, deliberately small implementation of the single-core space AI workspace
 
 - One user-facing AI identity: `SpaceAgent`.
 - Streaming text chat from a mobile-first React interface.
-- Persistent chat history and resumable chat state through Cloudflare Agents / Durable Objects.
+- Persistent chat history and resumable chat state through Cloudflare Agents / Durable Objects SQLite.
 - A task ledger for saving, listing, and cancelling plans. A saved plan is not executed automatically.
-- Owner-configurable autonomy preferences stored in the Agent's SQLite database:
-  - autonomous execution of bounded Python/JavaScript tasks in the isolated offline Linux sandbox (deployment-gated);
-  - automatic read-only browser research once a browser tool is connected;
-  - file access limited to a selected workspace;
-  - automatic promotion preference for eligible low-risk self-updates after every release gate passes.
+- Owner-configurable autonomy preferences stored in the Agent's SQLite database.
 - A deterministic self-update release gate with unit tests.
 - A calculator tool for exact basic arithmetic.
 - A capability-status tool that reports what is really connected.
 - Project memory stored in the Agent's SQLite database. Saving a memory requires explicit user approval in the UI.
-- Cloudflare Access JWT verification with a single-owner email allow-list.
+- Owner-only GitHub OAuth login. The OAuth token is used to read the GitHub login and immediately revoked; Space stores only a short-lived signed session cookie.
 - Workers AI model: `@cf/zai-org/glm-4.7-flash`.
+- Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
 
 ## Not included yet
 
-Autonomous browser, project filesystem tools, image/video/audio understanding, Android/Windows/macOS device runners, Gmail or other account integrations, and a production updater are not connected. The sandbox is implemented in source but is not active until Cloudflare deployment and runtime verification. The AI and UI are instructed to say so rather than pretend those capabilities exist.
+Autonomous browser, project filesystem tools, image/video/audio understanding, Android/Windows/macOS device runners, Gmail or other account integrations, and a production updater are not connected. The sandbox is for small snippets, not a persistent coding VM or full shell. It does not mount the repository or provide internet access.
+
+## Offline sandbox contract
+
+- Accepted languages: Python 3 and Node.js JavaScript.
+- Source size: at most 16 KB of UTF-8.
+- Timeout: 10 seconds by default; 1–30 seconds maximum.
+- Output: retain at most 6 KB stdout and 6 KB stderr.
+- Concurrency: one active task per workspace.
+- History: retain at most 30 recent task records.
+- The task source is encrypted before it is sent to GitHub Actions. A one-time key decrypts it only in the temporary runner host process; the key is not passed into the Docker container.
+- The submitted code runs in a container with no network, read-only root filesystem, no Linux capabilities, no new privileges, PID/memory/CPU limits, a non-root user, and no host mounts.
+- The task result is encrypted before it is uploaded as a short-lived Actions artifact.
+- The GitHub API token stays in the Cloudflare Worker. The sandbox workflow receives no repository write token or deployment secret.
+
+GitHub-hosted runners provide a temporary VM per job. Docker still shares the runner's kernel, so this is not a mathematical or absolute security boundary. Treat this as a personal, bounded snippet runner—not as a service for executing hostile multi-tenant code. See [docs/SANDBOX.md](../../docs/SANDBOX.md).
 
 ## Autonomy, accounts, and devices
 
-The Autonomy panel saves the owner's preferred operating mode. A saved preference does not grant an OAuth scope, Android permission, or create an unavailable sandbox/browser. Each account connection must use the provider's official OAuth consent screen and revocable scopes. Device features must use native Android permission prompts.
+The Autonomy panel saves the owner's preferred operating mode. A saved preference does not grant an OAuth scope, Android permission, or create an unavailable browser or filesystem integration. Each account connection must use the provider's official OAuth consent screen and revocable scopes. Device features must use native OS permission prompts.
 
 The owner can allow broad scopes that a provider explicitly offers, but access remains limited to the connected account, the provider's consent, and the app's published integration. Never paste passwords, MFA codes, cookies, or private keys into the agent.
 
 Sending/publishing, spending money, deleting important data, changing account security, modifying access policies, or editing the agent's security rules always requires owner confirmation.
 
-## Offline Linux sandbox
+## Model
 
-The sandbox accepts source-only Python or JavaScript tasks. It uses fixed executable argument arrays (no shell parsing), disables outbound internet, has a 16 KB UTF-8 source limit, a 10-second default timeout (maximum 30 seconds), bounded stdout/stderr retention (6 KB per stream), one active task per workspace, and a rolling history of 30 task records. Submitted source code is not written to Durable Object storage. The initial runner does not mount the project repository or receive application credentials. The selected lite Container size is platform-limited; this is not a general-purpose development VM. See the sandbox design and limits in docs/SANDBOX.md.
+The default model is `@cf/zai-org/glm-4.7-flash`. Cloudflare documents it as a multilingual reasoning and function-calling model with a 131,072-token context window. That makes it a reasonable MVP choice for chat and multi-turn tools, not a guarantee of perfect autonomous performance. Workers AI Free usage has a daily Neurons allocation; once exhausted, further inference stops until the allowance resets or the account moves to a paid plan.
 
-The source integration is not a live deployment. The first actual execution must be verified after wrangler deploy on an eligible Workers Paid account.
-
-## Self-update policy
-
-The `automatic_after_gates` preference is stored, and `src/self-update/release-gate.js` determines whether a low-risk candidate is eligible for future automatic promotion. Every required check and registered evaluation case must pass; there may be no critical/high/medium security findings; protected files must be unchanged; staging health, artifact integrity, budget approval, and rollback must all be verified.
-
-This policy helper does **not** deploy code. No production updater or deployment credential is connected yet. The release gate's unit tests run in CI. Passing every registered test is not mathematical proof that all possible defects are absent.
+A custom model does not remove inference cost or quotas. Training and serving a capable model require compute. Keep the provider/model behind the AI SDK adapter so a later tested model can replace it without rewriting the workspace.
 
 ## Requirements
 
 - Node.js 22 or a Node.js version supported by the pinned Vite/Wrangler toolchain.
-- A Cloudflare account permitted to use Workers AI and Durable Objects.
-- A Workers Paid plan and access to Cloudflare Containers are required to deploy the isolated sandbox runner. The durable_object Container scheduling policy is beta.
-- Wrangler 4.136 or newer is required for local development with this scheduling policy. This repository pins Wrangler 4.157.0.
-- A working Docker-compatible engine is required for local Container development and image builds.
-- Workers AI free quota is limited to 10,000 Neurons per day. Usage beyond the free allowance requires a paid Workers plan; some specific models require paid billing. This project selects a model currently listed as available on Workers Free, but quota and capacity still apply.
-- Agents use a SQLite-backed Durable Object. Current Workers Free limits include a 5 GB aggregate Durable Objects storage allocation. Keep chat, task plans, audit records, and project memory concise.
+- A Cloudflare account with Workers, Workers AI, and Durable Objects access.
+- A GitHub account with write access to `yyouki/space`.
+- A GitHub OAuth App for the owner-only sign-in.
+- A fine-grained GitHub token limited to this repository with Actions read/write permission, stored as a Worker secret.
+- Cloudflare Workers Free supports SQLite-backed Durable Objects. It does not support Container objects; the sandbox therefore uses public-repository GitHub-hosted Actions runners.
 
-Check current limits before deploying:
-- https://developers.cloudflare.com/workers-ai/platform/pricing/
-- https://developers.cloudflare.com/workers/platform/limits/
-- https://developers.cloudflare.com/durable-objects/platform/limits/
-
-## Local development
-
-From this directory:
-
-```bash
-cp .dev.vars.example .dev.vars
-npm install
-npx wrangler login
-npm run dev -- --host 0.0.0.0
-```
-
-Workers AI is configured as a remote binding, so local development calls Cloudflare and requires Wrangler authentication. In a Codespace, keep the forwarded Vite port private. The local auth bypass is read only from `.dev.vars`; it is not a production variable and must never be enabled for a deployed Worker.
-
-Open the forwarded Vite port from the Codespaces Ports panel.
+The repository is public, so standard GitHub-hosted runner usage is free under GitHub's published Actions policy. That does not mean unlimited throughput or an unconditional uptime guarantee. Workers AI has a limited free daily allocation and may stop inference when the quota is exhausted.
 
 ## Production deployment
 
-Use the manual [Cloudflare deployment workflow](../../.github/workflows/deploy-space-ai.yml) after completing the setup in [Cloudflare deployment guide](../../docs/CLOUDFLARE-DEPLOYMENT.md). The workflow only runs from `main` after the operator types `DEPLOY` and GitHub's `production` environment secrets are present.
-
-The required Worker secrets are declared in `wrangler.jsonc` and are uploaded encrypted with the deployment. The Worker continues to fail closed if Cloudflare Access values are missing or invalid. Protect the entire deployed hostname with a Cloudflare Access application that allows only the owner identity.
+Follow [docs/CLOUDFLARE-DEPLOYMENT.md](../../docs/CLOUDFLARE-DEPLOYMENT.md). The manual production workflow:
+- runs only from `main`;
+- requires typing `DEPLOY`;
+- runs type checks, unit tests, and a production build;
+- uploads only the required Worker secrets;
+- does not build or deploy Cloudflare Containers.
 
 Do not commit `.dev.vars`, `.cloudflare-secrets.json`, OAuth tokens, passwords, private keys, or service-account files.
 
 ## Data and persistence
 
-Chat history, task plans, autonomy preferences, settings audit entries, and approved project notes live in the Durable Object SQLite storage. They are not stored in Git. Clearing chat history does not delete settings, task plans, or approved project-memory notes. Memory export/delete UI is future work; do not store sensitive personal information in the MVP.
+Chat history, task plans, autonomy preferences, settings audit entries, task status records, and approved project notes live in the Durable Object SQLite storage. They are not stored in Git. Clearing chat history does not delete settings, task plans, or approved project-memory notes.
 
 This is persistent application state, not a backup guarantee. Configure and test an independent export/backup strategy before relying on it for important data.
 
@@ -96,4 +86,4 @@ npm run check
 npm run build
 ```
 
-CI runs TypeScript/binding checks, release-gate unit tests, and a production build. A successful build does not verify a real Cloudflare deployment, Access policy, account quota, or model availability.
+CI runs TypeScript/binding checks, release-gate tests, sandbox-policy tests, and a production build. A successful build does not verify a live Cloudflare deployment, OAuth configuration, GitHub Actions permissions, account quota, or model availability.

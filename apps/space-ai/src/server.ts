@@ -3,9 +3,9 @@ import { callable, routeAgentRequest } from "agents";
 import { createWorkersAI } from "workers-ai-provider";
 import { convertToModelMessages, pruneMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
-import { requireOwnerAccess } from "./security/access";
+import { getOwnerSession, handleAuthRequest, requireOwnerAccess } from "./security/access";
 
-// Expose the separate Container-backed Durable Object to Wrangler.
+// Expose the GitHub Actions-backed sandbox task ledger Durable Object.
 export { SandboxRunner } from "./sandbox/runner";
 
 const SYSTEM_PROMPT = [
@@ -19,7 +19,7 @@ const SYSTEM_PROMPT = [
   "Never ask for passwords, one-time codes, private keys, session cookies, or raw biometric data.",
   "Use calculate for exact basic arithmetic and getCapabilities when asked what you can currently do.",
   "Use task-plan tools for multi-step requests. A saved plan is not evidence that its steps have been executed.",
-  "For explicit small code tasks, use runCode: it runs only Python or JavaScript in an isolated offline Linux container with strict source, time, and output limits.",
+  "For explicit small code tasks, use runCode: it runs only Python or JavaScript in a temporary GitHub-hosted Linux runner with an offline restricted Docker container and strict source, time, and output limits.",
   "Never claim code execution succeeded until getCodeTaskStatus reports succeeded. A queued task is not a completed task.",
   "The sandbox has no public internet, app credentials, host shell, project repository mount, or unrestricted filesystem access.",
   "Respect the owner's saved autonomy preferences, but only use capabilities that are actually connected and authorized.",
@@ -30,7 +30,7 @@ const SYSTEM_PROMPT = [
   "Do not expose private internal reasoning; provide a concise explanation and relevant evidence.",
   "",
   "Current MVP: persistent chat, persistent task plans, arithmetic, and approved project memory.",
-  "Deployment-gated source: isolated offline Python/JavaScript sandbox. It requires Cloudflare Workers Paid and a successful Container deployment before it can execute.",
+  "Python/JavaScript sandbox: executes on a temporary GitHub-hosted Linux runner in a restricted offline Docker container. It has bounded source, time, and output limits.",
   "Not connected: autonomous browsing, project filesystem tools, image/audio/video understanding, OS runners, account integrations, and production self-updates."
 ].join("\n");
 
@@ -216,7 +216,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
               "Cloudflare Durable Object SQLite storage"
             ],
             implementedButDeploymentGated: [
-              "Offline Python and JavaScript sandbox source (Workers Paid + Container deployment required)"
+              "Offline Python and JavaScript sandbox through a temporary GitHub Actions runner"
             ],
             notConnectedYet: [
               "Autonomous web browsing",
@@ -232,7 +232,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
         }),
 
         runCode: tool({
-          description: "Run a small Python or JavaScript program in the isolated offline Linux sandbox. No shell, internet, project files, or account credentials are available.",
+          description: "Run a small Python or JavaScript snippet in a temporary offline Docker container on a GitHub-hosted Linux runner. No shell, network, project files, or account credentials are available inside the container.",
           inputSchema: z.object({
             language: z.enum(["python", "javascript"]),
             source: z.string().trim().min(1).max(16_000),
@@ -388,13 +388,25 @@ export default {
   async fetch(request: Request, env: Env) {
     const url = new URL(request.url);
 
+    // Handle GitHub OAuth before protected API and agent routes.
+    const authResponse = await handleAuthRequest(request, env);
+    if (authResponse) return authResponse;
+
+    if (url.pathname === "/api/session") {
+      const session = await getOwnerSession(request, env);
+      return Response.json(
+        { authenticated: Boolean(session), login: session?.login ?? null },
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
     if (url.pathname === "/api/health") {
       const access = await requireOwnerAccess(request, env);
       if (!access.ok) return access.response;
       return Response.json({
         status: "ok",
         app: "space-ai",
-        version: "0.4.0",
+        version: "0.5.0",
         agent: "SpaceAgent",
         model: "@cf/zai-org/glm-4.7-flash",
         capabilities: [
