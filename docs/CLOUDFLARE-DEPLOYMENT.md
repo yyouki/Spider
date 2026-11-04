@@ -36,10 +36,11 @@ The OAuth callback must match the Worker hostname exactly.
 2. The Worker name in this project is `space-ai`. The expected origin is `https://space-ai.YOUR-SUBDOMAIN.workers.dev`.
 3. In GitHub, open **Settings → Developer settings → OAuth Apps → New OAuth App**.
 4. Set Homepage URL to the Worker origin.
-5. Set Authorization callback URL to `https://space-ai.YOUR-SUBDOMAIN.workers.dev/auth/github/callback`.
-6. Register the app, then copy its Client ID and generate a Client Secret.
+5. Leave **Expire user access tokens** enabled (the default); Space uses only the short-lived `read:user` token during login and does not store it or request refresh access.
+6. Set Authorization callback URL to `https://space-ai.YOUR-SUBDOMAIN.workers.dev/auth/github/callback`.
+7. Register the app, then copy its Client ID and generate a Client Secret.
 
-Space requests only `read:user` (plus `offline_access` for short-lived token behavior), checks that the login matches the configured owner, and immediately revokes the temporary OAuth grant. The Worker stores a seven-day signed session cookie, not the OAuth token.
+Space requests only `read:user`, checks that the login matches the configured owner, and does not persist the OAuth access token. With GitHub's expiring user-token setting enabled, the access token expires after its short lifetime. The Worker stores a seven-day signed session cookie, not the OAuth token or a refresh token.
 
 ## 2. Create a limited GitHub Actions token
 
