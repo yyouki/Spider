@@ -18,6 +18,7 @@ Last implementation pass: November 4, 2026.
 | Isolated Linux sandbox | Implemented in source; deployment-gated | Python/JavaScript runner, bounded execution policy, Container Durable Object, task status/cancel APIs |
 | Private owner access | Implemented in source | Cloudflare Access JWT issuer/audience/email validation |
 | CI build and test workflow | Added | `.github/workflows/space-ai-check.yml` |
+| Manual Cloudflare deploy workflow | Added in source | `.github/workflows/deploy-space-ai.yml`; requires production GitHub environment secrets and explicit confirmation |
 
 ## Autonomy settings versus actual access
 
@@ -35,10 +36,10 @@ No production updater or deploy credential is connected. Therefore automatic sel
 
 ## Not yet verified
 
-No live Cloudflare account is connected to this coding session. The latest source change must pass its own GitHub Actions run. The following remain unverified:
+The sandbox merge passed GitHub Actions on `main` (TypeScript, all 19 unit tests, Docker image build, Worker/dashboard build, and repository validation). No Cloudflare account is connected to this coding session. The following remain unverified:
 - npm dependency installation, Wrangler type generation, tests, and build for the sandbox change;
 - actual callable RPC behavior after deployment;
-- Cloudflare deployment;
+- Cloudflare deployment through the manual production workflow;
 - Cloudflare Access policy setup;
 - actual Workers AI generation/model capacity;
 - chat/task/settings persistence across a real restart/deploy;
@@ -57,7 +58,7 @@ No live Cloudflare account is connected to this coding session. The latest sourc
 - Scheduled 24/7 autonomous research.
 - Memory/task export and deletion UI.
 
-The sandbox source must not be advertised as live until the Container image builds and deploys successfully and execution is verified in the owner account.
+The sandbox must not be advertised as live until its Container image deploys successfully and Python/JavaScript execution is verified in the owner account.
 
 ## Cost and privacy boundaries
 
