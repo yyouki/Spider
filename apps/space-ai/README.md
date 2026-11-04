@@ -13,7 +13,7 @@ A first, deliberately small implementation of the single-core space AI workspace
 - A calculator tool for exact basic arithmetic.
 - A capability-status tool that reports what is really connected.
 - Project memory stored in the Agent's SQLite database. Saving a memory requires explicit user approval in the UI.
-- Owner-only GitHub OAuth login. The OAuth token is used to read the GitHub login and immediately revoked; Space stores only a short-lived signed session cookie.
+- Owner-only GitHub OAuth login. The temporary read:user token is used only for the identity lookup and is not stored; Space stores only a signed session cookie. Keep the OAuth App's expiring user-token setting enabled.
 - Workers AI model: `@cf/zai-org/glm-4.7-flash`.
 - Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
 
