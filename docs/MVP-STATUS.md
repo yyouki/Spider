@@ -15,6 +15,7 @@ Last implementation pass: November 4, 2026.
 | Project memory | Implemented in source | SQLite table with approval-required writes |
 | Owner autonomy settings | Implemented in source | callable getter/updater, SQLite persistence, mobile settings UI |
 | Self-update release policy | Implemented in source | deterministic release gate + Node unit tests |
+| Isolated Linux sandbox | Implemented in source; deployment-gated | Python/JavaScript runner, bounded execution policy, Container Durable Object, task status/cancel APIs |
 | Private owner access | Implemented in source | Cloudflare Access JWT issuer/audience/email validation |
 | CI build and test workflow | Added | `.github/workflows/space-ai-check.yml` |
 
@@ -35,7 +36,7 @@ No production updater or deploy credential is connected. Therefore automatic sel
 ## Not yet verified
 
 No live Cloudflare account is connected to this coding session. The latest source change must pass its own GitHub Actions run. The following remain unverified:
-- npm dependency installation and build for the latest autonomy settings change;
+- npm dependency installation, Wrangler type generation, tests, and build for the sandbox change;
 - actual callable RPC behavior after deployment;
 - Cloudflare deployment;
 - Cloudflare Access policy setup;
@@ -47,16 +48,16 @@ No live Cloudflare account is connected to this coding session. The latest sourc
 
 - Web search or autonomous browsing.
 - Arbitrary website interaction.
-- General shell execution or code sandbox.
+- General shell execution, project-repository execution, or a persistent coding VM. The initial sandbox is restricted to bounded offline Python/JavaScript snippets and destroys its Container after each run.
 - File and folder ingestion, read/write tools.
 - Image/document/audio/video processing.
-- Android, Windows, macOS, or Linux VM runners.
+- Android, Windows, or macOS device runners. The Linux snippet runner is only source-configured and not yet deployed.
 - Gmail, GitHub, or other third-party account OAuth connectors.
 - A production self-update/deployment worker.
 - Scheduled 24/7 autonomous research.
 - Memory/task export and deletion UI.
 
-These features must not be advertised as available until implemented and tested.
+The sandbox source must not be advertised as live until the Container image builds and deploys successfully and execution is verified in the owner account.
 
 ## Cost and privacy boundaries
 

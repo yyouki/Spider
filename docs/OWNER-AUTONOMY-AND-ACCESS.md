@@ -4,12 +4,12 @@
 
 The owner configures how connected capabilities operate. Settings are persisted with the private SpaceAgent instance:
 
-- `workspaceExecution`: manual or autonomous inside a future isolated sandbox;
+- `workspaceExecution`: manual approval for each run, or autonomous execution of bounded Python/JavaScript tasks inside the isolated offline Linux sandbox;
 - `browserResearch`: manual or automatic read-only research;
 - `projectFiles`: ask before each write or manage the selected workspace;
 - `selfUpdate`: manual release or automatic promotion after every release gate passes.
 
-These settings are preferences only. A setting never activates a tool that is not implemented and connected.
+These settings are preferences only. The sandbox runner is implemented in source but remains deployment-gated by Cloudflare Containers and a Workers Paid plan. It is not a general shell, does not mount the project repository, and has no outbound internet access.
 
 ## Account access
 

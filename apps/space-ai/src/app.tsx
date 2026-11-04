@@ -190,7 +190,7 @@ export default function App() {
           <div className="capability-chips">
             <span>Persistent chat</span>
             <span>Task ledger</span>
-            <span>Owner-controlled settings</span>
+            <span>Offline Linux sandbox</span>
           </div>
         </div>
 
@@ -209,7 +209,7 @@ export default function App() {
 
             <SettingSelect
               label="Workspace execution"
-              description="Allow future code tasks to run automatically inside a resource-limited sandbox."
+              description="Run small Python and JavaScript tasks in an offline Linux sandbox, when the Container runtime is deployed."
               value={settings.workspaceExecution}
               options={[
                 { value: "manual", label: "Ask before each run" },
@@ -295,14 +295,14 @@ export default function App() {
                 return (
                   <div className="approval-card" key={`${message.id}-approval-${index}`}>
                     <strong>Approval required</strong>
-                    <p>Review this requested project-memory change before it is stored.</p>
+                    <p>Review this requested action before it runs or changes saved project data.</p>
                     <pre>{JSON.stringify(part.input, null, 2)}</pre>
                     <div className="approval-actions">
                       <button
                         type="button"
                         onClick={() => addToolApprovalResponse({ id: approvalId, approved: true })}
                       >
-                        Approve save
+                        Approve action
                       </button>
                       <button
                         type="button"
@@ -355,7 +355,7 @@ export default function App() {
           </div>
         </form>
         <p className="disclaimer">
-          Early MVP. Browser access, code execution, files, image/video/audio, account connectors, device integrations, and OS sandboxes are not connected yet.
+          Early MVP. The offline Python/JavaScript sandbox requires a Workers Paid plan and a successful Container deployment. Browser, project files, multimodal tools, account connectors, and device integrations are not connected.
         </p>
       </section>
     </main>
