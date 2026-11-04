@@ -9,7 +9,7 @@ space is being built as **one primary AI with one identity and one orchestration
 Start with [apps/space-ai](apps/space-ai/README.md) for local development and deployment requirements.
 
 The dashboard's **Autonomy** panel stores the owner's preferred operating modes:
-- autonomous execution inside an isolated sandbox once a runner exists;
+- bounded Python/JavaScript execution inside an isolated offline sandbox after deployment is verified;
 - automatic read-only research once a browser tool exists;
 - file operations within a selected workspace;
 - automatic promotion of eligible low-risk updates after every required release gate passes.
