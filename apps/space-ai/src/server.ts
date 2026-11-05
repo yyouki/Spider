@@ -1,6 +1,6 @@
 import { AIChatAgent, type ChatResponseResult, type OnChatMessageOptions } from "@cloudflare/ai-chat";
 import { callable, routeAgentRequest } from "agents";
-import { createWorkersAI } from "workers-ai-provider";
+import { createAI } from "agents/models/ai-sdk";
 import { convertToModelMessages, generateText, pruneMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
 import { getOwnerSession, handleAuthRequest, requireOwnerAccess } from "./security/access";
@@ -670,9 +670,9 @@ export class SpaceAgent extends AIChatAgent<Env> {
       return message.role.toUpperCase() + ": " + parts;
     }).join("\\n\\n").slice(0, 36_000);
 
-    const workersai = createWorkersAI({ binding: this.env.AI });
+    const ai = createAI({ binding: this.env.AI });
     const result = await generateText({
-      model: workersai("@cf/zai-org/glm-4.7-flash"),
+      model: ai("@cf/zai-org/glm-4.7-flash"),
       system: [
         "Update the durable summary of a user's ongoing project conversation.",
         "Preserve goals, decisions, constraints, file paths, current task state, unresolved questions, and useful facts.",
@@ -710,7 +710,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
   }
 
   async onChatMessage(_onFinish: unknown, options?: OnChatMessageOptions) {
-    const workersai = createWorkersAI({ binding: this.env.AI });
+    const ai = createAI({ binding: this.env.AI });
 
     // Manual mode captures an explicit-approval requirement before code enters the sandbox.
     const requireCodeApproval = this.getAutonomySettings().settings.workspaceExecution === "manual";
@@ -725,7 +725,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
     const recentMessages = this.messages.slice(-24);
 
     const result = streamText({
-      model: workersai("@cf/zai-org/glm-4.7-flash"),
+      model: ai("@cf/zai-org/glm-4.7-flash"),
       onStepFinish: ({ usage }) => {
         // Accumulate actual token counts returned by the model provider for each step.
         requestInputTokens += usage.inputTokens ?? 0;
