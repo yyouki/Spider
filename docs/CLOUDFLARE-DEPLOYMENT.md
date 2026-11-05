@@ -59,20 +59,20 @@ Open [Repository → Settings → Environments](https://github.com/yyouki/space/
 
 | Secret | Value |
 |---|---|
-| `GITHUB_OAUTH_CLIENT_ID` | Client ID from the OAuth App |
-| `GITHUB_OAUTH_CLIENT_SECRET` | Client Secret from the OAuth App |
+| `SPACE_OAUTH_CLIENT_ID` | Client ID from the OAuth App |
+| `SPACE_OAUTH_CLIENT_SECRET` | Client Secret from the OAuth App |
 | `SESSION_SECRET` | A randomly generated secret with at least 32 characters |
-| `GITHUB_ACTIONS_TOKEN` | Fine-grained token limited to Actions read/write on `yyouki/space` |
+| `SPACE_ACTIONS_TOKEN` | Fine-grained token limited to Actions read/write on `yyouki/space` |
 
 The environment therefore contains six secrets total:
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
-- `GITHUB_OAUTH_CLIENT_ID`
-- `GITHUB_OAUTH_CLIENT_SECRET`
+- `SPACE_OAUTH_CLIENT_ID`
+- `SPACE_OAUTH_CLIENT_SECRET`
 - `SESSION_SECRET`
-- `GITHUB_ACTIONS_TOKEN`
+- `SPACE_ACTIONS_TOKEN`
 
-Generate `SESSION_SECRET` with a password manager or trusted local random generator. Do not send any secret to chat, commit one to Git, or paste it into a workflow log.
+GitHub reserves secret names beginning with `GITHUB_`, so use the `SPACE_` names above. The deploy workflow maps them to the Worker binding names internally. Generate `SESSION_SECRET` with a password manager or trusted local random generator. Do not send any secret to chat, commit one to Git, or paste it into a workflow log.
 
 ## 4. Deploy
 
