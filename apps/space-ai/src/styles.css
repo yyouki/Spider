@@ -593,7 +593,7 @@ a { color: inherit; }
 .ide-history-panel > article strong { color: #dbe5df; font-size: 9px; }
 .ide-history-panel > article small { overflow: hidden; color: #95a39b; font: 8px/1.4 ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
 .ide-history-panel > article button { align-self: center; padding: 6px 8px; border: 1px solid #60766a; border-radius: 5px; background: #30483b; color: #e1eee6; font-size: 8px; cursor: pointer; }
-.ide-history-panel > p { padding: 10px 12px; color: #9cac a3; font-size: 9px; }
+.ide-history-panel > p { padding: 10px 12px; color: #9caca3; font-size: 9px; }
 .ide-output-panel { max-height: 260px; overflow: auto; border-top: 1px solid #3d4944; background: #151c20; }
 .ide-output-panel > header { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid #34413b; }
 .ide-output-panel > header span { display: flex; align-items: center; gap: 11px; }
