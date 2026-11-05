@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as monaco from "monaco-editor/editor";
+import { strToU8, zipSync } from "fflate";
 import "monaco-editor/features/register.all";
 import "monaco-editor/languages/definitions/python/register";
 import "monaco-editor/languages/definitions/javascript/register";
@@ -10,6 +11,26 @@ import "monaco-editor/languages/definitions/markdown/register";
 import "monaco-editor/languages/definitions/yaml/register";
 import "monaco-editor/languages/definitions/sql/register";
 import "monaco-editor/languages/definitions/shell/register";
+import "monaco-editor/languages/definitions/cpp/register";
+import "monaco-editor/languages/definitions/csharp/register";
+import "monaco-editor/languages/definitions/dart/register";
+import "monaco-editor/languages/definitions/dockerfile/register";
+import "monaco-editor/languages/definitions/go/register";
+import "monaco-editor/languages/definitions/graphql/register";
+import "monaco-editor/languages/definitions/ini/register";
+import "monaco-editor/languages/definitions/java/register";
+import "monaco-editor/languages/definitions/kotlin/register";
+import "monaco-editor/languages/definitions/lua/register";
+import "monaco-editor/languages/definitions/objective-c/register";
+import "monaco-editor/languages/definitions/perl/register";
+import "monaco-editor/languages/definitions/php/register";
+import "monaco-editor/languages/definitions/powershell/register";
+import "monaco-editor/languages/definitions/r/register";
+import "monaco-editor/languages/definitions/ruby/register";
+import "monaco-editor/languages/definitions/rust/register";
+import "monaco-editor/languages/definitions/scala/register";
+import "monaco-editor/languages/definitions/solidity/register";
+import "monaco-editor/languages/definitions/swift/register";
 import "monaco-editor/languages/features/register.all";
 
 export type WorkspaceFileMetadata = {
@@ -35,6 +56,8 @@ export type Props = {
   onListFiles: () => Promise<WorkspaceFileMetadata[]>;
   onReadFile: (path: string) => Promise<WorkspaceFile | null>;
   onWriteFile: (path: string, content: string) => Promise<WorkspaceFileMetadata>;
+  onListHistory: (path: string) => Promise<{ id: string; createdAt: string; sizeBytes: number; preview: string }[]>;
+  onRestoreFile: (path: string, revisionId: string) => Promise<WorkspaceFileMetadata>;
 };
 
 const workerScope = globalThis as typeof globalThis & {
@@ -175,7 +198,8 @@ function FileTree({
   expanded,
   selectedPath,
   onToggle,
-  onSelect
+  onSelect,
+  onDownloadFolder
 }: {
   nodes: TreeNode[];
   depth: number;
@@ -183,6 +207,7 @@ function FileTree({
   selectedPath: string;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
+  onDownloadFolder: (path: string) => void;
 }) {
   return (
     <>
@@ -199,6 +224,15 @@ function FileTree({
             <span className="ide-tree-icon">{node.folder ? "▰" : "◦"}</span>
             <span className="ide-tree-name">{node.name}</span>
           </button>
+          {node.folder && (
+            <button
+              type="button"
+              className="ide-folder-download"
+              title={"Download " + node.path + " as ZIP"}
+              aria-label={"Download folder " + node.path}
+              onClick={() => onDownloadFolder(node.path)}
+            >↓</button>
+          )}
           {node.folder && expanded.has(node.path) && (
             <FileTree
               nodes={node.children}
@@ -207,6 +241,7 @@ function FileTree({
               selectedPath={selectedPath}
               onToggle={onToggle}
               onSelect={onSelect}
+              onDownloadFolder={onDownloadFolder}
             />
           )}
         </div>
@@ -215,7 +250,7 @@ function FileTree({
   );
 }
 
-export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile }: Props) {
+export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile, onListHistory, onRestoreFile }: Props) {
   const [files, setFiles] = useState<WorkspaceFileMetadata[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
   const [content, setContent] = useState("");
@@ -229,6 +264,14 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
   const [newPath, setNewPath] = useState("src/main.py");
   const [showNewFile, setShowNewFile] = useState(false);
   const [mobileTab, setMobileTab] = useState<"files" | "editor">("editor");
+  const [search, setSearch] = useState("");
+  const [history, setHistory] = useState<{ id: string; createdAt: string; sizeBytes: number; preview: string }[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const draftRef = useRef(draft);
+  const autosaveValueRef = useRef("");
+
+  useEffect(() => { draftRef.current = draft; }, [draft]);
 
   const refreshFiles = useCallback(async () => {
     try {
@@ -288,12 +331,13 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
 
   const saveFile = useCallback(async () => {
     if (!selectedPath || !dirty || saving) return;
+    const valueToSave = draft;
     setSaving(true);
     setNotice("");
     try {
-      await onWriteFile(selectedPath, draft);
-      setContent(draft);
-      setDirty(false);
+      await onWriteFile(selectedPath, valueToSave);
+      setContent(valueToSave);
+      if (draftRef.current === valueToSave) setDirty(false);
       setNotice("Saved");
       await refreshFiles();
     } catch (error) {
@@ -302,6 +346,17 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
       setSaving(false);
     }
   }, [dirty, draft, onWriteFile, refreshFiles, saving, selectedPath]);
+
+  useEffect(() => {
+    if (!dirty || !selectedPath || saving) return undefined;
+    const valueToSave = draft;
+    const timer = window.setTimeout(() => {
+      if (autosaveValueRef.current === valueToSave) return;
+      autosaveValueRef.current = valueToSave;
+      void saveFile();
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [dirty, draft, saveFile, saving, selectedPath]);
 
   const createFile = async () => {
     const path = newPath.trim();
@@ -342,9 +397,95 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
     }
   };
 
-  const tree = useMemo(() => buildTree(files), [files]);
+  const filteredFiles = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return query ? files.filter((file) => file.path.toLowerCase().includes(query)) : files;
+  }, [files, search]);
+  const tree = useMemo(() => buildTree(filteredFiles), [filteredFiles]);
   const selected = files.find((file) => file.path === selectedPath);
   const currentLanguage = selected?.language ?? "plaintext";
+
+  const downloadFolder = async (folderPath: string) => {
+    try {
+      const members = files.filter((file) => file.path.startsWith(folderPath + "/"));
+      if (!members.length) throw new Error("Folder does not contain any files.");
+      const entries: Record<string, Uint8Array> = {};
+      for (const member of members) {
+        const file = await onReadFile(member.path);
+        if (file) entries[member.path.slice(folderPath.length + 1)] = strToU8(file.content);
+      }
+      if (!Object.keys(entries).length) throw new Error("No files were available to download.");
+      const archive = zipSync(entries, { level: 6 });
+      const url = URL.createObjectURL(new Blob([archive], { type: "application/zip" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = (basename(folderPath) || "workspace") + ".zip";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setNotice("Folder archive downloaded.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not create the folder archive.");
+    }
+  };
+
+  const downloadProject = async () => {
+    try {
+      const entries: Record<string, Uint8Array> = {};
+      for (const member of files) {
+        const file = await onReadFile(member.path);
+        if (file) entries[member.path] = strToU8(file.content);
+      }
+      if (!Object.keys(entries).length) throw new Error("The workspace is empty.");
+      const archive = zipSync(entries, { level: 6 });
+      const url = URL.createObjectURL(new Blob([archive], { type: "application/zip" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "space-workspace.zip";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setNotice("Workspace archive downloaded.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not download the workspace.");
+    }
+  };
+
+  const loadHistory = async () => {
+    if (!selectedPath) return;
+    setHistoryBusy(true);
+    setShowHistory(true);
+    try {
+      setHistory(await onListHistory(selectedPath));
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not load file history.");
+    } finally {
+      setHistoryBusy(false);
+    }
+  };
+
+  const restoreRevision = async (revisionId: string) => {
+    if (!selectedPath || dirty) {
+      setNotice("Save or discard the current draft before restoring a version.");
+      return;
+    }
+    if (!window.confirm("Restore this revision? The current saved version will remain in history.")) return;
+    try {
+      await onRestoreFile(selectedPath, revisionId);
+      const file = await onReadFile(selectedPath);
+      if (!file) throw new Error("Restored file could not be reloaded.");
+      setContent(file.content);
+      setDraft(file.content);
+      setDirty(false);
+      setShowHistory(false);
+      setNotice("Revision restored.");
+      await refreshFiles();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not restore the revision.");
+    }
+  };
 
   return (
     <section className="ide-panel" aria-label="Private code workspace">
@@ -353,6 +494,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
         <div className="ide-title-actions">
           <span className="ide-private">PRIVATE</span>
           <button type="button" title="Create file" onClick={() => setShowNewFile((shown) => !shown)}>＋</button>
+          <button type="button" title="Download entire workspace as ZIP" onClick={() => void downloadProject()} disabled={!files.length}>⇩</button>
           <button type="button" title="Refresh files" onClick={() => void refreshFiles()}>↻</button>
         </div>
       </div>
@@ -366,6 +508,14 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
         <aside className={`ide-explorer ${mobileTab === "files" ? "mobile-visible" : ""}`}>
           <div className="ide-section-heading"><span>EXPLORER</span><span>{files.length}</span></div>
           <div className="ide-root-label"><span>▾</span> SPACE-PROJECT</div>
+          <input
+            className="ide-search"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search files…"
+            aria-label="Search workspace files by path"
+          />
           {showNewFile && (
             <form className="ide-new-file" onSubmit={(event) => { event.preventDefault(); void createFile(); }}>
               <input value={newPath} onChange={(event) => setNewPath(event.target.value)} aria-label="New file path" placeholder="folder/file.py" autoFocus />
@@ -374,7 +524,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
           )}
           <div className="ide-tree">
             {loading ? <p className="ide-empty-small">Loading files…</p> : tree.length ? (
-              <FileTree nodes={tree} depth={0} expanded={expanded} selectedPath={selectedPath} onToggle={toggleFolder} onSelect={(path) => void openFile(path)} />
+              <FileTree nodes={tree} depth={0} expanded={expanded} selectedPath={selectedPath} onToggle={toggleFolder} onSelect={(path) => void openFile(path)} onDownloadFolder={(path) => void downloadFolder(path)} />
             ) : (
               <div className="ide-empty-tree">
                 <span>No files yet</span>
@@ -394,14 +544,27 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
               </div>
             ))}
             <div className="ide-tabs-spacer" />
+            <button type="button" className="ide-history-button" onClick={() => void loadHistory()} disabled={!selectedPath}>History</button>
             <button type="button" className="ide-save" onClick={() => void saveFile()} disabled={!dirty || saving}>
-              {saving ? "Saving…" : dirty ? "Save" : "Saved"}
+              {saving ? "Saving…" : dirty ? "Save now" : "Auto-saved"}
             </button>
           </div>
 
           <div className="ide-breadcrumb">
             <span>workspace</span><span>›</span><strong>{selectedPath || "No file selected"}</strong>
           </div>
+
+          {showHistory && (
+            <div className="ide-history-panel">
+              <div><strong>File history</strong><button type="button" onClick={() => setShowHistory(false)}>×</button></div>
+              {historyBusy ? <p>Loading revisions…</p> : history.length ? history.map((revision) => (
+                <article key={revision.id}>
+                  <span><strong>{new Date(revision.createdAt).toLocaleString()}</strong><small>{revision.sizeBytes.toLocaleString()} bytes · {revision.preview || "Empty file"}</small></span>
+                  <button type="button" onClick={() => void restoreRevision(revision.id)}>Restore</button>
+                </article>
+              )) : <p>No saved revisions yet. Revisions are created when a saved file changes.</p>}
+            </div>
+          )}
 
           {selectedPath ? (
             <CodeEditor
