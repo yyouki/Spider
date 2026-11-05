@@ -54,6 +54,8 @@ export function normalizeWorkspacePath(input: string): string {
   const segments = path.split("/");
   if (segments.some((segment) =>
     !segment ||
+    segment.startsWith(" ") ||
+    segment.endsWith(" ") ||
     segment === "." ||
     segment === ".." ||
     segment.startsWith(".") ||
@@ -61,10 +63,6 @@ export function normalizeWorkspacePath(input: string): string {
     !/^[A-Za-z0-9_@()+ -][A-Za-z0-9_.@()+ -]*$/.test(segment)
   )) {
     throw new Error("That path is not allowed in the workspace.");
-  }
-  if (segments.at(-1)?.includes(" ")) {
-    // Spaces are valid in nested folder names, but avoid ambiguous trailing filenames.
-    throw new Error("Use a filename without leading or trailing spaces.");
   }
   return segments.join("/");
 }
