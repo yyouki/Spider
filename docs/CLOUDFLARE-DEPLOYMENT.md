@@ -107,7 +107,7 @@ The SpaceAgent SQLite database stores a private, app-level workspace. It is not 
 - Files appear in the Monaco IDE Explorer after the tool write completes. Manual edits can be saved with **Save** or Ctrl/Cmd+S.
 - There is no automatic sync to GitHub or the user's device.
 
-The token analysis panel shows provider-reported input/output token totals when the model provider includes usage metadata, retaining up to 200 recent responses. It separately shows UTF-8-size-based file/workspace token estimates; those estimates are not exact GLM tokenizer counts.
+The separate `/analytics` page shows provider-reported input/output token totals when the model provider includes usage metadata, retaining at most 200 recent responses. It also shows a 14-day daily aggregation and the latest 12 token-usage records. Workspace storage and rough file-token estimates appear in a separate section, never inside the `/ide` editor. Estimates use UTF-8 bytes divided by four and are not exact GLM tokenizer counts. This view does not calculate monetary cost or account-wide Cloudflare Neurons.
 
 The **Share chat** button creates a read-only snapshot of up to 100 loaded messages and their visible tool details. The token is a 256-bit random bearer value. Anyone with the link can read the snapshot, so the UI asks for confirmation first. Links expire after seven days and can be revoked from the UI. They are served with `Cache-Control: no-store`, `X-Robots-Tag: noindex`, and no-referrer/security headers. Append `.json` to the share URL for machine-readable JSON. Do not share a conversation containing sensitive material.
 
