@@ -243,7 +243,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
     const token = makeShareToken();
     const namespace = this.env.ChatShares;
     const share = namespace.get(namespace.idFromName(token));
-    await share.saveShare(token, snapshot);
+    await share.saveShare(token, JSON.stringify(snapshot), expiresAt);
 
     const origin = this.env.APP_ORIGIN.replace(/\/$/, "");
     const url = origin + "/share/" + token;
@@ -640,7 +640,7 @@ export default {
     if (shareMatch) {
       const token = shareMatch[1];
       const namespace = env.ChatShares;
-      const snapshot = await namespace.get(namespace.idFromName(token)).readShare(token);
+      const snapshotJson = await namespace.get(namespace.idFromName(token)).readShare(token);
       const securityHeaders = {
         "Cache-Control": "no-store, private",
         "X-Robots-Tag": "noindex, nofollow, noarchive",
@@ -648,13 +648,33 @@ export default {
         "Referrer-Policy": "no-referrer",
         "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"
       };
-      if (!snapshot) {
+      if (!snapshotJson) {
         return new Response("This share link is invalid, expired, or revoked.", {
           status: 404,
           headers: securityHeaders
         });
       }
-      if (shareMatch[2]) return Response.json(snapshot, { headers: securityHeaders });
+
+      let snapshot: SharedChatSnapshot;
+      try {
+        snapshot = JSON.parse(snapshotJson) as SharedChatSnapshot;
+        if (
+          snapshot.format !== "space-chat-share" ||
+          !Array.isArray(snapshot.messages) ||
+          typeof snapshot.expiresAt !== "string"
+        ) throw new Error("Invalid share snapshot.");
+      } catch {
+        return new Response("This share link contains an invalid snapshot.", {
+          status: 404,
+          headers: securityHeaders
+        });
+      }
+
+      if (shareMatch[2]) {
+        return new Response(snapshotJson, {
+          headers: { ...securityHeaders, "Content-Type": "application/json; charset=utf-8" }
+        });
+      }
 
       const serialized = htmlEscape(JSON.stringify(snapshot, null, 2));
       const html = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">" +
