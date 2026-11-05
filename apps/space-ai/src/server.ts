@@ -995,8 +995,8 @@ export class SpaceAgent extends AIChatAgent<Env> {
             if (!original) throw new Error("The source image is unavailable.");
             const image = await this.runFluxImage(prompt, 1024, 768, {
               filename: original.filename,
-              mimeType: original.mime_type,
-              contentBase64: original.content_base64
+              mimeType: original.mimeType,
+              contentBase64: original.contentBase64
             });
             return this.saveGeneratedImage("space-edited-" + Date.now() + ".png", prompt, image);
           }
