@@ -341,6 +341,16 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const writeWorkspaceFile = useCallback((path: string, content: string) => agent.stub.writeWorkspaceFile(path, content), [agent]);
   const listWorkspaceFileHistory = useCallback((path: string) => agent.stub.listWorkspaceFileHistory(path), [agent]);
   const restoreWorkspaceFile = useCallback((path: string, revisionId: string) => agent.stub.restoreWorkspaceFile(path, revisionId), [agent]);
+  const runWorkspaceFile = useCallback(async (path: string) => {
+    if (settings.workspaceExecution === "manual" &&
+        !window.confirm("Workspace execution is set to manual. Run this file once in the restricted offline sandbox?")) {
+      return { accepted: false, note: "Run cancelled by owner." };
+    }
+    return agent.stub.runWorkspaceFile(path);
+  }, [agent, settings.workspaceExecution]);
+  const getWorkspaceRunStatus = useCallback((taskId: string) => agent.stub.getWorkspaceRunStatus(taskId), [agent]);
+  const listWorkspaceFileHistory = useCallback((path: string) => agent.stub.listWorkspaceFileHistory(path), [agent]);
+  const restoreWorkspaceFile = useCallback((path: string, revisionId: string) => agent.stub.restoreWorkspaceFile(path, revisionId), [agent]);
   const runWorkspaceFile = useCallback((path: string) => agent.stub.runWorkspaceFile(path), [agent]);
   const getWorkspaceRunStatus = useCallback((taskId: string) => agent.stub.getWorkspaceRunStatus(taskId), [agent]);
 
@@ -546,7 +556,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
       <section className="chat-card">
         <div className="chat-card-header">
           <div><span className="chat-status-dot" /> <strong>Space</strong><span>Persistent conversation</span></div>
-          <small>{messages.length.toLocaleString()} messages in this conversation</small>
+          <small>Persistent history · automatic context summaries</small>
         </div>
         <div className="messages" aria-live="polite">
           {messages.length === 0 && (
@@ -669,6 +679,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           onWriteFile={writeWorkspaceFile}
           onListHistory={listWorkspaceFileHistory}
           onRestoreFile={restoreWorkspaceFile}
+          onRunFile={runWorkspaceFile}
+          onGetRunStatus={getWorkspaceRunStatus}
           onRunFile={runWorkspaceFile}
           onGetRunStatus={getWorkspaceRunStatus}
         />
