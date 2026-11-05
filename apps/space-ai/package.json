@@ -13,9 +13,10 @@
     "deploy": "npm run check && vite build && wrangler deploy"
   },
   "dependencies": {
-    "@cloudflare/ai-chat": "0.9.3",
+    "@cloudflare/ai-chat": "0.12.2",
     "agents": "0.32.0",
     "@ai-sdk/provider": "4.0.36",
+    "@ai-sdk/react": "4.0.167",
     "ai": "7.0.162",
     "fflate": "0.8.2",
     "monaco-editor": "0.57.0",
