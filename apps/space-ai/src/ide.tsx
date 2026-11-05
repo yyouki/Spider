@@ -1,7 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as monaco from "monaco-editor/editor";
 import { strToU8, zipSync } from "fflate";
-import "monaco-editor/features/register.all";
+// Register the common IDE commands individually. The full registry also imports unused
+// high-contrast and other contributions that add a very large client chunk.
+import "monaco-editor/features/anchorSelect/register";
+import "monaco-editor/features/bracketMatching/register";
+import "monaco-editor/features/caretOperations/register";
+import "monaco-editor/features/clipboard/register";
+import "monaco-editor/features/codeAction/register";
+import "monaco-editor/features/codeEditor/register";
+import "monaco-editor/features/contextmenu/register";
+import "monaco-editor/features/cursorUndo/register";
+import "monaco-editor/features/find/register";
+import "monaco-editor/features/folding/register";
+import "monaco-editor/features/format/register";
+import "monaco-editor/features/gotoLine/register";
+import "monaco-editor/features/hover/register";
+import "monaco-editor/features/indentation/register";
+import "monaco-editor/features/multicursor/register";
+import "monaco-editor/features/parameterHints/register";
+import "monaco-editor/features/rename/register";
+import "monaco-editor/features/snippet/register";
+import "monaco-editor/features/suggest/register";
+import "monaco-editor/features/tokenization/register";
+import "monaco-editor/features/wordHighlighter/register";
+import "monaco-editor/features/wordOperations/register";
 import "monaco-editor/languages/features/register.all";
 
 export type WorkspaceFileMetadata = {
