@@ -86,15 +86,6 @@ function buildTree(files: WorkspaceFileMetadata[]): TreeNode[] {
   return roots;
 }
 
-type TokenUsageSummary = {
-  requests: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  latestAt: string | null;
-  source: string;
-};
-
 function TokenAnalysis({
   content,
   files,
