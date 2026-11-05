@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useAgent } from "agents/react";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, type UIMessage } from "ai";
+import { useMemo as useMemoForAssets } from "react";
 import type { AutonomySettings, SpaceAgent } from "./server";
 import type { ComponentType, MouseEvent } from "react";
 import type { Props as WorkspaceIDEProps } from "./ide";
@@ -30,7 +31,99 @@ const NAV_ITEMS = [
   { href: "/settings", label: "Settings" }
 ];
 
-function MessageParts({ message }: { message: UIMessage }) {
+type WorkspaceAsset = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  contentBase64: string;
+  sizeBytes: number;
+  prompt: string;
+  createdAt: string;
+};
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function WorkspaceFileAttachment({
+  path,
+  onReadFile
+}: {
+  path: string;
+  onReadFile: (path: string) => Promise<{ path: string; content: string } | null>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const download = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const file = await onReadFile(path);
+      if (!file) throw new Error("File is no longer available.");
+      triggerDownload(new Blob([file.content], { type: "text/plain;charset=utf-8" }), path.split("/").at(-1) || "workspace-file.txt");
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Download failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="message-attachment">
+      <span className="attachment-file-icon">{"</>"}</span>
+      <span className="attachment-file-name"><strong>{path.split("/").at(-1)}</strong><small>{path}</small></span>
+      <button type="button" onClick={() => void download()} disabled={busy}>{busy ? "Preparing…" : "Download"}</button>
+      {error && <small className="attachment-error">{error}</small>}
+    </div>
+  );
+}
+
+function WorkspaceImageAttachment({
+  assetId,
+  onReadAsset
+}: {
+  assetId: string;
+  onReadAsset: (id: string) => Promise<WorkspaceAsset | null>;
+}) {
+  const [asset, setAsset] = useState<WorkspaceAsset | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void onReadAsset(assetId).then((result) => {
+      if (active) setAsset(result);
+    }).catch(() => {
+      if (active) setError("Image preview is unavailable.");
+    });
+    return () => { active = false; };
+  }, [assetId, onReadAsset]);
+  if (error) return <div className="message-attachment-error">{error}</div>;
+  if (!asset) return <div className="message-attachment-loading">Preparing image…</div>;
+  const source = "data:" + asset.mimeType + ";base64," + asset.contentBase64;
+  return (
+    <div className="message-image-attachment">
+      <img src={source} alt={asset.filename} loading="lazy" />
+      <div><span><strong>{asset.filename}</strong><small>{(asset.sizeBytes / 1024).toFixed(0)} KB · generated in Space</small></span>
+        <button type="button" onClick={() => triggerDownload(new Blob([Uint8Array.from(atob(asset.contentBase64), (char) => char.charCodeAt(0))], { type: asset.mimeType }), asset.filename)}>Download image</button>
+      </div>
+    </div>
+  );
+}
+
+function MessageParts({
+  message,
+  onReadFile,
+  onReadAsset
+}: {
+  message: UIMessage;
+  onReadFile: (path: string) => Promise<{ path: string; content: string } | null>;
+  onReadAsset: (id: string) => Promise<WorkspaceAsset | null>;
+}) {
   const isUser = message.role === "user";
 
   return (
@@ -45,6 +138,20 @@ function MessageParts({ message }: { message: UIMessage }) {
             }
 
             if (isToolUIPart(part)) {
+              const toolPart = part as unknown as { type: string; state: string; output?: unknown };
+              const output = toolPart.output && typeof toolPart.output === "object"
+                ? toolPart.output as Record<string, unknown>
+                : null;
+              if (toolPart.state === "output-available" && toolPart.type === "tool-writeWorkspaceFile" && typeof output?.path === "string") {
+                return <WorkspaceFileAttachment key={index} path={output.path} onReadFile={onReadFile} />;
+              }
+              if (
+                toolPart.state === "output-available" &&
+                (toolPart.type === "tool-generateImage" || toolPart.type === "tool-editImage") &&
+                typeof output?.assetId === "string"
+              ) {
+                return <WorkspaceImageAttachment key={index} assetId={output.assetId} onReadAsset={onReadAsset} />;
+              }
               return (
                 <details className="tool-event" key={index}>
                   <summary><span className="tool-event-dot" />{part.type.replace("tool-", "")}<span className="tool-event-state">{part.state}</span></summary>
@@ -100,6 +207,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const [shareNotice, setShareNotice] = useState("");
   const [tokenUsage, setTokenUsage] = useState<TokenUsageSummary | null>(null);
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileMetadata[]>([]);
+  const [pendingImage, setPendingImage] = useState<{ id: string; filename: string; mimeType: string; contentBase64: string } | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
   const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "/" : window.location.pathname);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -175,6 +284,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   }, [agent]);
 
   const readWorkspaceFile = useCallback((path: string) => agent.stub.readWorkspaceFile(path), [agent]);
+  const readWorkspaceAsset = useCallback((id: string) => agent.stub.readWorkspaceAsset(id), [agent]);
   const writeWorkspaceFile = useCallback((path: string, content: string) => agent.stub.writeWorkspaceFile(path, content), [agent]);
 
   useEffect(() => {
@@ -199,15 +309,60 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 
     setDraft("");
     setError("");
+    const attachmentNote = pendingImage
+      ? `\\n\\n[Image attachment: ${pendingImage.filename}; asset ID: ${pendingImage.id}. Use editImage with this asset ID if I ask you to edit the image.]`
+      : "";
     sendMessage({
       role: "user",
-      parts: [{ type: "text", text }]
+      parts: [{ type: "text", text: text + attachmentNote }]
     });
+    setPendingImage(null);
   };
 
   const clear = () => {
     if (!window.confirm("Hapus riwayat percakapan? Catatan proyek, file workspace, dan rencana kerja yang tersimpan terpisah tidak ikut dihapus.")) return;
     clearHistory();
+  };
+
+  const uploadImage = async (file?: File) => {
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setError("Gunakan gambar PNG, JPEG, atau WebP.");
+      return;
+    }
+    setUploadBusy(true);
+    setError("");
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 512 / bitmap.width, 512 / bitmap.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Image processing is unavailable in this browser.");
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not prepare the image.")), "image/png");
+      });
+      if (blob.size > 2 * 1024 * 1024) throw new Error("The resized image exceeds the 2 MB upload limit.");
+      const buffer = new Uint8Array(await blob.arrayBuffer());
+      let binary = "";
+      for (let offset = 0; offset < buffer.length; offset += 0x8000) {
+        binary += String.fromCharCode(...buffer.subarray(offset, offset + 0x8000));
+      }
+      const contentBase64 = btoa(binary);
+      const saved = await agent.stub.uploadWorkspaceAsset({
+        filename: file.name.replace(/\\.[^.]+$/, "") + ".png",
+        mimeType: "image/png",
+        contentBase64
+      });
+      setPendingImage({ id: saved.id, filename: saved.filename, mimeType: saved.mimeType, contentBase64 });
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Image upload failed.");
+    } finally {
+      setUploadBusy(false);
+    }
   };
 
   const shareChat = async () => {
@@ -334,7 +489,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
       <section className="chat-card">
         <div className="chat-card-header">
           <div><span className="chat-status-dot" /> <strong>Space</strong><span>Persistent conversation</span></div>
-          <small>{messages.length} / 100 messages retained</small>
+          <small>{messages.length.toLocaleString()} messages in this conversation</small>
         </div>
         <div className="messages" aria-live="polite">
           {messages.length === 0 && (
@@ -352,7 +507,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 
           {messages.map((message) => (
             <div className="message-group" key={message.id}>
-              <MessageParts message={message} />
+              <MessageParts message={message} onReadFile={readWorkspaceFile} onReadAsset={readWorkspaceAsset} />
               {message.parts.map((part, index) => {
                 if (!isToolUIPart(part) || part.state !== "approval-requested") return null;
                 const approvalId =
@@ -393,12 +548,24 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
             }}
             placeholder="Message Space…"
             rows={3}
-            maxLength={8000}
             disabled={!connected || busy}
             aria-label="Message Space"
           />
+          {pendingImage && (
+            <div className="pending-image-attachment">
+              <img src={"data:" + pendingImage.mimeType + ";base64," + pendingImage.contentBase64} alt={pendingImage.filename} />
+              <span>{pendingImage.filename}</span>
+              <button type="button" onClick={() => setPendingImage(null)} aria-label="Remove attached image">×</button>
+            </div>
+          )}
           <div className="composer-footer">
-            <span>Enter to send · Shift + Enter for a new line</span>
+            <div className="composer-tools">
+              <label className="attach-image-button">
+                {uploadBusy ? "Preparing image…" : "＋ Image"}
+                <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadBusy || busy} onChange={(event) => { void uploadImage(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+              </label>
+              <span>Enter to send · Shift + Enter for a new line</span>
+            </div>
             {busy ? (
               <button type="button" className="button button-primary" onClick={stop}>Stop response</button>
             ) : (
