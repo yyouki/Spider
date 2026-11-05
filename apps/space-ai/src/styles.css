@@ -246,3 +246,30 @@ button, textarea { font: inherit; }
   background: #a5b4fc; color: #111827; font-size: 13px; font-weight: 700; text-decoration: none;
 }
 .auth-button:focus-visible { outline: 2px solid #eef2ff; outline-offset: 3px; }
+
+
+/* Conversation export feedback and narrow-screen header layout */
+.export-notice {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid rgba(83,201,154,.22);
+  border-radius: 9px;
+  background: rgba(83,201,154,.06);
+  color: #9bdcbd;
+  font-size: 11px;
+  line-height: 1.5;
+}
+@media (max-width: 540px) {
+  .topbar {
+    height: auto;
+    min-height: 60px;
+    flex-wrap: wrap;
+    padding-block: 10px;
+  }
+  .topbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .topbar-actions .text-button { padding: 5px 0; }
+}
