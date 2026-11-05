@@ -345,11 +345,11 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
             />
             <SettingSelect
               label="Project files"
-              description="Limit file operations to a workspace you explicitly connect."
+              description="Create, read, and edit files in the private Space IDE workspace."
               value={settings.projectFiles}
               options={[
                 { value: "ask_before_write", label: "Ask before every write" },
-                { value: "selected_workspace", label: "Manage selected workspace" }
+                { value: "selected_workspace", label: "Private Space workspace" }
               ]}
               onChange={(value) => setSettings((current) => ({ ...current, projectFiles: value }))}
             />
