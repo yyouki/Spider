@@ -107,6 +107,12 @@ function basename(path: string): string {
   return path.split("/").at(-1) ?? path;
 }
 
+function archiveBlob(bytes: Uint8Array): Blob {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return new Blob([buffer], { type: "application/zip" });
+}
+
 function buildTree(files: WorkspaceFileMetadata[]): TreeNode[] {
   const roots: TreeNode[] = [];
   for (const file of files) {
@@ -459,7 +465,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
       }
       if (!Object.keys(entries).length) throw new Error("No files were available to download.");
       const archive = zipSync(entries, { level: 6 });
-      const url = URL.createObjectURL(new Blob([archive], { type: "application/zip" }));
+      const url = URL.createObjectURL(archiveBlob(archive));
       const link = document.createElement("a");
       link.href = url;
       link.download = (basename(folderPath) || "workspace") + ".zip";
