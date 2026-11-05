@@ -17,7 +17,9 @@ Last implementation pass: November 6, 2026.
 | Private workspace files | Implemented in current branch | SQLite-backed file records, validation, 200-file/2 MB limits, 20 revisions per file, chat download attachments |
 | Monaco IDE | Implemented in current branch | Monaco ESM, broad language syntax highlighting, search, autosave, revisions, ZIP downloads, Python/JavaScript Run File |
 | Token analysis | Implemented in current branch | Provider-reported AI usage plus clearly labeled file/workspace estimates |
-| Read-only conversation sharing | Implemented in current branch | Random bearer URLs, seven-day expiry, revoke, no-store/noindex response |\n| Image generation and editing | Implemented in source; model/quotas deployment-gated | FLUX.2 Klein 4B multipart generation/edit request, private asset storage, chat preview/download |\n| Long-history context management | Implemented in source; runtime not yet verified | AIChatAgent unlimited persisted message setting, background summary compaction, summary + recent context on model calls |
+| Read-only conversation sharing | Implemented in current branch | Random bearer URLs, seven-day expiry, revoke, no-store/noindex response |
+| Image generation and editing | Implemented in source; model/quotas deployment-gated | FLUX.2 Klein 4B multipart generation/edit request, private asset storage, chat preview/download |
+| Long-history context management | Implemented in source; runtime not yet verified | AIChatAgent unlimited persisted message setting, background summary compaction, summary + recent context on model calls |
 | Self-update release policy | Implemented in source | Deterministic release gate + Node unit tests |
 | Private owner access | Implemented in source | GitHub OAuth identity check, signed session cookie |
 | Python/JavaScript sandbox | Implemented in source; deployment-gated | GitHub Actions runner dispatch, encrypted source/result, restricted Docker runner |
@@ -44,7 +46,7 @@ The default model remains `@cf/zai-org/glm-4.7-flash`. It supports reasoning and
 
 ## Not yet verified
 
-- Current workspace attachments, image generation/editing, context compaction, search, and IDE Run File changes have not yet passed GitHub Actions or been deployed.
+- Workspace attachments, image generation/editing, context compaction, search, IDE Run File, and IDE language-feature bundling passed CI on the current PR head; production deployment and browser-level runtime tests have not yet been performed.
 - Cloudflare deployment and owner-only GitHub OAuth sign-in.
 - Runtime sandbox dispatch, artifact decryption, and Python/JavaScript execution.
 - Sandbox timeout, cancellation, concurrency, and no-network behavior.
