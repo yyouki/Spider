@@ -110,7 +110,7 @@ export default function AnalyticsPage({
           <small>Generated model responses</small>
         </article>
         <article className="metric-card">
-          <span className="metric-label">MODEL REQUESTS</span>
+          <span className="metric-label">MODEL RESPONSES</span>
           <strong>{usage ? number(usage.requests) : "—"}</strong>
           <small>Average {usage ? number(average) : "—"} tokens per response</small>
         </article>
@@ -123,7 +123,7 @@ export default function AnalyticsPage({
               <h2>Token activity</h2>
               <p>Daily totals from retained provider usage records.</p>
             </div>
-            <span className="period-pill">Last 14 days</span>
+            <span className="period-pill">Last 14 days · UTC</span>
           </div>
           <div className="chart-legend">
             <span><i className="legend-input" /> Input</span>
