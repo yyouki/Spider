@@ -62,6 +62,7 @@ export type Props = {
   onGetRunStatus: (taskId: string) => Promise<{
     id: string; status: string; exitCode?: number | null; stdout?: string; stderr?: string; error?: string; workflowRunId?: number;
   } | null>;
+  onSearchFiles: (query: string) => Promise<{ path: string; language: string; updatedAt: number; preview: string }[]>;
 };
 
 const workerScope = globalThis as typeof globalThis & {
@@ -254,7 +255,7 @@ function FileTree({
   );
 }
 
-export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile, onListHistory, onRestoreFile, onRunFile, onGetRunStatus }: Props) {
+export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile, onListHistory, onRestoreFile, onRunFile, onGetRunStatus, onSearchFiles }: Props) {
   const [files, setFiles] = useState<WorkspaceFileMetadata[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
   const [content, setContent] = useState("");
@@ -269,6 +270,8 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
   const [showNewFile, setShowNewFile] = useState(false);
   const [mobileTab, setMobileTab] = useState<"files" | "editor">("editor");
   const [search, setSearch] = useState("");
+  const [searchMatches, setSearchMatches] = useState<{ path: string; language: string; updatedAt: number; preview: string }[]>([]);
+  const [searchBusy, setSearchBusy] = useState(false);
   const [history, setHistory] = useState<{ id: string; createdAt: string; sizeBytes: number; preview: string }[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
@@ -410,10 +413,37 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
     }
   };
 
+  useEffect(() => {
+    const query = search.trim();
+    if (query.length < 2) {
+      setSearchMatches([]);
+      setSearchBusy(false);
+      return undefined;
+    }
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setSearchBusy(true);
+      try {
+        const matches = await onSearchFiles(query);
+        if (active) setSearchMatches(matches);
+      } catch {
+        if (active) setNotice("Search could not reach the workspace database.");
+      } finally {
+        if (active) setSearchBusy(false);
+      }
+    }, 300);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [onSearchFiles, search]);
+
   const filteredFiles = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return query ? files.filter((file) => file.path.toLowerCase().includes(query)) : files;
-  }, [files, search]);
+    if (!query) return files;
+    const matchedPaths = new Set(searchMatches.map((match) => match.path));
+    return files.filter((file) => file.path.toLowerCase().includes(query) || matchedPaths.has(file.path));
+  }, [files, search, searchMatches]);
   const tree = useMemo(() => buildTree(filteredFiles), [filteredFiles]);
   const selected = files.find((file) => file.path === selectedPath);
   const currentLanguage = selected?.language ?? "plaintext";
@@ -581,9 +611,12 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search files…"
-            aria-label="Search workspace files by path"
+            placeholder="Search files and contents…"
+            aria-label="Search workspace file names and contents"
           />
+          {search.trim().length >= 2 && (
+            <div className="ide-search-status">{searchBusy ? "Searching file contents…" : searchMatches.length + " matching files"}</div>
+          )}
           {showNewFile && (
             <form className="ide-new-file" onSubmit={(event) => { event.preventDefault(); void createFile(); }}>
               <input value={newPath} onChange={(event) => setNewPath(event.target.value)} aria-label="New file path" placeholder="folder/file.py" autoFocus />
