@@ -31,7 +31,7 @@ The IDE uses Monaco Editor with Vite-bundled language workers; it does not load 
 
 Workspace files are stored in the owning SpaceAgent Durable Object SQLite database. Limits are 200 files, 128 KB per file, and 2 MB total. Hidden paths and sensitive config filenames such as `.env` and `.dev.vars` are rejected. AI-created files appear in the Explorer after the write tool completes. These files do not automatically sync to GitHub or the device.
 
-The token panel separates provider-reported recent AI input/output tokens (up to 200 responses, when the provider reports them) from estimated file/workspace tokens. Estimates use UTF-8 byte size divided by four and are not exact GLM tokenizer counts.
+The separate **Analytics** page shows provider-reported input/output usage for at most the 200 most recent responses, a 14-day daily activity chart, and the latest 12 responses. The workspace section shows file count and storage size plus a clearly labeled rough token estimate using UTF-8 bytes divided by four. It is not an exact GLM tokenizer count or model usage. The dashboard does not estimate monetary cost or expose account-wide Cloudflare Neurons.
 
 ## Conversation share links
 
