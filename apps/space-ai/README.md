@@ -7,6 +7,7 @@ A first, deliberately small implementation of the single-core space AI workspace
 - One user-facing AI identity: `SpaceAgent`.
 - Streaming text chat from a mobile-first React interface.
 - Persistent chat history and resumable chat state through Cloudflare Agents / Durable Objects SQLite.
+- Owner-triggered JSON export of the currently loaded conversation, including visible message text and tool events. Export stays on the device; inspect and redact it before sharing. The agent retains up to 100 messages.
 - A task ledger for saving, listing, and cancelling plans. A saved plan is not executed automatically.
 - Owner-configurable autonomy preferences stored in the Agent's SQLite database.
 - A deterministic self-update release gate with unit tests.

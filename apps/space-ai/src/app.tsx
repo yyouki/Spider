@@ -74,6 +74,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const [settings, setSettings] = useState<AutonomySettings>(DEFAULT_SETTINGS);
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState("");
+  const [exportNotice, setExportNotice] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
   const agent = useAgent<SpaceAgent>({
@@ -136,6 +137,43 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     clearHistory();
   };
 
+  const exportChat = () => {
+    if (!messages.length || busy) return;
+
+    const approved = window.confirm(
+      "Export the currently loaded conversation, including message text and tool call details, to a JSON file on this device? The file is not uploaded automatically. Review it before sharing."
+    );
+    if (!approved) return;
+
+    // Export only content rendered in the chat; do not include hidden message metadata.
+    const visibleMessages = messages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      parts: message.parts.filter((part) => part.type === "text" || isToolUIPart(part))
+    }));
+    const payload = {
+      format: "space-chat-export",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      messageCount: visibleMessages.length,
+      scope: "Currently loaded active conversation; this agent retains up to 100 messages.",
+      messages: visibleMessages
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json"
+    });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = `space-chat-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+    setExportNotice("Conversation exported to this device. Review the file before sharing it.");
+  };
+
   const saveSettings = async () => {
     setSettingsBusy(true);
     setSettingsNotice("");
@@ -174,6 +212,15 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           >
             {showSettings ? "Close settings" : "Autonomy"}
           </button>
+          <button
+            className="text-button"
+            type="button"
+            onClick={exportChat}
+            disabled={!messages.length || busy}
+            title="Download the currently loaded conversation as JSON"
+          >
+            Export chat
+          </button>
           <button className="text-button" type="button" onClick={clear} disabled={!messages.length || busy}>
             Clear chat
           </button>
@@ -184,6 +231,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
       </header>
 
       <section className="chat-layout">
+        {exportNotice && <p className="export-notice" role="status">{exportNotice}</p>}
         <div className="welcome">
           <p className="eyebrow">AUTONOMOUS AI WORKSPACE · MVP 0.5</p>
           <h1>What should we work on?</h1>
