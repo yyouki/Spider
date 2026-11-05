@@ -77,7 +77,7 @@ const WORKSPACE_FILE_LIMIT = 200;
 const WORKSPACE_FILE_MAX_BYTES = 128 * 1024;
 const WORKSPACE_TOTAL_MAX_BYTES = 2 * 1024 * 1024;
 const ASSET_LIMIT = 40;
-const ASSET_MAX_BYTES = 2 * 1024 * 1024;
+const ASSET_MAX_BYTES = 1_350_000;
 const ASSET_TOTAL_MAX_BYTES = 25 * 1024 * 1024;
 const SHARE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -423,7 +423,10 @@ export class SpaceAgent extends AIChatAgent<Env> {
   }
 
   @callable()
-  async runWorkspaceFile(inputPath: string, timeoutSeconds = 10) {
+  async runWorkspaceFile(inputPath: string, timeoutSeconds = 10, ownerApproved = false) {
+    if (this.getAutonomySettings().settings.workspaceExecution === "manual" && ownerApproved !== true) {
+      throw new Error("Workspace execution is set to manual. Confirm this run in the Space interface first.");
+    }
     const path = normalizeWorkspacePath(inputPath);
     const file = this.readWorkspaceFile(path);
     if (!file) throw new Error("The workspace file does not exist.");
