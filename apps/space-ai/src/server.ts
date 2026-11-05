@@ -1,7 +1,7 @@
-import { AIChatAgent, type OnChatMessageOptions } from "@cloudflare/ai-chat";
+import { AIChatAgent, type ChatResponseResult, type OnChatMessageOptions } from "@cloudflare/ai-chat";
 import { callable, routeAgentRequest } from "agents";
 import { createWorkersAI } from "workers-ai-provider";
-import { convertToModelMessages, pruneMessages, stepCountIs, streamText, tool } from "ai";
+import { convertToModelMessages, generateText, pruneMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
 import { getOwnerSession, handleAuthRequest, requireOwnerAccess } from "./security/access";
 import { ChatShares, type SharedChatSnapshot } from "./chat-shares";
@@ -22,6 +22,9 @@ const SYSTEM_PROMPT = [
   "Never ask for passwords, one-time codes, private keys, session cookies, or raw biometric data.",
   "Use calculate only when the user asks for arithmetic in natural language and is not asking to execute code. If the message is source code or asks to run a snippet (for example print(...), console.log(...), assignments, loops, imports, or a code block), use runCode even when the snippet performs simple arithmetic. Never substitute calculate for explicitly requested code execution.",
   "The persistent private workspace file tree is connected. Use listWorkspaceFiles and readWorkspaceFile before editing an existing project file. Use writeWorkspaceFile to create or update files inside the isolated Space workspace; never claim a file was saved unless the tool confirms it.",
+  "If project file mode is review_changes, writeWorkspaceFile requires owner approval. Explain the proposed path and why it changes before approval; never try to bypass the review.",
+  "The conversation history is retained without a fixed message-count cap. Older context is summarized automatically; use the durable summary as background and trust the newest messages for current instructions.",
+  "When a user attaches an image, the UI includes its asset ID. Use editImage for an explicit request to modify it, and generateImage for a new image. Image operations return a separate downloadable asset; never claim success before the tool returns an asset ID.",
   "When you create or update a workspace file, tell the user its exact relative path. The file appears in the IDE explorer and can be opened in the editor. Workspace files are private to this Space agent and are not automatically synced to GitHub or the user device.",
   "Never write secrets, tokens, passwords, cookies, .env files, .dev.vars files, credentials, or private keys into the workspace.",
   "Use task-plan tools for multi-step requests. A saved plan is not evidence that its steps have been executed.",
@@ -44,7 +47,7 @@ const SYSTEM_PROMPT = [
 const autonomySettingsSchema = z.object({
   workspaceExecution: z.enum(["manual", "autonomous_sandbox"]),
   browserResearch: z.enum(["manual", "read_only_auto"]),
-  projectFiles: z.enum(["ask_before_write", "selected_workspace"]),
+  projectFiles: z.enum(["ask_before_write", "review_changes", "selected_workspace"]),
   selfUpdate: z.enum(["manual", "automatic_after_gates"])
 }).strict();
 
@@ -61,10 +64,16 @@ type SettingsRow = { settings_json: string; updated_at: number };
 
 type MemoryRow = { key: string; value: string; updated_at: number };
 type WorkspaceFileRow = { path: string; content: string; language: string; size_bytes: number; updated_at: number };
+type WorkspaceRevisionRow = { id: string; path: string; content: string; size_bytes: number; created_at: number };
+type WorkspaceAssetRow = { id: string; filename: string; mime_type: string; content_base64: string; size_bytes: number; prompt: string; created_at: number };
+type ConversationContextRow = { summary_text: string; summarized_through_id: string; updated_at: number };
 
 const WORKSPACE_FILE_LIMIT = 200;
 const WORKSPACE_FILE_MAX_BYTES = 128 * 1024;
 const WORKSPACE_TOTAL_MAX_BYTES = 2 * 1024 * 1024;
+const ASSET_LIMIT = 40;
+const ASSET_MAX_BYTES = 2 * 1024 * 1024;
+const ASSET_TOTAL_MAX_BYTES = 25 * 1024 * 1024;
 const SHARE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 function makeShareToken(): string {
@@ -86,6 +95,17 @@ function safeSharePart(part: unknown): Record<string, unknown> | null {
   return safe;
 }
 
+function encodeBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
 function htmlEscape(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -100,7 +120,7 @@ type TaskPlanRow = {
 };
 
 export class SpaceAgent extends AIChatAgent<Env> {
-  maxPersistedMessages = 100;
+  // AIChatAgent defaults to unlimited persisted messages. Older context is compacted into a summary below.
   chatRecovery = true;
 
   onStart() {
@@ -150,6 +170,33 @@ export class SpaceAgent extends AIChatAgent<Env> {
       total_tokens INTEGER NOT NULL,
       created_at INTEGER NOT NULL
     )`;
+
+    this.sql`CREATE TABLE IF NOT EXISTS workspace_file_revisions (
+      id TEXT PRIMARY KEY,
+      path TEXT NOT NULL,
+      content TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )`;
+    this.sql`CREATE INDEX IF NOT EXISTS workspace_file_revisions_path_created
+      ON workspace_file_revisions(path, created_at DESC)`;
+
+    this.sql`CREATE TABLE IF NOT EXISTS workspace_assets (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      content_base64 TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      prompt TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )`;
+
+    this.sql`CREATE TABLE IF NOT EXISTS conversation_context (
+      context_id TEXT PRIMARY KEY,
+      summary_text TEXT NOT NULL,
+      summarized_through_id TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`;
   }
 
   @callable()
@@ -186,8 +233,9 @@ export class SpaceAgent extends AIChatAgent<Env> {
     const sizeBytes = new TextEncoder().encode(content).byteLength;
     if (sizeBytes > WORKSPACE_FILE_MAX_BYTES) throw new Error("A workspace file cannot exceed 128 KB.");
 
-    const existing = this.sql<Pick<WorkspaceFileRow, "size_bytes">>`
-      SELECT size_bytes FROM workspace_files WHERE path = ${path} LIMIT 1`;
+    const existing = this.sql<WorkspaceFileRow>`
+      SELECT path, content, language, size_bytes, updated_at
+      FROM workspace_files WHERE path = ${path} LIMIT 1`;
     const totals = this.sql<{ file_count: number; total_bytes: number }>`
       SELECT COUNT(*) AS file_count, COALESCE(SUM(size_bytes), 0) AS total_bytes FROM workspace_files`;
     const current = totals[0] ?? { file_count: 0, total_bytes: 0 };
@@ -201,6 +249,15 @@ export class SpaceAgent extends AIChatAgent<Env> {
 
     const now = Date.now();
     const language = languageForPath(path);
+    if (existing[0] && existing[0].content !== content) {
+      this.sql`INSERT INTO workspace_file_revisions (id, path, content, size_bytes, created_at)
+        VALUES (${crypto.randomUUID()}, ${path}, ${existing[0].content}, ${existing[0].size_bytes}, ${now})`;
+      this.sql`DELETE FROM workspace_file_revisions
+        WHERE path = ${path} AND id NOT IN (
+          SELECT id FROM workspace_file_revisions WHERE path = ${path}
+          ORDER BY created_at DESC LIMIT 20
+        )`;
+    }
     this.sql`INSERT INTO workspace_files (path, content, language, size_bytes, updated_at)
       VALUES (${path}, ${content}, ${language}, ${sizeBytes}, ${now})
       ON CONFLICT(path) DO UPDATE SET
@@ -209,6 +266,95 @@ export class SpaceAgent extends AIChatAgent<Env> {
         size_bytes = excluded.size_bytes,
         updated_at = excluded.updated_at`;
     return { path, language, sizeBytes, updatedAt: now };
+  }
+
+  @callable()
+  listWorkspaceFileHistory(inputPath: string) {
+    const path = normalizeWorkspacePath(inputPath);
+    const rows = this.sql<WorkspaceRevisionRow>`
+      SELECT id, path, content, size_bytes, created_at
+      FROM workspace_file_revisions WHERE path = ${path}
+      ORDER BY created_at DESC LIMIT 20`;
+    return rows.map((row) => ({
+      id: row.id,
+      path: row.path,
+      sizeBytes: row.size_bytes,
+      createdAt: new Date(row.created_at).toISOString(),
+      preview: row.content.slice(0, 180)
+    }));
+  }
+
+  @callable()
+  restoreWorkspaceFile(inputPath: string, revisionId: string) {
+    const path = normalizeWorkspacePath(inputPath);
+    if (typeof revisionId !== "string" || !/^[0-9a-f-]{36}$/i.test(revisionId)) {
+      throw new Error("Invalid workspace revision.");
+    }
+    const rows = this.sql<WorkspaceRevisionRow>`
+      SELECT id, path, content, size_bytes, created_at
+      FROM workspace_file_revisions WHERE id = ${revisionId} AND path = ${path} LIMIT 1`;
+    const revision = rows[0];
+    if (!revision) throw new Error("That file revision is no longer available.");
+    return this.writeWorkspaceFile(path, revision.content);
+  }
+
+  @callable()
+  async uploadWorkspaceAsset(input: { filename: string; mimeType: string; contentBase64: string }) {
+    const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+    if (!input || !allowedTypes.has(input.mimeType)) throw new Error("Upload a PNG, JPEG, or WebP image.");
+    if (typeof input.contentBase64 !== "string" || input.contentBase64.length > Math.ceil(ASSET_MAX_BYTES * 4 / 3) + 8) {
+      throw new Error("The uploaded image exceeds the 2 MB limit.");
+    }
+    const bytes = decodeBase64(input.contentBase64);
+    if (!bytes.byteLength || bytes.byteLength > ASSET_MAX_BYTES) throw new Error("The uploaded image exceeds the 2 MB limit.");
+    const totals = this.sql<{ asset_count: number; total_bytes: number }>`
+      SELECT COUNT(*) AS asset_count, COALESCE(SUM(size_bytes), 0) AS total_bytes FROM workspace_assets`;
+    const total = totals[0] ?? { asset_count: 0, total_bytes: 0 };
+    if (total.asset_count >= ASSET_LIMIT) throw new Error("The workspace reached its 40-image limit.");
+    if (total.total_bytes + bytes.byteLength > ASSET_TOTAL_MAX_BYTES) throw new Error("The workspace reached its 25 MB image storage limit.");
+
+    const id = crypto.randomUUID();
+    const filename = (String(input.filename ?? "image").replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 80) || "image");
+    const now = Date.now();
+    this.sql`INSERT INTO workspace_assets (id, filename, mime_type, content_base64, size_bytes, prompt, created_at)
+      VALUES (${id}, ${filename}, ${input.mimeType}, ${input.contentBase64}, ${bytes.byteLength}, '', ${now})`;
+    return { id, filename, mimeType: input.mimeType, sizeBytes: bytes.byteLength, createdAt: new Date(now).toISOString() };
+  }
+
+  @callable()
+  readWorkspaceAsset(assetId: string) {
+    if (typeof assetId !== "string" || !/^[0-9a-f-]{36}$/i.test(assetId)) throw new Error("Invalid image asset.");
+    const rows = this.sql<WorkspaceAssetRow>`
+      SELECT id, filename, mime_type, content_base64, size_bytes, prompt, created_at
+      FROM workspace_assets WHERE id = ${assetId} LIMIT 1`;
+    const row = rows[0];
+    return row ? {
+      id: row.id,
+      filename: row.filename,
+      mimeType: row.mime_type,
+      contentBase64: row.content_base64,
+      sizeBytes: row.size_bytes,
+      prompt: row.prompt,
+      createdAt: new Date(row.created_at).toISOString()
+    } : null;
+  }
+
+  private saveGeneratedImage(filename: string, prompt: string, image: string | Uint8Array) {
+    const bytes = typeof image === "string" ? decodeBase64(image) : image;
+    if (!bytes.byteLength || bytes.byteLength > ASSET_MAX_BYTES) {
+      throw new Error("The generated image exceeds the 2 MB asset limit.");
+    }
+    const totals = this.sql<{ asset_count: number; total_bytes: number }>`
+      SELECT COUNT(*) AS asset_count, COALESCE(SUM(size_bytes), 0) AS total_bytes FROM workspace_assets`;
+    const total = totals[0] ?? { asset_count: 0, total_bytes: 0 };
+    if (total.asset_count >= ASSET_LIMIT || total.total_bytes + bytes.byteLength > ASSET_TOTAL_MAX_BYTES) {
+      throw new Error("The workspace image storage limit has been reached. Delete older images before generating another.");
+    }
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    this.sql`INSERT INTO workspace_assets (id, filename, mime_type, content_base64, size_bytes, prompt, created_at)
+      VALUES (${id}, ${filename}, 'image/png', ${encodeBase64(bytes)}, ${bytes.byteLength}, ${prompt.slice(0, 1000)}, ${now})`;
+    return { assetId: id, filename, mimeType: "image/png", sizeBytes: bytes.byteLength, createdAt: new Date(now).toISOString(), prompt: prompt.slice(0, 500) };
   }
 
   @callable()
@@ -396,6 +542,84 @@ export class SpaceAgent extends AIChatAgent<Env> {
     return this.getAutonomySettings();
   }
 
+  protected async onChatResponse(result: ChatResponseResult) {
+    if (result.status === "completed") {
+      try {
+        await this.compactConversationContext();
+      } catch {
+        // A failed summary must never invalidate a successful chat response.
+      }
+    }
+  }
+
+  private async compactConversationContext() {
+    const rows = this.sql<ConversationContextRow>`
+      SELECT summary_text, summarized_through_id, updated_at
+      FROM conversation_context WHERE context_id = 'primary' LIMIT 1`;
+    const previous = rows[0];
+    const messages = this.messages;
+    const keepRecent = 16;
+    const cutoff = Math.max(0, messages.length - keepRecent);
+    if (cutoff <= 0) return;
+
+    const cursorIndex = previous
+      ? messages.findIndex((message) => message.id === previous.summarized_through_id)
+      : -1;
+    const start = previous && cursorIndex >= 0 ? cursorIndex + 1 : 0;
+    const pending = messages.slice(start, cutoff);
+    if (pending.length < 12) return;
+
+    const transcript = pending.map((message) => {
+      const parts = message.parts.map((part) => {
+        if (part.type === "text" && "text" in part) return String(part.text).slice(0, 6000);
+        if (typeof part.type === "string" && part.type.startsWith("tool-")) {
+          const value = JSON.stringify(part);
+          return "[tool event] " + value.slice(0, 1200);
+        }
+        return "";
+      }).filter(Boolean).join("\\n");
+      return message.role.toUpperCase() + ": " + parts;
+    }).join("\\n\\n").slice(0, 36_000);
+
+    const workersai = createWorkersAI({ binding: this.env.AI });
+    const result = await generateText({
+      model: workersai("@cf/zai-org/glm-4.7-flash"),
+      system: [
+        "Update the durable summary of a user's ongoing project conversation.",
+        "Preserve goals, decisions, constraints, file paths, current task state, unresolved questions, and useful facts.",
+        "Remove repetition and obsolete details. Mark uncertain claims as uncertain.",
+        "Never preserve passwords, API keys, access tokens, private keys, session cookies, or authentication codes. Replace them with [REDACTED].",
+        "Do not invent missing facts. Output a compact, factual summary in the conversation's language."
+      ].join(" "),
+      prompt: "Previous summary:\\n" + (previous?.summary_text ?? "(none)") +
+        "\\n\\nNew messages to integrate:\\n" + transcript,
+      maxOutputTokens: 1200
+    });
+
+    const summary = result.text.trim().slice(0, 10_000);
+    if (!summary) return;
+    const summarizedThroughId = pending.at(-1)?.id;
+    if (!summarizedThroughId) return;
+    const now = Date.now();
+    this.sql`INSERT INTO conversation_context (context_id, summary_text, summarized_through_id, updated_at)
+      VALUES ('primary', ${summary}, ${summarizedThroughId}, ${now})
+      ON CONFLICT(context_id) DO UPDATE SET
+        summary_text = excluded.summary_text,
+        summarized_through_id = excluded.summarized_through_id,
+        updated_at = excluded.updated_at`;
+    const usage = result.usage;
+    const inputTokens = usage.inputTokens ?? 0;
+    const outputTokens = usage.outputTokens ?? 0;
+    const totalTokens = usage.totalTokens ?? inputTokens + outputTokens;
+    if (inputTokens + outputTokens > 0) {
+      this.sql`INSERT INTO token_usage (id, input_tokens, output_tokens, total_tokens, created_at)
+        VALUES (${crypto.randomUUID()}, ${inputTokens}, ${outputTokens}, ${totalTokens}, ${now})`;
+      this.sql`DELETE FROM token_usage WHERE id NOT IN (
+        SELECT id FROM token_usage ORDER BY created_at DESC LIMIT 200
+      )`;
+    }
+  }
+
   async onChatMessage(_onFinish: unknown, options?: OnChatMessageOptions) {
     const workersai = createWorkersAI({ binding: this.env.AI });
 
@@ -405,6 +629,11 @@ export class SpaceAgent extends AIChatAgent<Env> {
     let requestInputTokens = 0;
     let requestOutputTokens = 0;
     let requestTotalTokens = 0;
+
+    const contextRows = this.sql<Pick<ConversationContextRow, "summary_text">>`
+      SELECT summary_text FROM conversation_context WHERE context_id = 'primary' LIMIT 1`;
+    const conversationSummary = contextRows[0]?.summary_text;
+    const recentMessages = this.messages.slice(-24);
 
     const result = streamText({
       model: workersai("@cf/zai-org/glm-4.7-flash"),
@@ -425,9 +654,11 @@ export class SpaceAgent extends AIChatAgent<Env> {
           )`;
         }
       },
-      system: SYSTEM_PROMPT,
+      system: conversationSummary
+        ? SYSTEM_PROMPT + "\\n\\nDurable conversation summary (older messages):\\n" + conversationSummary
+        : SYSTEM_PROMPT,
       messages: pruneMessages({
-        messages: await convertToModelMessages(this.messages),
+        messages: await convertToModelMessages(recentMessages),
         toolCalls: "before-last-2-messages",
         reasoning: "before-last-message"
       }),
@@ -629,7 +860,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
         writeWorkspaceFile: tool({
           description: "Create or update a text file in the private Space workspace. Use relative paths such as src/main.py. Never write credentials, .env files, tokens, passwords, cookies, or private keys.",
           inputSchema: z.object({ path: z.string().min(1).max(240), content: z.string().max(131072) }),
-          needsApproval: this.getAutonomySettings().settings.projectFiles === "ask_before_write",
+          needsApproval: this.getAutonomySettings().settings.projectFiles !== "selected_workspace",
           execute: async ({ path, content }) => this.writeWorkspaceFile(path, content)
         }),
 
@@ -638,6 +869,44 @@ export class SpaceAgent extends AIChatAgent<Env> {
           inputSchema: z.object({ path: z.string().min(1).max(240) }),
           needsApproval: true,
           execute: async ({ path }) => this.deleteWorkspaceFile(path)
+        }),
+
+        generateImage: tool({
+          description: "Generate a polished, natural-looking PNG image from a text brief. Prefer deliberate art direction, believable lighting and materials, coherent composition, and avoid generic artificial-looking effects. Return the generated asset ID so the user can preview and download it.",
+          inputSchema: z.object({
+            prompt: z.string().trim().min(8).max(1600),
+            width: z.number().int().min(256).max(1920).default(1024),
+            height: z.number().int().min(256).max(1920).default(768)
+          }),
+          execute: async ({ prompt, width, height }) => {
+            const result = await this.env.AI.run("@cf/black-forest-labs/flux-2-klein-4b", {
+              prompt,
+              width,
+              height
+            }) as { image?: string | Uint8Array };
+            if (!result?.image) throw new Error("The image provider returned no image.");
+            return this.saveGeneratedImage("space-image-" + Date.now() + ".png", prompt, result.image);
+          }
+        }),
+
+        editImage: tool({
+          description: "Edit an image previously uploaded to this Space conversation. Use the asset ID shown in the user's attachment. Describe the visual changes while preserving requested subject details. Reference images are resized by the client to no more than 512 by 512 pixels before upload. Return a new asset; never overwrite the original.",
+          inputSchema: z.object({
+            assetId: z.string().uuid(),
+            prompt: z.string().trim().min(8).max(1600)
+          }),
+          execute: async ({ assetId, prompt }) => {
+            const original = this.readWorkspaceAsset(assetId);
+            if (!original) throw new Error("The source image is unavailable.");
+            const result = await this.env.AI.run("@cf/black-forest-labs/flux-2-klein-4b", {
+              prompt,
+              input_image_0: original.contentBase64,
+              width: 1024,
+              height: 768
+            }) as { image?: string | Uint8Array };
+            if (!result?.image) throw new Error("The image provider returned no edited image.");
+            return this.saveGeneratedImage("space-edited-" + Date.now() + ".png", prompt, result.image);
+          }
         }),
 
         searchProjectMemory: tool({
