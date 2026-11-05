@@ -108,7 +108,12 @@ function WorkspaceImageAttachment({
     <div className="message-image-attachment">
       <img src={source} alt={asset.filename} loading="lazy" />
       <div><span><strong>{asset.filename}</strong><small>{(asset.sizeBytes / 1024).toFixed(0)} KB · generated in Space</small></span>
-        <button type="button" onClick={() => triggerDownload(new Blob([Uint8Array.from(atob(asset.contentBase64), (char) => char.charCodeAt(0))], { type: asset.mimeType }), asset.filename)}>Download image</button>
+        <button type="button" onClick={() => {
+          const bytes = Uint8Array.from(atob(asset.contentBase64), (char) => char.charCodeAt(0));
+          const buffer = new ArrayBuffer(bytes.byteLength);
+          new Uint8Array(buffer).set(bytes);
+          triggerDownload(new Blob([buffer], { type: asset.mimeType }), asset.filename);
+        }}>Download image</button>
       </div>
     </div>
   );
@@ -334,6 +339,10 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const readWorkspaceFile = useCallback((path: string) => agent.stub.readWorkspaceFile(path), [agent]);
   const readWorkspaceAsset = useCallback((id: string) => agent.stub.readWorkspaceAsset(id), [agent]);
   const writeWorkspaceFile = useCallback((path: string, content: string) => agent.stub.writeWorkspaceFile(path, content), [agent]);
+  const listWorkspaceFileHistory = useCallback((path: string) => agent.stub.listWorkspaceFileHistory(path), [agent]);
+  const restoreWorkspaceFile = useCallback((path: string, revisionId: string) => agent.stub.restoreWorkspaceFile(path, revisionId), [agent]);
+  const runWorkspaceFile = useCallback((path: string) => agent.stub.runWorkspaceFile(path), [agent]);
+  const getWorkspaceRunStatus = useCallback((taskId: string) => agent.stub.getWorkspaceRunStatus(taskId), [agent]);
 
   useEffect(() => {
     if (connected && (currentPath === "/analytics" || currentPath === "/ide")) void listWorkspaceFiles().catch(() => undefined);
@@ -660,6 +669,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           onWriteFile={writeWorkspaceFile}
           onListHistory={listWorkspaceFileHistory}
           onRestoreFile={restoreWorkspaceFile}
+          onRunFile={runWorkspaceFile}
+          onGetRunStatus={getWorkspaceRunStatus}
         />
       </Suspense>
     </main>
