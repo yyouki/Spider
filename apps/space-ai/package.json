@@ -15,7 +15,7 @@
   "dependencies": {
     "@cloudflare/ai-chat": "0.12.2",
     "agents": "0.32.0",
-    "@ai-sdk/provider": "4.0.36",
+    "@ai-sdk/provider": "4.0.35",
     "@ai-sdk/react": "4.0.167",
     "ai": "7.0.162",
     "fflate": "0.8.2",
