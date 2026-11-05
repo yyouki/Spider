@@ -4,7 +4,11 @@ import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, type UIMessage } from "ai";
 import type { AutonomySettings, SpaceAgent } from "./server";
 
-const WorkspaceIDE = lazy(() => import("./ide"));
+const WorkspaceIDE = lazy(() => {
+  // Monaco and its Web Workers are browser-only; do not bundle workers into the Cloudflare SSR Worker.
+  if (import.meta.env.SSR) return Promise.resolve({ default: () => null });
+  return import("./ide");
+});
 
 const DEFAULT_SETTINGS: AutonomySettings = {
   workspaceExecution: "autonomous_sandbox",
