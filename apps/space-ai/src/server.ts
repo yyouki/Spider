@@ -366,6 +366,36 @@ export class SpaceAgent extends AIChatAgent<Env> {
   }
 
   @callable()
+  async runWorkspaceFile(inputPath: string, timeoutSeconds = 10) {
+    const path = normalizeWorkspacePath(inputPath);
+    const file = this.readWorkspaceFile(path);
+    if (!file) throw new Error("The workspace file does not exist.");
+    const language = file.language === "python" ? "python"
+      : file.language === "javascript" ? "javascript"
+      : null;
+    if (!language) {
+      throw new Error("Run File currently supports Python and JavaScript only. Other languages can be edited with syntax highlighting, but no compiler/runtime is connected for them yet.");
+    }
+    const boundedTimeout = Number.isInteger(timeoutSeconds)
+      ? Math.max(1, Math.min(30, timeoutSeconds))
+      : 10;
+    const namespace = this.env.SandboxRunner;
+    const id = namespace.idFromName("space-agent-" + this.ctx.id.toString());
+    return namespace.get(id).startCodeTask({
+      language,
+      source: file.content,
+      timeoutSeconds: boundedTimeout
+    });
+  }
+
+  @callable()
+  async getWorkspaceRunStatus(taskId: string) {
+    const namespace = this.env.SandboxRunner;
+    const id = namespace.idFromName("space-agent-" + this.ctx.id.toString());
+    return namespace.get(id).getTaskStatus(taskId);
+  }
+
+  @callable()
   async createChatShare() {
     const messages = this.messages.slice(-100).map((message) => ({
       id: message.id,
