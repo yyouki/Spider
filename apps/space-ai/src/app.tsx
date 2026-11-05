@@ -3,7 +3,7 @@ import { useAgent } from "agents/react";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, type UIMessage } from "ai";
 import type { AutonomySettings, SpaceAgent } from "./server";
-import type { ComponentType } from "react";
+import type { ComponentType, MouseEvent } from "react";
 import type { Props as WorkspaceIDEProps } from "./ide";
 import AnalyticsPage, { type TokenUsageSummary, type WorkspaceFileMetadata } from "./analytics";
 
@@ -89,12 +89,6 @@ function SettingSelect<T extends string>({
   );
 }
 
-function formatBytes(value: number): string {
-  if (value < 1024) return value + " B";
-  if (value < 1024 * 1024) return (value / 1024).toFixed(1) + " KB";
-  return (value / (1024 * 1024)).toFixed(2) + " MB";
-}
-
 function Workspace({ onLogout }: { onLogout: () => void }) {
   const [connected, setConnected] = useState(false);
   const [draft, setDraft] = useState("");
@@ -140,12 +134,12 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  const navigate = (event: React.MouseEvent<HTMLAnchorElement>, path: string) => {
+  const navigate = (event: MouseEvent<HTMLAnchorElement>, path: string) => {
     event.preventDefault();
     if (path === pathname) return;
     window.history.pushState({}, "", path);
     setPathname(path);
-    window.scrollTo({ top: 0, behavior: "instant" });
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
 
   const loadSettings = useCallback(async () => {
@@ -184,7 +178,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const writeWorkspaceFile = useCallback((path: string, content: string) => agent.stub.writeWorkspaceFile(path, content), [agent]);
 
   useEffect(() => {
-    if (connected && currentPath === "/analytics") void listWorkspaceFiles().catch(() => undefined);
+    if (connected && (currentPath === "/analytics" || currentPath === "/ide")) void listWorkspaceFiles().catch(() => undefined);
   }, [connected, currentPath, listWorkspaceFiles]);
 
   const workspaceRefreshKey = useMemo(
