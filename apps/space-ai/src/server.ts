@@ -274,6 +274,25 @@ export class SpaceAgent extends AIChatAgent<Env> {
   }
 
   @callable()
+  searchWorkspaceFiles(query: string) {
+    const value = typeof query === "string" ? query.trim().slice(0, 100) : "";
+    if (value.length < 2) return [];
+    const rows = this.sql<{ path: string; language: string; updated_at: number; preview: string }>`
+      SELECT path, language, updated_at,
+        substr(content, max(1, instr(lower(content), lower(${value})) - 70), 180) AS preview
+      FROM workspace_files
+      WHERE instr(lower(path), lower(${value})) > 0
+         OR instr(lower(content), lower(${value})) > 0
+      ORDER BY updated_at DESC LIMIT 40`;
+    return rows.map((row) => ({
+      path: row.path,
+      language: row.language,
+      updatedAt: row.updated_at,
+      preview: row.preview
+    }));
+  }
+
+  @callable()
   listWorkspaceFileHistory(inputPath: string) {
     const path = normalizeWorkspacePath(inputPath);
     const rows = this.sql<WorkspaceRevisionRow>`
