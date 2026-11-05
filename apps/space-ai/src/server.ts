@@ -126,7 +126,7 @@ type TaskPlanRow = {
 
 export class SpaceAgent extends AIChatAgent<Env> {
   // AIChatAgent defaults to unlimited persisted messages. Older context is compacted into a summary below.
-  chatRecovery = true;
+  override chatRecovery = {\n    maxAttempts: 10,\n    maxRecoveryWork: 10_000,\n    terminalMessage: "Space could not recover this interrupted response. The saved conversation is still available; try sending your request again."\n  };
 
   onStart() {
     this.sql`CREATE TABLE IF NOT EXISTS project_memory (
