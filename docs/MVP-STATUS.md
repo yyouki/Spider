@@ -1,6 +1,6 @@
 # space AI MVP status
 
-Last implementation pass: November 5, 2026.
+Last implementation pass: November 6, 2026.
 
 ## Implemented in source
 
@@ -44,7 +44,7 @@ The default model remains `@cf/zai-org/glm-4.7-flash`. It supports reasoning and
 
 ## Not yet verified
 
-- Current IDE/workspace/share branch has not yet passed GitHub Actions or been deployed.
+- The latest separate-page UI redesign has not yet passed GitHub Actions or been deployed.
 - Cloudflare deployment and owner-only GitHub OAuth sign-in.
 - Runtime sandbox dispatch, artifact decryption, and Python/JavaScript execution.
 - Sandbox timeout, cancellation, concurrency, and no-network behavior.

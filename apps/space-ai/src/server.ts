@@ -280,12 +280,48 @@ export class SpaceAgent extends AIChatAgent<Env> {
     const row = rows[0] ?? { requests: 0, input_tokens: 0, output_tokens: 0, total_tokens: 0 };
     const latest = this.sql<{ created_at: number }>`
       SELECT created_at FROM token_usage ORDER BY created_at DESC LIMIT 1`;
+    const daily = this.sql<{
+      day: string;
+      requests: number;
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+    }>`
+      SELECT strftime('%Y-%m-%d', created_at / 1000, 'unixepoch') AS day,
+        COUNT(*) AS requests,
+        COALESCE(SUM(input_tokens), 0) AS input_tokens,
+        COALESCE(SUM(output_tokens), 0) AS output_tokens,
+        COALESCE(SUM(total_tokens), 0) AS total_tokens
+      FROM token_usage
+      WHERE created_at >= ${Date.now() - 14 * 24 * 60 * 60 * 1000}
+      GROUP BY day ORDER BY day ASC`;
+    const recent = this.sql<{
+      created_at: number;
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+    }>`
+      SELECT created_at, input_tokens, output_tokens, total_tokens
+      FROM token_usage ORDER BY created_at DESC LIMIT 12`;
     return {
       requests: row.requests,
       inputTokens: row.input_tokens,
       outputTokens: row.output_tokens,
       totalTokens: row.total_tokens,
       latestAt: latest[0]?.created_at ? new Date(latest[0].created_at).toISOString() : null,
+      daily: daily.map((item) => ({
+        day: item.day,
+        requests: item.requests,
+        inputTokens: item.input_tokens,
+        outputTokens: item.output_tokens,
+        totalTokens: item.total_tokens
+      })),
+      recent: recent.map((item) => ({
+        createdAt: new Date(item.created_at).toISOString(),
+        inputTokens: item.input_tokens,
+        outputTokens: item.output_tokens,
+        totalTokens: item.total_tokens
+      })),
       source: "provider_reported_recent_200_responses"
     };
   }
