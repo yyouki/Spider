@@ -30,18 +30,8 @@ type TreeNode = {
   children: TreeNode[];
 };
 
-type TokenUsageSummary = {
-  requests: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  latestAt: string | null;
-  source: string;
-};
-
 export type Props = {
   refreshKey: unknown;
-  tokenUsage: TokenUsageSummary | null;
   onListFiles: () => Promise<WorkspaceFileMetadata[]>;
   onReadFile: (path: string) => Promise<WorkspaceFile | null>;
   onWriteFile: (path: string, content: string) => Promise<WorkspaceFileMetadata>;
@@ -113,43 +103,6 @@ function buildTree(files: WorkspaceFileMetadata[]): TreeNode[] {
   };
   sort(roots);
   return roots;
-}
-
-function TokenAnalysis({
-  content,
-  files,
-  tokenUsage
-}: {
-  content: string;
-  files: WorkspaceFileMetadata[];
-  tokenUsage: TokenUsageSummary | null;
-}) {
-  const fileBytes = new TextEncoder().encode(content).byteLength;
-  const lines = content ? content.split("\n").length : 0;
-  const fileTokens = Math.ceil(fileBytes / 4);
-  const projectBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
-  const projectTokens = Math.ceil(projectBytes / 4);
-
-  return (
-    <div className="ide-analysis">
-      <div className="ide-analysis-heading">
-        <span> TOKEN ANALYSIS</span>
-        <span className="estimate-label">ESTIMATE</span>
-      </div>
-      <div className="ide-stats">
-        <div><strong>{tokenUsage?.requests ? tokenUsage.totalTokens.toLocaleString() : "—"}</strong><span>AI tokens · actual</span></div>
-        <div><strong>{tokenUsage?.requests ? tokenUsage.inputTokens.toLocaleString() : "—"}</strong><span>Input · actual</span></div>
-        <div><strong>{tokenUsage?.requests ? tokenUsage.outputTokens.toLocaleString() : "—"}</strong><span>Output · actual</span></div>
-        <div><strong>{fileTokens.toLocaleString()}</strong><span>Open file · estimate</span></div>
-        <div><strong>{projectTokens.toLocaleString()}</strong><span>Workspace · estimate</span></div>
-        <div><strong>{lines.toLocaleString()}</strong><span>Lines · {files.length} files</span></div>
-      </div>
-      <p>
-        AI totals include up to 200 responses where the provider reported usage. File estimates use UTF-8 bytes ÷ 4; GLM tokenizer counts can differ.
-        {tokenUsage?.latestAt ? " Last AI usage: " + new Date(tokenUsage.latestAt).toLocaleString() : ""}
-      </p>
-    </div>
-  );
 }
 
 function CodeEditor({
@@ -262,7 +215,7 @@ function FileTree({
   );
 }
 
-export default function WorkspaceIDE({ refreshKey, tokenUsage, onListFiles, onReadFile, onWriteFile }: Props) {
+export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile }: Props) {
   const [files, setFiles] = useState<WorkspaceFileMetadata[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
   const [content, setContent] = useState("");
@@ -476,7 +429,6 @@ export default function WorkspaceIDE({ refreshKey, tokenUsage, onListFiles, onRe
         </div>
       </div>
 
-      <TokenAnalysis content={draft} files={files} tokenUsage={tokenUsage} />
       {notice && <div className="ide-notice" role="status">{notice}</div>}
     </section>
   );
