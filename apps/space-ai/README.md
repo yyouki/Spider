@@ -7,7 +7,7 @@ A first, deliberately small implementation of the single-core space AI workspace
 - One user-facing AI identity: `SpaceAgent`.
 - Streaming text chat from a mobile-first React interface.
 - Persistent chat history and resumable chat state through Cloudflare Agents / Durable Objects SQLite.
-- Owner-triggered JSON export of the currently loaded conversation, including visible message text and tool events. Export stays on the device; inspect and redact it before sharing. The agent retains up to 100 messages.
+- Owner-triggered read-only conversation share links. Links contain a random bearer token, expose the currently loaded conversation and tool events, expire after seven days, and can be revoked. Anyone with the link can read the snapshot.
 - A task ledger for saving, listing, and cancelling plans. A saved plan is not executed automatically.
 - Owner-configurable autonomy preferences stored in the Agent's SQLite database.
 - A deterministic self-update release gate with unit tests.
@@ -17,10 +17,25 @@ A first, deliberately small implementation of the single-core space AI workspace
 - Owner-only GitHub OAuth login. The temporary read:user token is used only for the identity lookup and is not stored; Space stores only a signed session cookie. Keep the OAuth App's expiring user-token setting enabled.
 - Workers AI model: `@cf/zai-org/glm-4.7-flash`.
 - Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
+- A human-authored IDE interface using Monaco Editor, with folder Explorer, file tabs, keyboard save, and mobile Explorer/Editor tabs.
+- Persistent private workspace files created or updated by AI tools or the editor. Folder structure is inferred from file paths.
+- Provider-reported recent input/output token usage plus clearly labeled file/workspace token estimates.
 
 ## Not included yet
 
-Autonomous browser, project filesystem tools, image/video/audio understanding, Android/Windows/macOS device runners, Gmail or other account integrations, and a production updater are not connected. The sandbox is for small snippets, not a persistent coding VM or full shell. It does not mount the repository or provide internet access.
+Autonomous browser, GitHub repository sync, image/video/audio understanding, Android/Windows/macOS device runners, Gmail or other account integrations, and a production updater are not connected. The workspace is an isolated app-level file store, not the user device filesystem or repository checkout. The sandbox is for small snippets, not a persistent coding VM or full shell. It does not mount the workspace, repository, or host filesystem and provides no internet access.
+
+## Private workspace and IDE
+
+The IDE uses Monaco Editor with Vite-bundled language workers; it does not load editor code from a third-party CDN. The Explorer derives folders from saved relative file paths. Selecting a file opens it in a syntax-aware editor tab; use **Save** or Ctrl/Cmd+S to persist edits.
+
+Workspace files are stored in the owning SpaceAgent Durable Object SQLite database. Limits are 200 files, 128 KB per file, and 2 MB total. Hidden paths and sensitive config filenames such as `.env` and `.dev.vars` are rejected. AI-created files appear in the Explorer after the write tool completes. These files do not automatically sync to GitHub or the device.
+
+The token panel separates provider-reported recent AI input/output tokens (up to 200 responses, when the provider reports them) from estimated file/workspace tokens. Estimates use UTF-8 byte size divided by four and are not exact GLM tokenizer counts.
+
+## Conversation share links
+
+The **Share chat** action asks for confirmation before creating a read-only snapshot. It includes up to the last 100 messages and visible tool call details. The random URL is a bearer link: anyone who has it can read the snapshot. Links expire after seven days, are served with no-store/noindex headers, and can be revoked from the workspace UI. The JSON endpoint is the same URL with `.json` appended. Do not share conversations containing sensitive information.
 
 ## Offline sandbox contract
 
@@ -75,7 +90,7 @@ Do not commit `.dev.vars`, `.cloudflare-secrets.json`, OAuth tokens, passwords, 
 
 ## Data and persistence
 
-Chat history, task plans, autonomy preferences, settings audit entries, task status records, and approved project notes live in the Durable Object SQLite storage. They are not stored in Git. Clearing chat history does not delete settings, task plans, or approved project-memory notes.
+Chat history, task plans, autonomy preferences, settings audit entries, token usage summaries, private workspace files, task status records, and approved project notes live in Durable Object SQLite storage. Each conversation share uses a separate expiring Durable Object snapshot. They are not stored in Git. Clearing chat history does not delete settings, task plans, or approved project-memory notes.
 
 This is persistent application state, not a backup guarantee. Configure and test an independent export/backup strategy before relying on it for important data.
 
