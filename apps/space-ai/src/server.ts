@@ -373,7 +373,6 @@ export class SpaceAgent extends AIChatAgent<Env> {
     form.append("prompt", prompt);
     form.append("width", String(width));
     form.append("height", String(height));
-    form.append("output_format", "png");
     if (reference) {
       const referenceBytes = decodeBase64(reference.contentBase64);
       if (referenceBytes.byteLength > ASSET_MAX_BYTES) {
@@ -972,7 +971,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
           description: "Generate a polished, natural-looking PNG image from a text brief. Prefer deliberate art direction, believable lighting and materials, coherent composition, and avoid generic artificial-looking effects. Return the generated asset ID so the user can preview and download it.",
           inputSchema: z.object({
             prompt: z.string().trim().min(8).max(1600),
-            width: z.number().int().min(256).max(1920).default(1024),
+            width: z.number().int().min(256).max(1920).default(768),
             height: z.number().int().min(256).max(1920).default(768)
           }),
           execute: async ({ prompt, width, height }) => {
