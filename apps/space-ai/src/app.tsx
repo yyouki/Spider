@@ -2,7 +2,6 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useAgent } from "agents/react";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, type UIMessage } from "ai";
-import { useMemo as useMemoForAssets } from "react";
 import type { AutonomySettings, SpaceAgent } from "./server";
 import type { ComponentType, MouseEvent } from "react";
 import type { Props as WorkspaceIDEProps } from "./ide";
@@ -165,6 +164,55 @@ function MessageParts({
         </div>
       </div>
     </div>
+  );
+}
+
+function FileWriteApproval({
+  path,
+  content,
+  onReadFile,
+  onApprove,
+  onReject
+}: {
+  path: string;
+  content: string;
+  onReadFile: (path: string) => Promise<{ path: string; content: string } | null>;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const [previous, setPrevious] = useState<{ path: string; content: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void onReadFile(path).then((file) => {
+      if (active) setPrevious(file);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [onReadFile, path]);
+
+  const oldLines = previous?.content.split("\\n") ?? [];
+  const newLines = content.split("\\n");
+  const changed = oldLines.length !== newLines.length || oldLines.some((line, index) => line !== newLines[index]);
+  return (
+    <section className="approval-card file-approval-card">
+      <div className="approval-heading">
+        <div><strong>Review file change</strong><small>{previous ? "Update existing file" : "Create new file"}</small></div>
+        <code>{path}</code>
+      </div>
+      <p>{loading ? "Loading the current file…" : changed ? "Compare the saved version with the proposed content before applying it." : "The proposed content matches the current file."}</p>
+      {!loading && (
+        <div className="file-diff-grid">
+          <div><header>Current</header><pre>{previous?.content ?? "(new file)"}</pre></div>
+          <div><header>Proposed</header><pre>{content}</pre></div>
+        </div>
+      )}
+      <div className="approval-actions">
+        <button type="button" className="button button-primary" onClick={onApprove} disabled={loading}>Approve and apply</button>
+        <button type="button" className="button button-secondary" onClick={onReject}>Reject</button>
+      </div>
+    </section>
   );
 }
 
@@ -516,6 +564,22 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
                     : undefined;
                 if (!approvalId) return null;
 
+                const pendingTool = part as unknown as { type: string; input?: unknown };
+                const pendingInput = pendingTool.input && typeof pendingTool.input === "object"
+                  ? pendingTool.input as Record<string, unknown>
+                  : null;
+                if (pendingTool.type === "tool-writeWorkspaceFile" && typeof pendingInput?.path === "string" && typeof pendingInput.content === "string") {
+                  return (
+                    <FileWriteApproval
+                      key={`${message.id}-approval-${index}`}
+                      path={pendingInput.path}
+                      content={pendingInput.content}
+                      onReadFile={readWorkspaceFile}
+                      onApprove={() => addToolApprovalResponse({ id: approvalId, approved: true })}
+                      onReject={() => addToolApprovalResponse({ id: approvalId, approved: false })}
+                    />
+                  );
+                }
                 return (
                   <div className="approval-card" key={`${message.id}-approval-${index}`}>
                     <strong>Approval required</strong>
@@ -594,6 +658,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           onListFiles={listWorkspaceFiles}
           onReadFile={readWorkspaceFile}
           onWriteFile={writeWorkspaceFile}
+          onListHistory={listWorkspaceFileHistory}
+          onRestoreFile={restoreWorkspaceFile}
         />
       </Suspense>
     </main>
@@ -634,11 +700,12 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
         />
         <SettingSelect
           label="Project files"
-          description="Create, read, and edit files in the private Space workspace shown in the IDE."
+          description="Choose how Space applies file changes. Review mode presents the current and proposed file side by side."
           value={settings.projectFiles}
           options={[
             { value: "ask_before_write", label: "Ask before every write" },
-            { value: "selected_workspace", label: "Private Space workspace" }
+            { value: "review_changes", label: "Review diff before applying" },
+            { value: "selected_workspace", label: "Apply inside private workspace" }
           ]}
           onChange={(value) => setSettings((current) => ({ ...current, projectFiles: value }))}
         />
