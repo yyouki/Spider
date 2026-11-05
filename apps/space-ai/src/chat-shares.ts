@@ -18,7 +18,7 @@ export type SharedChatSnapshot = {
 const SHARE_STORAGE_KEY = "shared-chat";
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
-export class ChatShares extends DurableObject {
+export class ChatShares extends DurableObject<Env> {
   async saveShare(token: string, snapshot: SharedChatSnapshot): Promise<void> {
     if (!TOKEN_PATTERN.test(token)) throw new Error("Invalid share token.");
     if (snapshot.messageCount < 1 || snapshot.messageCount > 100) {
