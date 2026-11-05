@@ -5,7 +5,9 @@ import { isToolUIPart, type UIMessage } from "ai";
 import type { AutonomySettings, SpaceAgent } from "./server";
 import type { ComponentType, MouseEvent } from "react";
 import type { Props as WorkspaceIDEProps } from "./ide";
-import AnalyticsPage, { type TokenUsageSummary, type WorkspaceFileMetadata } from "./analytics";
+import type { TokenUsageSummary, WorkspaceFileMetadata } from "./analytics";
+
+const AnalyticsPage = lazy(() => import("./analytics"));
 
 const WorkspaceIDE = lazy<ComponentType<WorkspaceIDEProps>>(() => {
   // Monaco and its Web Workers are browser-only; keep them out of the Cloudflare SSR bundle.
@@ -763,7 +765,11 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     <div className="app-shell">
       {header}
       {currentPath === "/ide" ? idePage :
-        currentPath === "/analytics" ? <AnalyticsPage usage={tokenUsage} files={workspaceFiles} /> :
+        currentPath === "/analytics" ? (
+          <Suspense fallback={<main className="page-container"><p>Loading analytics…</p></main>}>
+            <AnalyticsPage usage={tokenUsage} files={workspaceFiles} />
+          </Suspense>
+        ) :
         currentPath === "/settings" ? settingsPage : chatPage}
     </div>
   );
