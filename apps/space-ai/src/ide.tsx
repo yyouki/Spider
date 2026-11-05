@@ -86,11 +86,27 @@ function buildTree(files: WorkspaceFileMetadata[]): TreeNode[] {
   return roots;
 }
 
-function TokenAnalysis({ content, files }: { content: string; files: WorkspaceFileMetadata[] }) {
-  const chars = content.length;
+type TokenUsageSummary = {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  latestAt: string | null;
+  source: string;
+};
+
+function TokenAnalysis({
+  content,
+  files,
+  tokenUsage
+}: {
+  content: string;
+  files: WorkspaceFileMetadata[];
+  tokenUsage: TokenUsageSummary | null;
+}) {
+  const fileBytes = new TextEncoder().encode(content).byteLength;
   const lines = content ? content.split("\n").length : 0;
-  const words = content.trim() ? content.trim().split(/\s+/).length : 0;
-  const fileTokens = Math.ceil(chars / 4);
+  const fileTokens = Math.ceil(fileBytes / 4);
   const projectBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
   const projectTokens = Math.ceil(projectBytes / 4);
 
