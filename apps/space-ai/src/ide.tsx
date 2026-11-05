@@ -11,7 +11,6 @@ import "monaco-editor/languages/definitions/yaml/register";
 import "monaco-editor/languages/definitions/sql/register";
 import "monaco-editor/languages/definitions/shell/register";
 import "monaco-editor/languages/features/register.all";
-import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker.js?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker.js?worker";
 import CssWorker from "monaco-editor/esm/vs/language/css/css.worker.js?worker";
 import HtmlWorker from "monaco-editor/esm/vs/language/html/html.worker.js?worker";
@@ -63,7 +62,11 @@ workerScope.MonacoEnvironment = {
     if (label === "css" || label === "scss" || label === "less") return new CssWorker();
     if (label === "html" || label === "handlebars" || label === "razor") return new HtmlWorker();
     if (label === "typescript" || label === "javascript") return new TsWorker();
-    return new EditorWorker();
+    // Vite bundles this local worker URL into the client assets.
+    return new Worker(
+      new URL("../node_modules/monaco-editor/esm/vs/editor/editor.worker.js", import.meta.url),
+      { type: "module", name: "space-editor-worker" }
+    );
   }
 };
 
