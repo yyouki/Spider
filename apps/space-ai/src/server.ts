@@ -144,6 +144,118 @@ export class SpaceAgent extends AIChatAgent<Env> {
   }
 
   @callable()
+  listWorkspaceFiles(): WorkspaceFileMetadata[] {
+    const rows = this.sql<WorkspaceFileRow>`SELECT path, content, language, size_bytes, updated_at
+      FROM workspace_files ORDER BY path ASC LIMIT ${WORKSPACE_FILE_LIMIT}`;
+    return rows.map((row) => ({
+      path: row.path,
+      language: row.language,
+      sizeBytes: row.size_bytes,
+      updatedAt: row.updated_at
+    }));
+  }
+
+  @callable()
+  readWorkspaceFile(inputPath: string): WorkspaceFile | null {
+    const path = normalizeWorkspacePath(inputPath);
+    const rows = this.sql<WorkspaceFileRow>`SELECT path, content, language, size_bytes, updated_at
+      FROM workspace_files WHERE path = ${path} LIMIT 1`;
+    const row = rows[0];
+    return row ? {
+      path: row.path,
+      content: row.content,
+      language: row.language,
+      sizeBytes: row.size_bytes,
+      updatedAt: row.updated_at
+    } : null;
+  }
+
+  @callable()
+  writeWorkspaceFile(inputPath: string, content: string): WorkspaceFileMetadata {
+    const path = normalizeWorkspacePath(inputPath);
+    if (typeof content !== "string") throw new Error("File content must be text.");
+    const sizeBytes = new TextEncoder().encode(content).byteLength;
+    if (sizeBytes > WORKSPACE_FILE_MAX_BYTES) throw new Error("A workspace file cannot exceed 128 KB.");
+
+    const existing = this.sql<Pick<WorkspaceFileRow, "size_bytes">>`
+      SELECT size_bytes FROM workspace_files WHERE path = ${path} LIMIT 1`;
+    const totals = this.sql<{ file_count: number; total_bytes: number }>`
+      SELECT COUNT(*) AS file_count, COALESCE(SUM(size_bytes), 0) AS total_bytes FROM workspace_files`;
+    const current = totals[0] ?? { file_count: 0, total_bytes: 0 };
+    if (!existing.length && current.file_count >= WORKSPACE_FILE_LIMIT) {
+      throw new Error("The workspace reached its 200-file limit.");
+    }
+    const nextTotal = current.total_bytes - (existing[0]?.size_bytes ?? 0) + sizeBytes;
+    if (nextTotal > WORKSPACE_TOTAL_MAX_BYTES) {
+      throw new Error("The workspace reached its 2 MB storage limit.");
+    }
+
+    const now = Date.now();
+    const language = languageForPath(path);
+    this.sql`INSERT INTO workspace_files (path, content, language, size_bytes, updated_at)
+      VALUES (${path}, ${content}, ${language}, ${sizeBytes}, ${now})
+      ON CONFLICT(path) DO UPDATE SET
+        content = excluded.content,
+        language = excluded.language,
+        size_bytes = excluded.size_bytes,
+        updated_at = excluded.updated_at`;
+    return { path, language, sizeBytes, updatedAt: now };
+  }
+
+  @callable()
+  deleteWorkspaceFile(inputPath: string): { deleted: boolean; path: string } {
+    const path = normalizeWorkspacePath(inputPath);
+    const before = this.sql`SELECT path FROM workspace_files WHERE path = ${path} LIMIT 1`;
+    this.sql`DELETE FROM workspace_files WHERE path = ${path}`;
+    return { deleted: before.length > 0, path };
+  }
+
+  @callable()
+  async createChatShare() {
+    const messages = this.messages.slice(-100).map((message) => ({
+      id: message.id,
+      role: message.role,
+      parts: message.parts
+        .map(safeSharePart)
+        .filter((part): part is Record<string, unknown> => part !== null)
+    }));
+    if (!messages.length) throw new Error("There is no conversation to share.");
+
+    const now = Date.now();
+    const expiresAt = now + SHARE_LIFETIME_MS;
+    const snapshot: SharedChatSnapshot = {
+      format: "space-chat-share",
+      version: 1,
+      createdAt: new Date(now).toISOString(),
+      expiresAt: new Date(expiresAt).toISOString(),
+      messageCount: messages.length,
+      messages
+    };
+    const token = makeShareToken();
+    const namespace = this.env.ChatShares;
+    const share = namespace.get(namespace.idFromName(token));
+    await share.saveShare(token, snapshot);
+
+    const origin = this.env.APP_ORIGIN.replace(/\/$/, "");
+    const url = origin + "/share/" + token;
+    return {
+      url,
+      jsonUrl: url + ".json",
+      token,
+      expiresAt: snapshot.expiresAt,
+      messageCount: snapshot.messageCount
+    };
+  }
+
+  @callable()
+  async revokeChatShare(token: string): Promise<{ revoked: boolean }> {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error("Invalid share link.");
+    const namespace = this.env.ChatShares;
+    const share = namespace.get(namespace.idFromName(token));
+    return { revoked: await share.revokeShare(token) };
+  }
+
+  @callable()
   getAutonomySettings() {
     const rows = this.sql`SELECT settings_json, updated_at
       FROM autonomy_settings WHERE settings_id = 'owner'`;
