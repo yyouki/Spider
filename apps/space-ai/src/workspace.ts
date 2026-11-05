@@ -46,8 +46,8 @@ const BLOCKED_SEGMENTS = new Set([
 ]);
 
 export function normalizeWorkspacePath(input: string): string {
-  const path = input.trim().replace(/^\/+|\/+$/g, "");
-  if (!path || path.length > 240 || path.includes("\\") || /[\u0000-\u001f]/.test(path)) {
+  const path = input.trim();
+  if (!path || path.startsWith("/") || path.endsWith("/") || path.length > 240 || path.includes("\\") || /[\u0000-\u001f]/.test(path)) {
     throw new Error("Use a valid relative workspace file path.");
   }
 
