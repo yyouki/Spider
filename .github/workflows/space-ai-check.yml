@@ -4,16 +4,20 @@ on:
   pull_request:
     paths:
       - "apps/space-ai/**"
+      - "scripts/sandbox-*.mjs"
       - ".github/workflows/space-ai-check.yml"
+      - ".github/workflows/sandbox-run.yml"
       - "README.md"
       - "docs/**"
   push:
     branches:
       - main
-      - docs/autonomous-ai-core-vision
+      - feature/free-tier-deploy-and-sandbox
     paths:
       - "apps/space-ai/**"
+      - "scripts/sandbox-*.mjs"
       - ".github/workflows/space-ai-check.yml"
+      - ".github/workflows/sandbox-run.yml"
       - "README.md"
       - "docs/**"
 
@@ -32,9 +36,7 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Type-check and generate Cloudflare bindings
+      - name: Type-check, test, and generate Cloudflare bindings
         run: npm run check
-      - name: Build the isolated Linux sandbox image
-        run: docker build --file sandbox/Dockerfile --tag space-sandbox:ci sandbox
       - name: Build the Worker and dashboard
         run: npm run build

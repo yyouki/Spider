@@ -66,7 +66,7 @@ function SettingSelect<T extends string>({
   );
 }
 
-export default function App() {
+function Workspace({ onLogout }: { onLogout: () => void }) {
   const [connected, setConnected] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
@@ -177,12 +177,15 @@ export default function App() {
           <button className="text-button" type="button" onClick={clear} disabled={!messages.length || busy}>
             Clear chat
           </button>
+          <button className="text-button" type="button" onClick={onLogout}>
+            Sign out
+          </button>
         </div>
       </header>
 
       <section className="chat-layout">
         <div className="welcome">
-          <p className="eyebrow">AUTONOMOUS AI WORKSPACE · MVP 0.3</p>
+          <p className="eyebrow">AUTONOMOUS AI WORKSPACE · MVP 0.5</p>
           <h1>What should we work on?</h1>
           <p className="welcome-copy">
             One AI core with persistent state and owner-configurable autonomy preferences.
@@ -209,7 +212,7 @@ export default function App() {
 
             <SettingSelect
               label="Workspace execution"
-              description="Run small Python and JavaScript tasks in an offline Linux sandbox, when the Container runtime is deployed."
+              description="Run bounded Python and JavaScript snippets on a temporary GitHub-hosted Linux runner inside an offline Docker container."
               value={settings.workspaceExecution}
               options={[
                 { value: "manual", label: "Ask before each run" },
@@ -355,9 +358,96 @@ export default function App() {
           </div>
         </form>
         <p className="disclaimer">
-          Early MVP. The offline Python/JavaScript sandbox requires a Workers Paid plan and a successful Container deployment. Browser, project files, multimodal tools, account connectors, and device integrations are not connected.
+          Early MVP. Sandbox tasks run in temporary GitHub-hosted containers with no network or project mounts. Browser, project files, multimodal tools, account connectors, and device integrations are not connected.
         </p>
       </section>
     </main>
   );
+}
+
+
+type SessionResponse = {
+  authenticated: boolean;
+  login: string | null;
+};
+
+export default function App() {
+  const [session, setSession] = useState<SessionResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/session", { credentials: "same-origin", cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Could not verify the current session.");
+        return await response.json() as SessionResponse;
+      })
+      .then((value) => {
+        if (active) setSession(value);
+      })
+      .catch(() => {
+        if (active) setSessionError("Could not connect to the private Space service.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const logout = async () => {
+    await fetch("/auth/logout", {
+      method: "POST",
+      credentials: "same-origin"
+    });
+    setSession({ authenticated: false, login: null });
+  };
+
+  if (loading) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card" aria-live="polite">
+          <div className="brand-mark">s</div>
+          <h1>space</h1>
+          <p>Checking your private workspace session…</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (sessionError) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card">
+          <div className="brand-mark">s</div>
+          <h1>space</h1>
+          <p role="alert">{sessionError}</p>
+          <button type="button" className="send-button" onClick={() => window.location.reload()}>
+            Retry
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  if (!session?.authenticated) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card">
+          <div className="brand-mark">s</div>
+          <p className="eyebrow">PRIVATE AI WORKSPACE</p>
+          <h1>Sign in to space</h1>
+          <p>Only the configured owner GitHub account can open this workspace.</p>
+          <a className="auth-button" href="/auth/github">
+            Continue with GitHub
+          </a>
+        </section>
+      </main>
+    );
+  }
+
+  return <Workspace onLogout={() => void logout()} />;
 }

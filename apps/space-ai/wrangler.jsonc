@@ -6,9 +6,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "secrets": {
     "required": [
-      "ACCESS_TEAM_DOMAIN",
-      "ACCESS_AUD",
-      "ACCESS_ALLOWED_EMAIL"
+      "GITHUB_OAUTH_CLIENT_ID",
+      "GITHUB_OAUTH_CLIENT_SECRET",
+      "SESSION_SECRET",
+      "GITHUB_ACTIONS_TOKEN"
     ]
   },
   "ai": {
@@ -18,42 +19,20 @@
   "assets": {
     "directory": "./public",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/agents/*", "/api/*"]
+    "run_worker_first": ["/auth/*", "/agents/*", "/api/*"]
   },
-  "containers": [
-    {
-      "class_name": "SandboxRunner",
-      "scheduling_policy": "durable_object",
-      "images": {
-        "base": {
-          "dockerfile": "./sandbox/Dockerfile"
-        }
-      }
-    }
-  ],
   "durable_objects": {
     "bindings": [
-      {
-        "name": "SpaceAgent",
-        "class_name": "SpaceAgent"
-      },
-      {
-        "name": "SandboxRunner",
-        "class_name": "SandboxRunner"
-      }
+      { "name": "SpaceAgent", "class_name": "SpaceAgent" },
+      { "name": "SandboxRunner", "class_name": "SandboxRunner" }
     ]
   },
   "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["SpaceAgent"]
-    },
-    {
-      "tag": "v2",
-      "new_sqlite_classes": ["SandboxRunner"]
-    }
+    { "tag": "v1", "new_sqlite_classes": ["SpaceAgent"] },
+    { "tag": "v2", "new_sqlite_classes": ["SandboxRunner"] }
   ],
   "vars": {
-    "DEPLOYMENT_ENV": "production"
+    "DEPLOYMENT_ENV": "production",
+    "GITHUB_OWNER_LOGIN": "yyouki"
   }
 }

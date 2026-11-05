@@ -2,54 +2,65 @@
 
 ## Purpose
 
-The initial runner provides bounded execution for small Python and JavaScript tasks without executing user code inside the Worker or the SpaceAgent process. A dedicated Container-backed Durable Object owns the Linux Container and the task ledger.
+The initial runner executes bounded Python and JavaScript snippets without executing user code inside the Cloudflare Worker or the SpaceAgent process. The Worker submits each task to a dedicated GitHub Actions workflow, which receives a temporary GitHub-hosted Linux VM and launches a restricted Docker container.
 
-This is not a full autonomous coding workspace yet: it does not mount the Git repository, expose a host shell, provide persistent project files, or access third-party accounts.
+This is not a full autonomous coding workspace: it does not mount the Git repository, expose a host shell, provide persistent project files, or access third-party accounts.
 
 ## Execution contract
 
 - Accepted languages: Python 3 and Node.js JavaScript.
 - Source size: at most 16 KB of UTF-8.
 - Timeout: 10 seconds by default; owner/tool input may choose 1–30 seconds.
-- Output: retain at most 6 KB of stdout and 6 KB of stderr per task.
+- Output: retain at most 6 KB of stdout and 6 KB of stderr.
 - Concurrency: one active task per workspace.
 - History: retain at most 30 recent task records.
-- Source retention: submitted source stays in the execution closure and is not written to the Durable Object task ledger.
-- Network: the Container is started with outbound internet disabled.
-- Credentials: no OAuth tokens, Cloudflare secrets, or account credentials are passed to the process.
-- Commands: fixed executable argument arrays are used; user source is a single argument and is never interpreted by a shell.
-- Container size: lite; CPU and memory are platform-bounded rather than controlled by user-provided resource flags.
+- Source retention: source is encrypted before it is dispatched and is never written to the Durable Object task ledger.
+- Network: the Docker container uses `--network=none`. The host runner downloads the official runtime image before executing user code.
+- Credentials: the host GitHub API token stays in the Cloudflare Worker. No token, OAuth credential, or deployment secret is passed into the sandbox container.
+- Filesystem: root filesystem is read-only, no host directory is mounted, and `/tmp` is a small no-exec tmpfs.
+- Process limits: the container runs as a non-root user with no Linux capabilities, no-new-privileges, a PID cap, 256 MB memory, and 0.5 CPU.
+- Commands: fixed executable argument arrays are used; user source is one argument and is never interpreted by a shell.
 
-The runner exposes start, status, list, and cancel methods. The chat tools report the task as queued until a later status check confirms a terminal state. A task is never described as successful merely because it was accepted.
+The workflow receives an ephemeral AES-GCM key and encrypted source. The key is available to the host-side launcher only, not to the Docker container. Results are encrypted with the same one-time key before upload; the Worker decrypts them and removes the key from the public task result.
 
-## Lifecycle and safety
+## Lifecycle
 
-Each workspace maps to a separate SandboxRunner Durable Object identity. The runner validates the request before invoking the Container API and starts the named image with outbound internet disabled. Container startup is asynchronous; the Durable Object Container API's `exec()` waits for a container that is still starting before it launches Python or Node, so this runner does not need a TCP health port. A per-task AbortController enforces the configured time limit while the Durable Object is active. After the command exits, the Container is destroyed before the result is finalized; this also terminates child processes and prevents state from leaking into the next task.
+1. Space validates the language, source length, timeout, and workspace concurrency.
+2. The Durable Object generates a unique task ID and one-time AES-GCM key.
+3. The source is encrypted and dispatched to the trusted `sandbox-run.yml` workflow on `main`.
+4. A temporary GitHub-hosted runner checks out only the trusted launcher, pulls the official Python or Node image, then runs the source in the restricted container.
+5. The host-side launcher captures bounded stdout/stderr and encrypts the result.
+6. A short-lived encrypted Actions artifact stores the result. The Space Worker polls the workflow status, downloads the artifact, decrypts it, and persists only the bounded task result.
+7. The GitHub-hosted runner VM is discarded after the job finishes.
 
-Task records include status, timestamps, exit code, and bounded output/error information. They intentionally exclude the source text. Only one job can be active per workspace. If a Durable Object restarts and loses its in-memory cancellation handle, the runner destroys its task-dedicated Container before recording cancellation.
+The GitHub Actions fine-grained token is stored as a Worker secret and is used only to dispatch workflows, inspect their status/artifacts, and cancel them. It is never injected into the workflow runner.
 
-The sandbox is still untrusted-code execution. The Container boundary is separate from the Worker runtime; this does not remove all risk. Under the durable_object scheduling policy, processes have root capabilities inside the Container VM; a numeric user option does not create a privilege boundary. The runner therefore relies on the VM boundary, no outbound internet, no credentials, and destruction of the entire per-task Container after execution. Do not add secrets, project mounts, outbound network access, Docker socket access, or host credentials to this runner.
+## Security boundary and limitations
 
-## Deployment requirements
+A GitHub-hosted runner gives each job a temporary VM, but Docker containers still share that VM's kernel. Container isolation is not an absolute guarantee against kernel or container-runtime vulnerabilities. This design reduces exposure by:
+- using a fresh hosted VM for every task;
+- not mounting the repository, secrets, or host paths into the user container;
+- not passing the Actions token to the workflow or the container;
+- disabling network access inside the container;
+- applying non-root, read-only, no-capability, no-new-privileges, memory, CPU, PID, time, and output limits;
+- encrypting both source and result payloads during transit and artifact storage.
 
-The runner uses Cloudflare's Durable Object Container API with the durable_object scheduling policy. Cloudflare currently documents that policy as beta. It is added as a new SQLite-backed Durable Object class, leaving the existing SpaceAgent class and v1 migration unchanged.
+Do not run hostile multi-tenant workloads, secrets-processing code, malware, or high-risk code in this runner. It is a personal snippet sandbox. Never add a Docker socket mount, repository mount, host credentials, or outbound internet to the sandbox.
 
-A Workers Paid plan and Cloudflare Containers availability are required. The app's Wrangler build config points the named image at apps/space-ai/sandbox/Dockerfile. The Dockerfile starts from the public Node 24 Trixie slim image and installs Python 3 at build time. Wrangler 4.136 or newer is required for local development with the durable_object scheduling policy; this repo pins 4.157.0. wrangler deploy must build and publish that image along with the Worker.
+## Cost boundary
 
-The PR CI workflow validates Wrangler types, TypeScript, policy unit tests, a local Docker image build, and the dashboard/Worker build. A separate manual GitHub Actions workflow deploys to the owner's Cloudflare account only after the production environment secrets are configured and the operator explicitly confirms the deployment. CI and a successful deploy still do not prove that a real task can run.
+GitHub documents standard GitHub-hosted runner usage as free for public repositories. The `yyouki/space` repository is public. This avoids the Cloudflare Workers Paid Container requirement, but it is not unlimited compute: GitHub policies, concurrency, job duration, workflow limits, and provider availability still apply. Do not promise 24/7 execution.
 
 ## Verification still required
 
-After deployment on the owner Cloudflare account:
-
-1. Confirm the Container image build and Worker deployment complete.
-2. Run a small Python arithmetic snippet and confirm status transitions to succeeded.
-3. Run a small Node.js arithmetic snippet and confirm status transitions to succeeded.
-4. Confirm a non-zero exit code and stderr are recorded for a failing snippet.
-5. Confirm an over-limit timeout stops a long-running snippet and records timed_out.
-6. Confirm a second concurrent task is rejected.
-7. Confirm task cancellation reaches a terminal cancelled state.
-8. Confirm network egress is unavailable from inside the Container.
-9. Confirm the task ledger never stores submitted source.
+After the free-tier deployment:
+1. Run a Python arithmetic snippet and confirm status `succeeded`, stdout `42`.
+2. Run a JavaScript arithmetic snippet and confirm status `succeeded`, stdout `42`.
+3. Confirm a non-zero exit code and stderr for a failing snippet.
+4. Confirm a 1-second timeout marks a longer task `timed_out`.
+5. Confirm a second concurrent task is rejected.
+6. Confirm cancellation reaches a terminal status.
+7. Confirm the Docker container cannot make a network request.
+8. Confirm the task ledger never stores submitted source and the Actions artifact is encrypted.
 
 Do not call the sandbox live until these checks pass in the deployed account.
