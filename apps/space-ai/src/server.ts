@@ -141,6 +141,15 @@ export class SpaceAgent extends AIChatAgent<Env> {
       size_bytes INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )`;
+
+    // Persist provider-reported token usage for recent AI responses.
+    this.sql`CREATE TABLE IF NOT EXISTS token_usage (
+      id TEXT PRIMARY KEY,
+      input_tokens INTEGER NOT NULL,
+      output_tokens INTEGER NOT NULL,
+      total_tokens INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )`;
   }
 
   @callable()
@@ -256,6 +265,32 @@ export class SpaceAgent extends AIChatAgent<Env> {
   }
 
   @callable()
+  getTokenUsage() {
+    const rows = this.sql<{
+      requests: number;
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+    }>`
+      SELECT COUNT(*) AS requests,
+        COALESCE(SUM(input_tokens), 0) AS input_tokens,
+        COALESCE(SUM(output_tokens), 0) AS output_tokens,
+        COALESCE(SUM(total_tokens), 0) AS total_tokens
+      FROM token_usage`;
+    const row = rows[0] ?? { requests: 0, input_tokens: 0, output_tokens: 0, total_tokens: 0 };
+    const latest = this.sql<{ created_at: number }>`
+      SELECT created_at FROM token_usage ORDER BY created_at DESC LIMIT 1`;
+    return {
+      requests: row.requests,
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      totalTokens: row.total_tokens,
+      latestAt: latest[0]?.created_at ? new Date(latest[0].created_at).toISOString() : null,
+      source: "provider_reported_recent_200_responses"
+    };
+  }
+
+  @callable()
   getAutonomySettings() {
     const rows = this.sql`SELECT settings_json, updated_at
       FROM autonomy_settings WHERE settings_id = 'owner'`;
@@ -331,8 +366,29 @@ export class SpaceAgent extends AIChatAgent<Env> {
     // Manual mode captures an explicit-approval requirement before code enters the sandbox.
     const requireCodeApproval = this.getAutonomySettings().settings.workspaceExecution === "manual";
 
+    let requestInputTokens = 0;
+    let requestOutputTokens = 0;
+    let requestTotalTokens = 0;
+
     const result = streamText({
       model: workersai("@cf/zai-org/glm-4.7-flash"),
+      onStepFinish: ({ usage }) => {
+        // Accumulate actual token counts returned by the model provider for each step.
+        requestInputTokens += usage.inputTokens ?? 0;
+        requestOutputTokens += usage.outputTokens ?? 0;
+        requestTotalTokens += usage.totalTokens ?? 0;
+      },
+      onFinish: async () => {
+        if (requestInputTokens + requestOutputTokens + requestTotalTokens > 0) {
+          const now = Date.now();
+          this.sql`INSERT INTO token_usage (id, input_tokens, output_tokens, total_tokens, created_at)
+            VALUES (${crypto.randomUUID()}, ${requestInputTokens}, ${requestOutputTokens}, ${requestTotalTokens}, ${now})`;
+          // Keep a bounded recent usage history.
+          this.sql`DELETE FROM token_usage WHERE id NOT IN (
+            SELECT id FROM token_usage ORDER BY created_at DESC LIMIT 200
+          )`;
+        }
+      },
       system: SYSTEM_PROMPT,
       messages: pruneMessages({
         messages: await convertToModelMessages(this.messages),
