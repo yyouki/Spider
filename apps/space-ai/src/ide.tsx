@@ -4,7 +4,6 @@ import "monaco-editor/features/register.all";
 import "monaco-editor/languages/definitions/python/register";
 import "monaco-editor/languages/definitions/javascript/register";
 import "monaco-editor/languages/definitions/typescript/register";
-import "monaco-editor/languages/definitions/json/register";
 import "monaco-editor/languages/definitions/css/register";
 import "monaco-editor/languages/definitions/html/register";
 import "monaco-editor/languages/definitions/markdown/register";
