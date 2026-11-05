@@ -2,7 +2,7 @@
 
 space is being built as **one primary AI with one identity and one orchestration core**. Browser research, coding, file management, multimodal perception, memory, sandbox execution, hosting, and self-improvement are capabilities of that core rather than separate user-facing bots.
 
-> **Current implementation direction:** Cloudflare Workers Free hosts the app. Durable Objects SQLite stores chat, preferences, plans, project memory, and a private per-agent code workspace. The UI uses Monaco Editor with an Explorer tree, file tabs, and token analysis. GitHub OAuth restricts the private workspace to the owner. Small Python/JavaScript snippets run on temporary GitHub-hosted Linux runners inside restricted offline Docker containers. Read-only conversation share links use random bearer URLs, expire after seven days, and can be revoked. This avoids Cloudflare Containers and Workers Paid, but is not unlimited compute.
+> **Current implementation direction:** Cloudflare Workers Free hosts the app. Durable Objects SQLite stores persistent chat, automatic context summaries, preferences, plans, project memory, private source files, file revisions, and image assets. The UI has dedicated Chat, IDE, Analytics, and Settings pages. Monaco provides syntax editing for a broad set of languages; the current runner executes bounded Python and JavaScript only. AI-created source files appear in chat with download actions and can be exported as ZIP folders or a workspace archive. FLUX.2 Klein powers image generation and editing. GitHub OAuth restricts the workspace to its owner. This uses Cloudflare Workers Free and temporary public-repository GitHub-hosted runners, but remains subject to provider quotas and storage limits.
 
 ## AI MVP
 
@@ -39,7 +39,7 @@ The settings do not activate tools or grant third-party permissions that have no
 - Device access uses native OS permissions; raw biometric templates are not collected.
 - Untrusted code runs in isolated sandboxes, not the host.
 - Low-risk self-updates may be auto-promoted only after every registered gate passes and rollback is verified. Security/authentication/permission changes always require owner review.
-- Never promise perfect accuracy, unlimited media, all OSs on one host, or free unlimited 24/7 compute.
+- Never promise perfect accuracy, unlimited storage, unlimited model inference, all OSs on one host, or free unlimited 24/7 compute.
 
 ## Legacy Codespaces / Windows experiment
 
