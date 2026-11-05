@@ -44,7 +44,7 @@ type TokenUsageSummary = {
   source: string;
 };
 
-type Props = {
+export type Props = {
   refreshKey: unknown;
   tokenUsage: TokenUsageSummary | null;
   onListFiles: () => Promise<WorkspaceFileMetadata[]>;
