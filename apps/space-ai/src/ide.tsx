@@ -24,8 +24,18 @@ type TreeNode = {
   children: TreeNode[];
 };
 
+type TokenUsageSummary = {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  latestAt: string | null;
+  source: string;
+};
+
 type Props = {
   refreshKey: unknown;
+  tokenUsage: TokenUsageSummary | null;
   onListFiles: () => Promise<WorkspaceFileMetadata[]>;
   onReadFile: (path: string) => Promise<WorkspaceFile | null>;
   onWriteFile: (path: string, content: string) => Promise<WorkspaceFileMetadata>;
@@ -91,12 +101,17 @@ function TokenAnalysis({ content, files }: { content: string; files: WorkspaceFi
         <span className="estimate-label">ESTIMATE</span>
       </div>
       <div className="ide-stats">
-        <div><strong>{fileTokens.toLocaleString()}</strong><span>Tokens · open file</span></div>
-        <div><strong>{projectTokens.toLocaleString()}</strong><span>Tokens · workspace</span></div>
-        <div><strong>{lines.toLocaleString()}</strong><span>Lines</span></div>
-        <div><strong>{(projectBytes / 1024).toFixed(1)} KB</strong><span>{files.length} files</span></div>
+        <div><strong>{tokenUsage?.requests ? tokenUsage.totalTokens.toLocaleString() : "—"}</strong><span>AI tokens · actual</span></div>
+        <div><strong>{tokenUsage?.requests ? tokenUsage.inputTokens.toLocaleString() : "—"}</strong><span>Input · actual</span></div>
+        <div><strong>{tokenUsage?.requests ? tokenUsage.outputTokens.toLocaleString() : "—"}</strong><span>Output · actual</span></div>
+        <div><strong>{fileTokens.toLocaleString()}</strong><span>Open file · estimate</span></div>
+        <div><strong>{projectTokens.toLocaleString()}</strong><span>Workspace · estimate</span></div>
+        <div><strong>{lines.toLocaleString()}</strong><span>Lines · {files.length} files</span></div>
       </div>
-      <p>Approximation based on UTF-8 size ÷ 4. Actual GLM tokenizer counts may differ.</p>
+      <p>
+        AI totals include up to 200 responses where the provider reported usage. File estimates use UTF-8 bytes ÷ 4; GLM tokenizer counts can differ.
+        {tokenUsage?.latestAt ? " Last AI usage: " + new Date(tokenUsage.latestAt).toLocaleString() : ""}
+      </p>
     </div>
   );
 }
@@ -211,7 +226,7 @@ function FileTree({
   );
 }
 
-export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile }: Props) {
+export default function WorkspaceIDE({ refreshKey, tokenUsage, onListFiles, onReadFile, onWriteFile }: Props) {
   const [files, setFiles] = useState<WorkspaceFileMetadata[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
   const [content, setContent] = useState("");
@@ -425,7 +440,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
         </div>
       </div>
 
-      <TokenAnalysis content={draft} files={files} />
+      <TokenAnalysis content={draft} files={files} tokenUsage={tokenUsage} />
       {notice && <div className="ide-notice" role="status">{notice}</div>}
     </section>
   );
