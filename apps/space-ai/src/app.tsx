@@ -349,6 +349,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     return agent.stub.runWorkspaceFile(path);
   }, [agent, settings.workspaceExecution]);
   const getWorkspaceRunStatus = useCallback((taskId: string) => agent.stub.getWorkspaceRunStatus(taskId), [agent]);
+  const searchWorkspaceFiles = useCallback((query: string) => agent.stub.searchWorkspaceFiles(query), [agent]);
   const listWorkspaceFileHistory = useCallback((path: string) => agent.stub.listWorkspaceFileHistory(path), [agent]);
   const restoreWorkspaceFile = useCallback((path: string, revisionId: string) => agent.stub.restoreWorkspaceFile(path, revisionId), [agent]);
   const runWorkspaceFile = useCallback((path: string) => agent.stub.runWorkspaceFile(path), [agent]);
@@ -681,6 +682,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           onRestoreFile={restoreWorkspaceFile}
           onRunFile={runWorkspaceFile}
           onGetRunStatus={getWorkspaceRunStatus}
+          onSearchFiles={searchWorkspaceFiles}
           onRunFile={runWorkspaceFile}
           onGetRunStatus={getWorkspaceRunStatus}
         />
