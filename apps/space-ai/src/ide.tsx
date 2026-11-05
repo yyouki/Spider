@@ -2,35 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as monaco from "monaco-editor/editor";
 import { strToU8, zipSync } from "fflate";
 import "monaco-editor/features/register.all";
-import "monaco-editor/languages/definitions/python/register";
-import "monaco-editor/languages/definitions/javascript/register";
-import "monaco-editor/languages/definitions/typescript/register";
-import "monaco-editor/languages/definitions/css/register";
-import "monaco-editor/languages/definitions/html/register";
-import "monaco-editor/languages/definitions/markdown/register";
-import "monaco-editor/languages/definitions/yaml/register";
-import "monaco-editor/languages/definitions/sql/register";
-import "monaco-editor/languages/definitions/shell/register";
-import "monaco-editor/languages/definitions/cpp/register";
-import "monaco-editor/languages/definitions/csharp/register";
-import "monaco-editor/languages/definitions/dart/register";
-import "monaco-editor/languages/definitions/dockerfile/register";
-import "monaco-editor/languages/definitions/go/register";
-import "monaco-editor/languages/definitions/graphql/register";
-import "monaco-editor/languages/definitions/ini/register";
-import "monaco-editor/languages/definitions/java/register";
-import "monaco-editor/languages/definitions/kotlin/register";
-import "monaco-editor/languages/definitions/lua/register";
-import "monaco-editor/languages/definitions/objective-c/register";
-import "monaco-editor/languages/definitions/perl/register";
-import "monaco-editor/languages/definitions/php/register";
-import "monaco-editor/languages/definitions/powershell/register";
-import "monaco-editor/languages/definitions/r/register";
-import "monaco-editor/languages/definitions/ruby/register";
-import "monaco-editor/languages/definitions/rust/register";
-import "monaco-editor/languages/definitions/scala/register";
-import "monaco-editor/languages/definitions/solidity/register";
-import "monaco-editor/languages/definitions/swift/register";
 import "monaco-editor/languages/features/register.all";
 
 export type WorkspaceFileMetadata = {
@@ -103,6 +74,62 @@ workerScope.MonacoEnvironment = {
   }
 };
 
+// Register only the language used by the open file. Vite emits separate chunks for these definitions.
+const languageLoaders: Record<string, () => Promise<unknown>> = {
+  python: () => import("monaco-editor/languages/definitions/python/register"),
+  javascript: () => import("monaco-editor/languages/definitions/javascript/register"),
+  typescript: () => import("monaco-editor/languages/definitions/typescript/register"),
+  css: () => import("monaco-editor/languages/definitions/css/register"),
+  html: () => import("monaco-editor/languages/definitions/html/register"),
+  markdown: () => import("monaco-editor/languages/definitions/markdown/register"),
+  yaml: () => import("monaco-editor/languages/definitions/yaml/register"),
+  sql: () => import("monaco-editor/languages/definitions/sql/register"),
+  shell: () => import("monaco-editor/languages/definitions/shell/register"),
+  cpp: () => import("monaco-editor/languages/definitions/cpp/register"),
+  csharp: () => import("monaco-editor/languages/definitions/csharp/register"),
+  dart: () => import("monaco-editor/languages/definitions/dart/register"),
+  dockerfile: () => import("monaco-editor/languages/definitions/dockerfile/register"),
+  go: () => import("monaco-editor/languages/definitions/go/register"),
+  graphql: () => import("monaco-editor/languages/definitions/graphql/register"),
+  ini: () => import("monaco-editor/languages/definitions/ini/register"),
+  java: () => import("monaco-editor/languages/definitions/java/register"),
+  kotlin: () => import("monaco-editor/languages/definitions/kotlin/register"),
+  lua: () => import("monaco-editor/languages/definitions/lua/register"),
+  "objective-c": () => import("monaco-editor/languages/definitions/objective-c/register"),
+  perl: () => import("monaco-editor/languages/definitions/perl/register"),
+  php: () => import("monaco-editor/languages/definitions/php/register"),
+  powershell: () => import("monaco-editor/languages/definitions/powershell/register"),
+  r: () => import("monaco-editor/languages/definitions/r/register"),
+  ruby: () => import("monaco-editor/languages/definitions/ruby/register"),
+  rust: () => import("monaco-editor/languages/definitions/rust/register"),
+  scala: () => import("monaco-editor/languages/definitions/scala/register"),
+  solidity: () => import("monaco-editor/languages/definitions/solidity/register"),
+  swift: () => import("monaco-editor/languages/definitions/swift/register")
+};
+
+const loadedLanguages = new Set<string>();
+const languageLoads = new Map<string, Promise<void>>();
+
+async function ensureLanguageRegistered(language: string): Promise<void> {
+  if (loadedLanguages.has(language)) return;
+  const existing = languageLoads.get(language);
+  if (existing) return existing;
+
+  const loader = languageLoaders[language];
+  if (!loader) {
+    loadedLanguages.add(language);
+    return;
+  }
+
+  const loading = loader().then(() => {
+    loadedLanguages.add(language);
+  }).finally(() => {
+    languageLoads.delete(language);
+  });
+  languageLoads.set(language, loading);
+  return loading;
+}
+
 function basename(path: string): string {
   return path.split("/").at(-1) ?? path;
 }
@@ -160,42 +187,57 @@ function CodeEditor({
   onSaveRef.current = onSave;
 
   useEffect(() => {
-    if (!hostRef.current) return undefined;
-    const model = monaco.editor.createModel(
-      value,
-      language,
-      monaco.Uri.parse("inmemory://space/" + encodeURIComponent(path))
-    );
-    const editor = monaco.editor.create(hostRef.current, {
-      model,
-      theme: "vs-dark",
-      automaticLayout: true,
-      fontFamily: "'JetBrains Mono', 'SFMono-Regular', Consolas, monospace",
-      fontSize: 13,
-      lineHeight: 21,
-      tabSize: 2,
-      insertSpaces: true,
-      minimap: { enabled: true, scale: 0.75 },
-      scrollBeyondLastLine: false,
-      renderLineHighlight: "all",
-      roundedSelection: false,
-      padding: { top: 14, bottom: 14 },
-      wordWrap: "on",
-      suggestOnTriggerCharacters: true,
-      quickSuggestions: true,
-      folding: true,
-      bracketPairColorization: { enabled: true }
+    let disposed = false;
+    let model: monaco.editor.ITextModel | null = null;
+    let editor: monaco.editor.IStandaloneCodeEditor | null = null;
+    let modelSubscription: monaco.IDisposable | null = null;
+
+    void ensureLanguageRegistered(language).then(() => {
+      if (disposed || !hostRef.current) return;
+      model = monaco.editor.createModel(
+        value,
+        language,
+        monaco.Uri.parse("inmemory://space/" + encodeURIComponent(path))
+      );
+      editor = monaco.editor.create(hostRef.current, {
+        model,
+        theme: "vs-dark",
+        automaticLayout: true,
+        fontFamily: "'JetBrains Mono', 'SFMono-Regular', Consolas, monospace",
+        fontSize: 13,
+        lineHeight: 21,
+        tabSize: 2,
+        insertSpaces: true,
+        minimap: { enabled: true, scale: 0.75 },
+        scrollBeyondLastLine: false,
+        renderLineHighlight: "all",
+        roundedSelection: false,
+        padding: { top: 14, bottom: 14 },
+        wordWrap: "on",
+        suggestOnTriggerCharacters: true,
+        quickSuggestions: true,
+        folding: true,
+        bracketPairColorization: { enabled: true }
+      });
+      editorRef.current = editor;
+      modelSubscription = model.onDidChangeContent(() => {
+        if (editor) onChangeRef.current(editor.getValue());
+      });
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => onSaveRef.current());
+    }).catch(() => {
+      // Keep the editor usable as plain text if a language chunk cannot be loaded.
+      if (!disposed && hostRef.current) {
+        model = monaco.editor.createModel(value, "plaintext");
+        editor = monaco.editor.create(hostRef.current, { model, theme: "vs-dark", automaticLayout: true });
+        editorRef.current = editor;
+      }
     });
-    editorRef.current = editor;
-    const modelSubscription = model.onDidChangeContent(() => {
-      onChangeRef.current(editor.getValue());
-    });
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => onSaveRef.current());
 
     return () => {
-      modelSubscription.dispose();
-      editor.dispose();
-      model.dispose();
+      disposed = true;
+      modelSubscription?.dispose();
+      editor?.dispose();
+      model?.dispose();
       editorRef.current = null;
     };
   }, [path, language]);
