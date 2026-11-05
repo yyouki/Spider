@@ -78,6 +78,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const [settingsNotice, setSettingsNotice] = useState("");
   const [shareInfo, setShareInfo] = useState<{ url: string; jsonUrl: string; token: string; expiresAt: string; messageCount: number } | null>(null);
   const [shareNotice, setShareNotice] = useState("");
+  const [tokenUsage, setTokenUsage] = useState<{ requests: number; inputTokens: number; outputTokens: number; totalTokens: number; latestAt: string | null; source: string } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const agent = useAgent<SpaceAgent>({
@@ -116,6 +117,19 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     if (connected) void loadSettings();
   }, [connected, loadSettings]);
+
+  const loadTokenUsage = useCallback(async () => {
+    try {
+      const summary = await agent.stub.getTokenUsage();
+      setTokenUsage(summary);
+    } catch {
+      // A failed usage read should not block chat or file editing.
+    }
+  }, [agent]);
+
+  useEffect(() => {
+    if (connected && !busy) void loadTokenUsage();
+  }, [connected, busy, loadTokenUsage]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -289,6 +303,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           <Suspense fallback={<section className="ide-panel ide-loading">Loading code editor…</section>}>
             <WorkspaceIDE
               refreshKey={workspaceRefreshKey}
+              tokenUsage={tokenUsage}
               onListFiles={listWorkspaceFiles}
               onReadFile={readWorkspaceFile}
               onWriteFile={writeWorkspaceFile}
