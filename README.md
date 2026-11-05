@@ -8,10 +8,10 @@ space is being built as **one primary AI with one identity and one orchestration
 
 Start with [apps/space-ai](apps/space-ai/README.md) for local development and deployment requirements.
 
-The dashboard's **Autonomy** panel stores the owner's preferred operating modes:
+The app is organized into four separate areas: **Chat** for conversations, **IDE** for the private file workspace, **Analytics** for provider-reported token activity, and **Settings** for autonomy preferences. The IDE is no longer embedded in the chat page, and token analytics is not displayed inside the editor.\n\nThe **Settings** page stores the owner's preferred operating modes:
 - bounded Python/JavaScript execution in a temporary offline container;
 - automatic read-only research once a browser tool exists;
-- file operations within the private Space workspace, shown in the IDE Explorer and Monaco editor;
+- file operations within the private Space workspace, shown in the dedicated IDE Explorer and Monaco editor;
 - automatic promotion of eligible low-risk updates after every required release gate passes.
 
 The settings do not activate tools or grant third-party permissions that have not been connected.
