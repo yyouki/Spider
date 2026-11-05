@@ -488,7 +488,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
       }
       if (!Object.keys(entries).length) throw new Error("The workspace is empty.");
       const archive = zipSync(entries, { level: 6 });
-      const url = URL.createObjectURL(new Blob([archive], { type: "application/zip" }));
+      const url = URL.createObjectURL(archiveBlob(archive));
       const link = document.createElement("a");
       link.href = url;
       link.download = "space-workspace.zip";
