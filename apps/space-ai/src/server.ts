@@ -339,6 +339,39 @@ export class SpaceAgent extends AIChatAgent<Env> {
     } : null;
   }
 
+  private async runFluxImage(
+    prompt: string,
+    width: number,
+    height: number,
+    reference?: { filename: string; mimeType: string; contentBase64: string }
+  ): Promise<string | Uint8Array> {
+    const form = new FormData();
+    form.append("prompt", prompt);
+    form.append("width", String(width));
+    form.append("height", String(height));
+    form.append("output_format", "png");
+    if (reference) {
+      const referenceBytes = decodeBase64(reference.contentBase64);
+      if (referenceBytes.byteLength > ASSET_MAX_BYTES) {
+        throw new Error("The reference image exceeds the 2 MB image limit.");
+      }
+      const buffer = new ArrayBuffer(referenceBytes.byteLength);
+      new Uint8Array(buffer).set(referenceBytes);
+      form.append("input_image_0", new Blob([buffer], { type: reference.mimeType }), reference.filename);
+    }
+
+    // Workers AI requires multipart/form-data for FLUX.2 Klein, including text-to-image calls.
+    const serialized = new Response(form);
+    const body = serialized.body;
+    const contentType = serialized.headers.get("content-type");
+    if (!body || !contentType) throw new Error("Could not prepare the image request.");
+    const result = await this.env.AI.run("@cf/black-forest-labs/flux-2-klein-4b", {
+      multipart: { body, contentType }
+    }) as { image?: string | Uint8Array };
+    if (!result?.image) throw new Error("The image provider returned no image.");
+    return result.image;
+  }
+
   private saveGeneratedImage(filename: string, prompt: string, image: string | Uint8Array) {
     const bytes = typeof image === "string" ? decodeBase64(image) : image;
     if (!bytes.byteLength || bytes.byteLength > ASSET_MAX_BYTES) {
@@ -909,13 +942,8 @@ export class SpaceAgent extends AIChatAgent<Env> {
             height: z.number().int().min(256).max(1920).default(768)
           }),
           execute: async ({ prompt, width, height }) => {
-            const result = await this.env.AI.run("@cf/black-forest-labs/flux-2-klein-4b", {
-              prompt,
-              width,
-              height
-            }) as { image?: string | Uint8Array };
-            if (!result?.image) throw new Error("The image provider returned no image.");
-            return this.saveGeneratedImage("space-image-" + Date.now() + ".png", prompt, result.image);
+            const image = await this.runFluxImage(prompt, width, height);
+            return this.saveGeneratedImage("space-image-" + Date.now() + ".png", prompt, image);
           }
         }),
 
@@ -928,14 +956,12 @@ export class SpaceAgent extends AIChatAgent<Env> {
           execute: async ({ assetId, prompt }) => {
             const original = this.readWorkspaceAsset(assetId);
             if (!original) throw new Error("The source image is unavailable.");
-            const result = await this.env.AI.run("@cf/black-forest-labs/flux-2-klein-4b", {
-              prompt,
-              input_image_0: original.contentBase64,
-              width: 1024,
-              height: 768
-            }) as { image?: string | Uint8Array };
-            if (!result?.image) throw new Error("The image provider returned no edited image.");
-            return this.saveGeneratedImage("space-edited-" + Date.now() + ".png", prompt, result.image);
+            const image = await this.runFluxImage(prompt, 1024, 768, {
+              filename: original.filename,
+              mimeType: original.mime_type,
+              contentBase64: original.content_base64
+            });
+            return this.saveGeneratedImage("space-edited-" + Date.now() + ".png", prompt, image);
           }
         }),
 
