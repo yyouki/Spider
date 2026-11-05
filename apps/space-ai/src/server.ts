@@ -285,7 +285,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
           ? "configured_github_actions_sandbox_not_health_checked"
           : "not_configured_no_sandbox_token",
         browserResearch: "not_connected_no_browser_tool",
-        projectFiles: "not_connected_no_filesystem_tool",
+        projectFiles: "connected_private_workspace",
         selfUpdate: "policy_only_no_deployment_runner"
       },
       fixedSafetyRules: [
@@ -371,6 +371,9 @@ export class SpaceAgent extends AIChatAgent<Env> {
             available: [
               "Persistent chat history",
               "Persistent task plans",
+              "Private AI-created workspace files",
+              "Monaco code editor and estimated token analysis",
+              "Expiring read-only conversation share links",
               "Owner-configurable autonomy preferences",
               "Basic arithmetic",
               "Cloudflare Durable Object SQLite storage"
@@ -380,7 +383,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
               : ["Offline Python and JavaScript sandbox through a temporary GitHub Actions runner"],
             notConnectedYet: [
               "Autonomous web browsing",
-              "Project filesystem and repository tools",
+              "GitHub repository sync and external project storage",
               "Image, audio, and video understanding",
               "Android, Windows, macOS, and Linux device runners",
               "External account integrations",
@@ -519,6 +522,32 @@ export class SpaceAgent extends AIChatAgent<Env> {
           }
         }),
 
+        listWorkspaceFiles: tool({
+          description: "List files currently saved in the private Space workspace. Folder structure is inferred from each relative file path.",
+          inputSchema: z.object({}),
+          execute: async () => this.listWorkspaceFiles()
+        }),
+
+        readWorkspaceFile: tool({
+          description: "Read the contents of one existing private workspace file before editing it.",
+          inputSchema: z.object({ path: z.string().min(1).max(240) }),
+          execute: async ({ path }) => this.readWorkspaceFile(path)
+        }),
+
+        writeWorkspaceFile: tool({
+          description: "Create or update a text file in the private Space workspace. Use relative paths such as src/main.py. Never write credentials, .env files, tokens, passwords, cookies, or private keys.",
+          inputSchema: z.object({ path: z.string().min(1).max(240), content: z.string().max(131072) }),
+          needsApproval: this.getAutonomySettings().settings.projectFiles === "ask_before_write",
+          execute: async ({ path, content }) => this.writeWorkspaceFile(path, content)
+        }),
+
+        deleteWorkspaceFile: tool({
+          description: "Delete one private workspace file. This action always requires owner approval.",
+          inputSchema: z.object({ path: z.string().min(1).max(240) }),
+          needsApproval: true,
+          execute: async ({ path }) => this.deleteWorkspaceFile(path)
+        }),
+
         searchProjectMemory: tool({
           description: "Search previously approved project facts. Use only when relevant to the current request.",
           inputSchema: z.object({ query: z.string().trim().min(1).max(120) }),
@@ -547,6 +576,44 @@ export class SpaceAgent extends AIChatAgent<Env> {
 export default {
   async fetch(request: Request, env: Env) {
     const url = new URL(request.url);
+
+    // Public share URLs are bearer links: anyone who receives the random token can read them.
+    const shareMatch = request.method === "GET"
+      ? url.pathname.match(/^\/share\/([A-Za-z0-9_-]{43})(\.json)?$/)
+      : null;
+    if (shareMatch) {
+      const token = shareMatch[1];
+      const namespace = env.ChatShares;
+      const snapshot = await namespace.get(namespace.idFromName(token)).readShare(token);
+      const securityHeaders = {
+        "Cache-Control": "no-store, private",
+        "X-Robots-Tag": "noindex, nofollow, noarchive",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"
+      };
+      if (!snapshot) {
+        return new Response("This share link is invalid, expired, or revoked.", {
+          status: 404,
+          headers: securityHeaders
+        });
+      }
+      if (shareMatch[2]) return Response.json(snapshot, { headers: securityHeaders });
+
+      const serialized = htmlEscape(JSON.stringify(snapshot, null, 2));
+      const html = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">" +
+        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
+        "<title>Shared Space conversation</title><style>" +
+        "body{margin:0;padding:32px;background:#0e1118;color:#e7eaf1;font:14px/1.6 ui-sans-serif,system-ui}" +
+        "main{max-width:900px;margin:0 auto}h1{font-size:22px}p{color:#9ba4b7}" +
+        "pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#171c27;border:1px solid #2a3140;border-radius:12px;padding:18px}" +
+        "</style></head><body><main><h1>Shared Space conversation</h1>" +
+        "<p>Read-only snapshot · expires " + htmlEscape(snapshot.expiresAt) + "</p>" +
+        "<pre>" + serialized + "</pre></main></body></html>";
+      return new Response(html, {
+        headers: { ...securityHeaders, "Content-Type": "text/html; charset=utf-8" }
+      });
+    }
 
     // Handle GitHub OAuth before protected API and agent routes.
     const authResponse = await handleAuthRequest(request, env);
