@@ -19,7 +19,8 @@ A first, deliberately small implementation of the single-core space AI workspace
 - Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
 - A dedicated IDE page using Monaco Editor, with Explorer, folder ZIP downloads, project ZIP download, multi-file tabs, automatic saving, file history/restore, full-text search, Run File output, and mobile Explorer/Editor tabs. Monaco provides syntax highlighting for many languages; the sandbox executes Python and JavaScript only.
 - Persistent private workspace files created or updated by AI tools or the editor. Folder structure is inferred from file paths. Successful AI file writes show a downloadable file attachment in the conversation.
-- A separate Analytics page with provider-reported token usage, daily activity and workspace storage estimates.\n- Private image assets, FLUX.2 Klein image generation/editing, and chat image previews with download actions.
+- A separate Analytics page with provider-reported token usage, daily activity and workspace storage estimates.
+- Private image assets, FLUX.2 Klein image generation/editing, and chat image previews with download actions.
 
 ## Not included yet
 
@@ -64,7 +65,11 @@ Sending/publishing, spending money, deleting important data, changing account se
 
 The default text model is `@cf/zai-org/glm-4.7-flash`; image generation and editing use `@cf/black-forest-labs/flux-2-klein-4b`. Cloudflare documents it as a multilingual reasoning and function-calling model with a 131,072-token context window. That makes it a reasonable MVP choice for chat and multi-turn tools, not a guarantee of perfect autonomous performance. Workers AI Free usage has a daily Neurons allocation; once exhausted, further inference stops until the allowance resets or the account moves to a paid plan.
 
-Image generation/editing is not image understanding: the current app does not yet provide general image description, OCR, audio, or video analysis. Image tasks consume Workers AI quota. Uploaded reference images are resized to at most 512×512 pixels for the connected editing model. Image storage is capped at 40 assets and 25 MB total, with a 2 MB per-image cap.\n\nSpace can help explain and reason about many fields—including programming, mathematics, science, writing, design, automotive theory, business concepts, and personal-finance education—but it is not a licensed professional and does not connect to banks, brokerages, crypto exchanges, or trading accounts. It provides educational analysis, not trade execution or guaranteed investment results.\n\nA custom model does not remove inference cost or quotas. Training and serving a capable model require compute. Keep the provider/model behind the AI SDK adapter so a later tested model can replace it without rewriting the workspace.
+Image generation/editing is not image understanding: the current app does not yet provide general image description, OCR, audio, or video analysis. Image tasks consume Workers AI quota. Uploaded reference images are resized to at most 510×510 pixels for the connected editing model. Image storage is capped at 40 assets and 25 MB total, with a 1.35 MB per-image cap to stay below Durable Object SQLite row limits.
+
+Space can help explain and reason about many fields—including programming, mathematics, science, writing, design, automotive theory, business concepts, and personal-finance education—but it is not a licensed professional and does not connect to banks, brokerages, crypto exchanges, or trading accounts. It provides educational analysis, not trade execution or guaranteed investment results.
+
+A custom model does not remove inference cost or quotas. Training and serving a capable model require compute. Keep the provider/model behind the AI SDK adapter so a later tested model can replace it without rewriting the workspace.
 
 ## Requirements
 
