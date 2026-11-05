@@ -346,7 +346,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
         !window.confirm("Workspace execution is set to manual. Run this file once in the restricted offline sandbox?")) {
       return { accepted: false, note: "Run cancelled by owner." };
     }
-    return agent.stub.runWorkspaceFile(path);
+    return agent.stub.runWorkspaceFile(path, 10, settings.workspaceExecution === "manual");
   }, [agent, settings.workspaceExecution]);
   const getWorkspaceRunStatus = useCallback((taskId: string) => agent.stub.getWorkspaceRunStatus(taskId), [agent]);
   const searchWorkspaceFiles = useCallback((query: string) => agent.stub.searchWorkspaceFiles(query), [agent]);
@@ -394,6 +394,10 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 
   const uploadImage = async (file?: File) => {
     if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setError("File sumber melebihi 8 MB. Pilih gambar yang lebih kecil.");
+      return;
+    }
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
       setError("Gunakan gambar PNG, JPEG, atau WebP.");
       return;
@@ -402,7 +406,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     setError("");
     try {
       const bitmap = await createImageBitmap(file);
-      const scale = Math.min(1, 512 / bitmap.width, 512 / bitmap.height);
+      const scale = Math.min(1, 510 / bitmap.width, 510 / bitmap.height);
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(bitmap.width * scale));
       canvas.height = Math.max(1, Math.round(bitmap.height * scale));
@@ -411,9 +415,9 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
       context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
       bitmap.close();
       const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not prepare the image.")), "image/png");
+        canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not prepare the image.")), "image/webp", 0.84);
       });
-      if (blob.size > 2 * 1024 * 1024) throw new Error("The resized image exceeds the 2 MB upload limit.");
+      if (blob.size > 1_350_000) throw new Error("Gambar hasil kompresi melebihi 1,35 MB. Pilih gambar lain atau kecilkan resolusinya.");
       const buffer = new Uint8Array(await blob.arrayBuffer());
       let binary = "";
       for (let offset = 0; offset < buffer.length; offset += 0x8000) {
@@ -421,8 +425,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
       }
       const contentBase64 = btoa(binary);
       const saved = await agent.stub.uploadWorkspaceAsset({
-        filename: file.name.replace(/\\.[^.]+$/, "") + ".png",
-        mimeType: "image/png",
+        filename: file.name.replace(/\\.[^.]+$/, "") + ".webp",
+        mimeType: "image/webp",
         contentBase64
       });
       setPendingImage({ id: saved.id, filename: saved.filename, mimeType: saved.mimeType, contentBase64 });
