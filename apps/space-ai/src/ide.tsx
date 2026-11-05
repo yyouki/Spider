@@ -58,6 +58,10 @@ export type Props = {
   onWriteFile: (path: string, content: string) => Promise<WorkspaceFileMetadata>;
   onListHistory: (path: string) => Promise<{ id: string; createdAt: string; sizeBytes: number; preview: string }[]>;
   onRestoreFile: (path: string, revisionId: string) => Promise<WorkspaceFileMetadata>;
+  onRunFile: (path: string) => Promise<{ accepted: boolean; taskId?: string; status?: string; note?: string }>;
+  onGetRunStatus: (taskId: string) => Promise<{
+    id: string; status: string; exitCode?: number | null; stdout?: string; stderr?: string; error?: string; workflowRunId?: number;
+  } | null>;
 };
 
 const workerScope = globalThis as typeof globalThis & {
@@ -250,7 +254,7 @@ function FileTree({
   );
 }
 
-export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile, onListHistory, onRestoreFile }: Props) {
+export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile, onListHistory, onRestoreFile, onRunFile, onGetRunStatus }: Props) {
   const [files, setFiles] = useState<WorkspaceFileMetadata[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
   const [content, setContent] = useState("");
@@ -270,6 +274,15 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
   const [historyBusy, setHistoryBusy] = useState(false);
   const draftRef = useRef(draft);
   const autosaveValueRef = useRef("");
+  const [runTask, setRunTask] = useState<{
+    id: string;
+    status: string;
+    exitCode?: number | null;
+    stdout?: string;
+    stderr?: string;
+    error?: string;
+  } | null>(null);
+  const [runBusy, setRunBusy] = useState(false);
 
   useEffect(() => { draftRef.current = draft; }, [draft]);
 
@@ -487,6 +500,61 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
     }
   };
 
+  const runSelectedFile = async () => {
+    if (!selectedPath || dirty || runBusy) {
+      if (dirty) setNotice("Save the file before running it.");
+      return;
+    }
+    setRunBusy(true);
+    setNotice("");
+    setRunTask(null);
+    try {
+      const result = await onRunFile(selectedPath);
+      if (!result.accepted || !result.taskId) throw new Error(result.note || "The sandbox did not accept this file.");
+      setRunTask({ id: result.taskId, status: result.status || "queued" });
+      setNotice("File submitted to the temporary offline sandbox.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not run the selected file.");
+    } finally {
+      setRunBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!runTask || ["succeeded", "failed", "cancelled", "timed_out"].includes(runTask.status)) return undefined;
+    let active = true;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const result = await onGetRunStatus(runTask.id);
+        if (!active || !result) return;
+        setRunTask({
+          id: result.id,
+          status: result.status,
+          exitCode: result.exitCode,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          error: result.error
+        });
+        if (!["succeeded", "failed", "cancelled", "timed_out"].includes(result.status)) {
+          timer = window.setTimeout(() => void poll(), 1800);
+        }
+      } catch (error) {
+        if (active) {
+          setRunTask((current) => current ? {
+            ...current,
+            error: error instanceof Error ? error.message : "Could not refresh sandbox status."
+          } : current);
+        }
+      }
+    };
+    timer = window.setTimeout(() => void poll(), 900);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [runTask?.id, runTask?.status, onGetRunStatus]);
+
   return (
     <section className="ide-panel" aria-label="Private code workspace">
       <div className="ide-titlebar">
@@ -545,6 +613,9 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
             ))}
             <div className="ide-tabs-spacer" />
             <button type="button" className="ide-history-button" onClick={() => void loadHistory()} disabled={!selectedPath}>History</button>
+            <button type="button" className="ide-run-button" onClick={() => void runSelectedFile()} disabled={!selectedPath || dirty || runBusy || !["python","javascript"].includes(currentLanguage)}>
+              {runBusy ? "Starting…" : "▶ Run File"}
+            </button>
             <button type="button" className="ide-save" onClick={() => void saveFile()} disabled={!dirty || saving}>
               {saving ? "Saving…" : dirty ? "Save now" : "Auto-saved"}
             </button>
@@ -584,6 +655,16 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
             </div>
           )}
 
+          {runTask && (
+            <section className="ide-output-panel" aria-label="File execution output">
+              <header>
+                <span><strong>RUN OUTPUT</strong><small>{runTask.status} {runTask.exitCode !== undefined && runTask.exitCode !== null ? "· exit " + runTask.exitCode : ""}</small></span>
+                <button type="button" onClick={() => setRunTask(null)}>Close</button>
+              </header>
+              {runTask.error && <p className="ide-output-error">{runTask.error}</p>}
+              <pre>{[runTask.stdout || "", runTask.stderr ? "STDERR:\\n" + runTask.stderr : ""].filter(Boolean).join("\\n") || (["succeeded","failed","cancelled","timed_out"].includes(runTask.status) ? "(no output)" : "Waiting for the temporary runner…")}</pre>
+            </section>
+          )}
           <div className="ide-statusbar">
             <span>{currentLanguage.toUpperCase()}</span>
             <span>{selectedPath ? basename(selectedPath) : "No file"}</span>
