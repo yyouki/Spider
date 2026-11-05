@@ -17,6 +17,7 @@
     "agents": "0.17.4",
     "ai": "6.0.197",
     "fflate": "0.8.2",
+    "monaco-editor": "0.57.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "workers-ai-provider": "3.2.1",

@@ -14,6 +14,10 @@ Last implementation pass: November 5, 2026.
 | Capability reporting | Implemented in source | `getCapabilities` tool |
 | Project memory | Implemented in source | SQLite table with approval-required writes |
 | Owner autonomy settings | Implemented in source | SQLite persistence and mobile settings UI |
+| Private workspace files | Implemented in current branch | SQLite-backed file records, path validation, file and total size limits |
+| Monaco IDE | Implemented in current branch | Monaco ESM, Vite-bundled workers, Explorer tree, tabs, save control |
+| Token analysis | Implemented in current branch | Provider-reported AI usage plus clearly labeled file/workspace estimates |
+| Read-only conversation sharing | Implemented in current branch | Random bearer URLs, seven-day expiry, revoke, no-store/noindex response |
 | Self-update release policy | Implemented in source | Deterministic release gate + Node unit tests |
 | Private owner access | Implemented in source | GitHub OAuth identity check, signed session cookie |
 | Python/JavaScript sandbox | Implemented in source; deployment-gated | GitHub Actions runner dispatch, encrypted source/result, restricted Docker runner |
@@ -40,7 +44,7 @@ The default model remains `@cf/zai-org/glm-4.7-flash`. It supports reasoning and
 
 ## Not yet verified
 
-- Current branch changes have not yet passed GitHub Actions.
+- Current IDE/workspace/share branch has not yet passed GitHub Actions or been deployed.
 - Cloudflare deployment and owner-only GitHub OAuth sign-in.
 - Runtime sandbox dispatch, artifact decryption, and Python/JavaScript execution.
 - Sandbox timeout, cancellation, concurrency, and no-network behavior.
@@ -55,7 +59,7 @@ Do not call the sandbox or production app live until a successful deployment and
 - Web search or autonomous browsing.
 - Arbitrary website interaction.
 - General shell execution, project-repository execution, or a persistent coding VM.
-- File and folder ingestion, read/write tools.
+- User device filesystem access and GitHub repository sync.
 - Image/document/audio/video processing.
 - Android, Windows, or macOS device runners.
 - Gmail or other third-party account connectors.

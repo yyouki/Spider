@@ -2,7 +2,7 @@
 
 space is being built as **one primary AI with one identity and one orchestration core**. Browser research, coding, file management, multimodal perception, memory, sandbox execution, hosting, and self-improvement are capabilities of that core rather than separate user-facing bots.
 
-> **Current implementation direction:** Cloudflare Workers Free hosts the app and Durable Objects SQLite stores chat, preferences, plans, and project memory. GitHub OAuth restricts access to the repository owner. Small Python/JavaScript snippets run on temporary GitHub-hosted Linux runners inside restricted offline Docker containers. This avoids Cloudflare Containers and Workers Paid, but it is not unlimited compute and still requires a successful deployment and runtime verification.
+> **Current implementation direction:** Cloudflare Workers Free hosts the app. Durable Objects SQLite stores chat, preferences, plans, project memory, and a private per-agent code workspace. The UI uses Monaco Editor with an Explorer tree, file tabs, and token analysis. GitHub OAuth restricts the private workspace to the owner. Small Python/JavaScript snippets run on temporary GitHub-hosted Linux runners inside restricted offline Docker containers. Read-only conversation share links use random bearer URLs, expire after seven days, and can be revoked. This avoids Cloudflare Containers and Workers Paid, but is not unlimited compute.
 
 ## AI MVP
 
@@ -11,7 +11,7 @@ Start with [apps/space-ai](apps/space-ai/README.md) for local development and de
 The dashboard's **Autonomy** panel stores the owner's preferred operating modes:
 - bounded Python/JavaScript execution in a temporary offline container;
 - automatic read-only research once a browser tool exists;
-- file operations within a selected workspace;
+- file operations within the private Space workspace, shown in the IDE Explorer and Monaco editor;
 - automatic promotion of eligible low-risk updates after every required release gate passes.
 
 The settings do not activate tools or grant third-party permissions that have not been connected.

@@ -1,8 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, type UIMessage } from "ai";
 import type { AutonomySettings, SpaceAgent } from "./server";
+import type { ComponentType } from "react";
+import type { Props as WorkspaceIDEProps } from "./ide";
+
+const WorkspaceIDE = lazy<ComponentType<WorkspaceIDEProps>>(() => {
+  // Monaco and its Web Workers are browser-only; do not bundle workers into the Cloudflare SSR Worker.
+  if (import.meta.env.SSR) {
+    const Placeholder: ComponentType<WorkspaceIDEProps> = () => null;
+    return Promise.resolve({ default: Placeholder });
+  }
+  return import("./ide");
+});
 
 const DEFAULT_SETTINGS: AutonomySettings = {
   workspaceExecution: "autonomous_sandbox",
@@ -74,7 +85,9 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const [settings, setSettings] = useState<AutonomySettings>(DEFAULT_SETTINGS);
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState("");
-  const [exportNotice, setExportNotice] = useState("");
+  const [shareInfo, setShareInfo] = useState<{ url: string; jsonUrl: string; token: string; expiresAt: string; messageCount: number } | null>(null);
+  const [shareNotice, setShareNotice] = useState("");
+  const [tokenUsage, setTokenUsage] = useState<{ requests: number; inputTokens: number; outputTokens: number; totalTokens: number; latestAt: string | null; source: string } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const agent = useAgent<SpaceAgent>({
@@ -114,6 +127,19 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     if (connected) void loadSettings();
   }, [connected, loadSettings]);
 
+  const loadTokenUsage = useCallback(async () => {
+    try {
+      const summary = await agent.stub.getTokenUsage();
+      setTokenUsage(summary);
+    } catch {
+      // A failed usage read should not block chat or file editing.
+    }
+  }, [agent]);
+
+  useEffect(() => {
+    if (connected && !busy) void loadTokenUsage();
+  }, [connected, busy, loadTokenUsage]);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
@@ -137,41 +163,64 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     clearHistory();
   };
 
-  const exportChat = () => {
-    if (!messages.length || busy) return;
+  const listWorkspaceFiles = useCallback(() => agent.stub.listWorkspaceFiles(), [agent]);
+  const readWorkspaceFile = useCallback((path: string) => agent.stub.readWorkspaceFile(path), [agent]);
+  const writeWorkspaceFile = useCallback((path: string, content: string) => agent.stub.writeWorkspaceFile(path, content), [agent]);
+  const workspaceRefreshKey = useMemo(
+    () => messages.map((message) => message.parts
+      .filter(isToolUIPart)
+      .map((part) => part.type + ":" + part.state)
+      .join(",")).join("|"),
+    [messages]
+  );
 
+  const shareChat = async () => {
+    if (!messages.length || busy) return;
     const approved = window.confirm(
-      "Export the currently loaded conversation, including message text and tool call details, to a JSON file on this device? The file is not uploaded automatically. Review it before sharing."
+      "Create a read-only share link for this conversation? Anyone with the link can read the message text and tool details. The link expires in 7 days and can be revoked."
     );
     if (!approved) return;
 
-    // Export only content rendered in the chat; do not include hidden message metadata.
-    const visibleMessages = messages.map((message) => ({
-      id: message.id,
-      role: message.role,
-      parts: message.parts.filter((part) => part.type === "text" || isToolUIPart(part))
-    }));
-    const payload = {
-      format: "space-chat-export",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      messageCount: visibleMessages.length,
-      scope: "Currently loaded active conversation; this agent retains up to 100 messages.",
-      messages: visibleMessages
-    };
+    setShareNotice("Creating share link…");
+    try {
+      const result = await agent.stub.createChatShare();
+      setShareInfo(result);
+      setShareNotice("Share link created. Anyone with the link can view this snapshot for 7 days.");
+      try {
+        await navigator.clipboard.writeText(result.url);
+        setShareNotice("Share link copied. Anyone with the link can view this snapshot for 7 days.");
+      } catch {
+        // The visible link remains available when clipboard access is blocked.
+      }
+    } catch (shareError) {
+      setShareNotice(shareError instanceof Error ? shareError.message : "Could not create a share link.");
+    }
+  };
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json"
-    });
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = `space-chat-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
-    setExportNotice("Conversation exported to this device. Review the file before sharing it.");
+  const revokeShare = async () => {
+    if (!shareInfo) return;
+    if (!window.confirm("Revoke this share link now? Anyone opening it afterwards will receive a not found page.")) return;
+    try {
+      const result = await agent.stub.revokeChatShare(shareInfo.token);
+      if (result.revoked) {
+        setShareInfo(null);
+        setShareNotice("Share link revoked.");
+      } else {
+        setShareNotice("This share link was already unavailable.");
+      }
+    } catch {
+      setShareNotice("Could not revoke the share link.");
+    }
+  };
+
+  const copyShare = async () => {
+    if (!shareInfo) return;
+    try {
+      await navigator.clipboard.writeText(shareInfo.url);
+      setShareNotice("Share link copied.");
+    } catch {
+      setShareNotice("Clipboard unavailable. Copy the visible URL manually.");
+    }
   };
 
   const saveSettings = async () => {
@@ -215,11 +264,11 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           <button
             className="text-button"
             type="button"
-            onClick={exportChat}
+            onClick={() => void shareChat()}
             disabled={!messages.length || busy}
-            title="Download the currently loaded conversation as JSON"
+            title="Create an expiring, revocable read-only share link"
           >
-            Export chat
+            Share chat
           </button>
           <button className="text-button" type="button" onClick={clear} disabled={!messages.length || busy}>
             Clear chat
@@ -231,7 +280,21 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
       </header>
 
       <section className="chat-layout">
-        {exportNotice && <p className="export-notice" role="status">{exportNotice}</p>}
+        {shareNotice && (
+          <section className="share-panel" role="status">
+            <div className="share-panel-copy">
+              <strong>Conversation share</strong>
+              <span>{shareNotice}</span>
+              {shareInfo && <a href={shareInfo.url} target="_blank" rel="noreferrer">{shareInfo.url}</a>}
+              {shareInfo && <small>{shareInfo.messageCount} messages · expires {new Date(shareInfo.expiresAt).toLocaleString()}</small>}
+            </div>
+            {shareInfo && <div className="share-panel-actions">
+              <button type="button" onClick={() => void copyShare()}>Copy link</button>
+              <a href={shareInfo.jsonUrl} target="_blank" rel="noreferrer">JSON</a>
+              <button type="button" className="danger" onClick={() => void revokeShare()}>Revoke</button>
+            </div>}
+          </section>
+        )}
         <div className="welcome">
           <p className="eyebrow">AUTONOMOUS AI WORKSPACE · MVP 0.5</p>
           <h1>What should we work on?</h1>
@@ -245,6 +308,17 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           </div>
         </div>
 
+        <div className="workspace-grid">
+          <Suspense fallback={<section className="ide-panel ide-loading">Loading code editor…</section>}>
+            <WorkspaceIDE
+              refreshKey={workspaceRefreshKey}
+              tokenUsage={tokenUsage}
+              onListFiles={listWorkspaceFiles}
+              onReadFile={readWorkspaceFile}
+              onWriteFile={writeWorkspaceFile}
+            />
+          </Suspense>
+          <section className="conversation-panel">
         {showSettings && (
           <section className="settings-panel" aria-label="Autonomy settings">
             <div className="settings-heading">
@@ -280,11 +354,11 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
             />
             <SettingSelect
               label="Project files"
-              description="Limit file operations to a workspace you explicitly connect."
+              description="Create, read, and edit files in the private Space IDE workspace."
               value={settings.projectFiles}
               options={[
                 { value: "ask_before_write", label: "Ask before every write" },
-                { value: "selected_workspace", label: "Manage selected workspace" }
+                { value: "selected_workspace", label: "Private Space workspace" }
               ]}
               onChange={(value) => setSettings((current) => ({ ...current, projectFiles: value }))}
             />
@@ -406,8 +480,10 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           </div>
         </form>
         <p className="disclaimer">
-          Early MVP. Sandbox tasks run in temporary GitHub-hosted containers with no network or project mounts. Browser, project files, multimodal tools, account connectors, and device integrations are not connected.
+          Private workspace files are stored in Space, while code execution uses temporary offline GitHub-hosted containers. GitHub repository sync, browser tools, multimodal tools, and external account connectors are not connected.
         </p>
+          </section>
+        </div>
       </section>
     </main>
   );
