@@ -1,10 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as monaco from "monaco-editor";
-import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
-import CssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
-import HtmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
-import TsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
+import * as monaco from "monaco-editor/editor";
+import "monaco-editor/features/register.all";
+import "monaco-editor/languages/definitions/python/register";
+import "monaco-editor/languages/definitions/javascript/register";
+import "monaco-editor/languages/definitions/typescript/register";
+import "monaco-editor/languages/definitions/json/register";
+import "monaco-editor/languages/definitions/css/register";
+import "monaco-editor/languages/definitions/html/register";
+import "monaco-editor/languages/definitions/markdown/register";
+import "monaco-editor/languages/definitions/yaml/register";
+import "monaco-editor/languages/definitions/sql/register";
+import "monaco-editor/languages/definitions/shell/register";
+import "monaco-editor/languages/features/register.all";
+import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker.js?worker";
+import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker.js?worker";
+import CssWorker from "monaco-editor/esm/vs/language/css/css.worker.js?worker";
+import HtmlWorker from "monaco-editor/esm/vs/language/html/html.worker.js?worker";
+import TsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker.js?worker";
 
 export type WorkspaceFileMetadata = {
   path: string;
