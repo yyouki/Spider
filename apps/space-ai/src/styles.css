@@ -595,7 +595,7 @@ button, textarea { font: inherit; }
 .estimate-label { color: #c7ad82; font-size: 8px; }
 .ide-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0,1fr));
+  grid-template-columns: repeat(6, minmax(0,1fr));
   gap: 8px;
   margin-top: 9px;
 }
@@ -704,7 +704,7 @@ button, textarea { font: inherit; }
   .ide-explorer.mobile-visible, .ide-editor-column.mobile-visible { display: flex; }
   .ide-explorer.mobile-visible { min-height: 440px; border-right: 0; }
   .ide-editor-column.mobile-visible { height: 460px; }
-  .ide-stats { gap: 5px; }
+  .ide-stats { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
   .ide-stats strong { font-size: 12px; }
   .share-panel { align-items: flex-start; flex-direction: column; }
   .share-panel-actions { flex-wrap: wrap; }
