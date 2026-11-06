@@ -1,4 +1,5 @@
 import type { GitHubAppTokenRecord } from "./vault";
+import { requireOwnerAccess } from "../security/access";
 import { getSpaceAgentName } from "../security/tenant-routing.js";
 
 type GitHubAppEnvironment = Env & {
@@ -320,7 +321,7 @@ export async function handleGitHubAppRequest(request: Request, env: Env): Promis
   ]);
   if (!supported.has(route)) return null;
 
-  const access = await (await import("../security/access")).requireOwnerAccess(request, env);
+  const access = await requireOwnerAccess(request, env);
   if (!access.ok) return access.response;
   const session = access.session;
   const config = envConfig(env);
