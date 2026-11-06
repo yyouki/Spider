@@ -774,6 +774,21 @@ export class SpaceAgent extends AIChatAgent<Env> {
   }
 
   @callable()
+  exportWorkspaceSnapshot(): GitHubWorkspaceSnapshot {
+    const rows = this.sql<{ path: string; content: string; size_bytes: number }>`SELECT path, content, size_bytes
+      FROM workspace_files ORDER BY path ASC LIMIT ${WORKSPACE_FILE_LIMIT}`;
+    const totalBytes = rows.reduce((total, row) => total + row.size_bytes, 0);
+    if (totalBytes > WORKSPACE_TOTAL_MAX_BYTES) {
+      throw new Error("The workspace exceeds its export size limit.");
+    }
+    return {
+      files: rows.map((row) => ({ path: row.path, content: row.content, sizeBytes: row.size_bytes })),
+      fileCount: rows.length,
+      totalBytes
+    };
+  }
+
+  @callable()
   listWorkspaceFiles(): WorkspaceFileMetadata[] {
     const rows = this.sql<WorkspaceFileRow>`SELECT path, content, language, size_bytes, updated_at
       FROM workspace_files ORDER BY path ASC LIMIT ${WORKSPACE_FILE_LIMIT}`;
