@@ -41,7 +41,7 @@ export function parsePersonalRepositoryTarget(value, expectedLogin) {
   if (typeof value !== "string" || typeof expectedLogin !== "string") return null;
   const parts = value.trim().split("/");
   if (parts.length !== 2 || parts[0].toLowerCase() !== expectedLogin.toLowerCase()) return null;
-  if (!/^[A-Za-z0-9-]{1,39}$/.test(parts[0]) || !/^[A-Za-z0-9._-]{1,100}$/.test(parts[1]) || parts[1].endsWith(".")) {
+  if (!/^[A-Za-z0-9-]{1,39}$/.test(parts[0]) || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(parts[1]) || parts[1].endsWith(".")) {
     return null;
   }
   return { owner: parts[0], name: parts[1] };
