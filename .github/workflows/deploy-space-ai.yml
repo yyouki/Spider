@@ -46,6 +46,9 @@ jobs:
           SPACE_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.SPACE_GOOGLE_OAUTH_CLIENT_ID }}
           SPACE_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.SPACE_GOOGLE_OAUTH_CLIENT_SECRET }}
           SPACE_GOOGLE_OWNER_EMAIL: ${{ secrets.SPACE_GOOGLE_OWNER_EMAIL }}
+          SPACE_GITHUB_APP_CLIENT_ID: ${{ secrets.SPACE_GITHUB_APP_CLIENT_ID }}
+          SPACE_GITHUB_APP_CLIENT_SECRET: ${{ secrets.SPACE_GITHUB_APP_CLIENT_SECRET }}
+          SPACE_GITHUB_APP_SLUG: ${{ secrets.SPACE_GITHUB_APP_SLUG }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
@@ -56,6 +59,7 @@ jobs:
           test -n "$SPACE_ACTIONS_TOKEN"
           node -e "if ((process.env.SESSION_SECRET || '').length < 32) process.exit(1)"
           node -e "const values = [process.env.SPACE_GOOGLE_OAUTH_CLIENT_ID, process.env.SPACE_GOOGLE_OAUTH_CLIENT_SECRET, process.env.SPACE_GOOGLE_OWNER_EMAIL]; if (values.some(Boolean) && !values.every(Boolean)) { console.error('Configure all three optional Google secrets together, or leave them all empty.'); process.exit(1); }"
+          node -e "const values = [process.env.SPACE_GITHUB_APP_CLIENT_ID, process.env.SPACE_GITHUB_APP_CLIENT_SECRET, process.env.SPACE_GITHUB_APP_SLUG]; if (values.some(Boolean) && !values.every(Boolean)) { console.error('Configure all three optional GitHub App secrets together, or leave them all empty.'); process.exit(1); }"
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Type-check and run all tests
@@ -83,6 +87,9 @@ jobs:
           SPACE_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.SPACE_GOOGLE_OAUTH_CLIENT_ID }}
           SPACE_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.SPACE_GOOGLE_OAUTH_CLIENT_SECRET }}
           SPACE_GOOGLE_OWNER_EMAIL: ${{ secrets.SPACE_GOOGLE_OWNER_EMAIL }}
+          SPACE_GITHUB_APP_CLIENT_ID: ${{ secrets.SPACE_GITHUB_APP_CLIENT_ID }}
+          SPACE_GITHUB_APP_CLIENT_SECRET: ${{ secrets.SPACE_GITHUB_APP_CLIENT_SECRET }}
+          SPACE_GITHUB_APP_SLUG: ${{ secrets.SPACE_GITHUB_APP_SLUG }}
         run: |
           set -euo pipefail
           node <<'NODE'
@@ -108,6 +115,17 @@ jobs:
             throw new Error('Configure all three optional Google owner sign-in secrets together, or leave all three empty.');
           }
           if (googleValues.every(Boolean)) Object.assign(values, google);
+
+          const githubApp = {
+            GITHUB_APP_CLIENT_ID: process.env.SPACE_GITHUB_APP_CLIENT_ID,
+            GITHUB_APP_CLIENT_SECRET: process.env.SPACE_GITHUB_APP_CLIENT_SECRET,
+            GITHUB_APP_SLUG: process.env.SPACE_GITHUB_APP_SLUG
+          };
+          const githubAppValues = Object.values(githubApp);
+          if (githubAppValues.some(Boolean) && !githubAppValues.every(Boolean)) {
+            throw new Error('Configure all three optional GitHub App secrets together, or leave them all empty.');
+          }
+          if (githubAppValues.every(Boolean)) Object.assign(values, githubApp);
 
           writeFileSync('.cloudflare-secrets.json', JSON.stringify(values), { mode: 0o600 });
           NODE
