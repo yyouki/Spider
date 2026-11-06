@@ -113,3 +113,12 @@ npm run build
 ```
 
 CI runs TypeScript/binding checks, release-gate tests, sandbox-policy tests, and a production build. A successful build does not verify a live Cloudflare deployment, OAuth configuration, GitHub Actions permissions, account quota, or model availability.
+
+
+## Video link attachments
+
+The chat composer accepts validated HTTPS links from YouTube, TikTok, Vimeo, and Dailymotion. Links are attached as references in the message and remain clickable in the composer before sending. This does not mean Space has watched the video: metadata, transcripts, audio extraction, and frame analysis are not connected yet.
+
+## GitHub project publishing and Android builds
+
+The current MVP stores source files in a private Space workspace and does not sync them to GitHub. The target integration is described in the root documentation. Android projects can use the reusable GitHub Actions workflow template in templates/android; APK artifact retrieval and attaching the APK directly to a Space chat are not yet wired into the app.
