@@ -118,11 +118,11 @@ function registerSpaceThemes(customBackground: string) {
 }
 
 function resolveTerminalPath(input: string, cwd: string): string {
-  if (input.length > 240 || input.includes("\\\\") || /[\\u0000-\\u001f]/.test(input)) {
+  if (input.length > 240 || input.includes("\\") || /[\u0000-\u001f]/.test(input)) {
     throw new Error("Invalid workspace path.");
   }
   const parts = input.startsWith("/") ? [] : cwd ? cwd.split("/") : [];
-  for (const segment of input.replace(/^\\/+/, "").split("/")) {
+  for (const segment of input.replace(/^\/+/, "").split("/")) {
     if (!segment || segment === ".") continue;
     if (segment === "..") {
       if (!parts.length) throw new Error("Cannot move above the workspace root.");
@@ -470,7 +470,6 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
     error?: string;
   } | null>(null);
   const [runBusy, setRunBusy] = useState(false);
-  const [runSource, setRunSource] = useState<"editor" | "terminal">("editor");
   const [editorTheme, setEditorTheme] = useState<EditorTheme>(initialEditorTheme);
   const [customEditorBackground, setCustomEditorBackground] = useState(initialCustomBackground);
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -756,7 +755,6 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
     setNotice("");
     setRunTask(null);
     terminalReportedTaskRef.current = "";
-    setRunSource("terminal");
     setTerminalOpen(true);
     try {
       const result = await onRunFile(path);
@@ -912,6 +910,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
         if (!active || !result) return;
         setRunTask({
           id: result.id,
+          path: runTask.path,
           status: result.status,
           exitCode: result.exitCode,
           stdout: result.stdout,
