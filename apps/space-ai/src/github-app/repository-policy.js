@@ -48,17 +48,17 @@ export function parsePersonalRepositoryTarget(value, expectedLogin) {
 }
 
 const SECRET_PATTERNS = [
-  /\\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{30,})\\b/,
-  /\\bAKIA[0-9A-Z]{16}\\b/,
-  /\\bAIza[0-9A-Za-z_-]{35}\\b/,
-  /\\bxox[baprs]-[A-Za-z0-9-]{20,}\\b/,
-  /\\bsk-[A-Za-z0-9_-]{24,}\\b/,
+  /\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{30,})\b/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bAIza[0-9A-Za-z_-]{35}\b/,
+  /\bxox[baprs]-[A-Za-z0-9-]{20,}\b/,
+  /\bsk-[A-Za-z0-9_-]{24,}\b/,
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /-----BEGIN PGP PRIVATE KEY BLOCK-----/
 ];
 
 const SECRET_ASSIGNMENT_PATTERN =
-  /(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|private[_-]?key|password)\\s*[:=]\\s*["'` ](?!\\s*(?:process\\.env|import\\.meta\\.env|env\\.|your[_ -]|example|placeholder|replace[_ -]|<))[A-Za-z0-9_./+=-]{20,}["'` ]/i;
+  /(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|private[_-]?key|password)\s*[:=]\s*["'](?!\s*(?:process\.env|import\.meta\.env|env\.|your[_ -]|example|placeholder|replace[_ -]|<))[A-Za-z0-9_./+=-]{20,}["']/i;
 
 /**
  * Return only paths that appear to contain hard-coded credentials.
