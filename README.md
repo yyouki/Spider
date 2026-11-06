@@ -52,3 +52,13 @@ The Windows VM experiment remains separate from the AI workspace. It requires a 
 - Protect all Agent/API/WebSocket routes with the owner-only GitHub OAuth session.
 - The sandbox job receives no repository write token, deployment credentials, persistent volume, or host directory mount.
 - Do not treat a successful CI build as proof of live deployment or provider availability.
+
+
+## Planned integrations and current boundaries
+
+- GitHub project publishing will use a GitHub App user authorization with least-privilege repository-creation and contents permissions. Creating a repository, changing visibility, or pushing to a protected/default branch requires explicit approval. The current MVP does not yet store per-user GitHub grants or push workspace files to repositories.
+- VS Code Web remains an external repository editor at https://github.dev/OWNER/REPOSITORY; Monaco remains the embedded Space IDE.
+- Video links can be attached as validated references, but actual video watching, transcription, and frame analysis remain unimplemented.
+- Public multi-user login stays disabled until tenant isolation, per-user token storage, abuse controls, and cross-user authorization tests are complete.
+- Android companion access must use visible, revocable Android permissions. Hidden background monitoring or unrestricted device control is not part of the design.
+- Android APK builds will run in GitHub Actions and produce downloadable artifacts. Directly attaching those artifacts to a Space conversation requires the future repository/Actions integration.
