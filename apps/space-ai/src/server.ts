@@ -219,6 +219,12 @@ export class SpaceAgent extends AIChatAgent<Env> {
   }
 
   @callable()
+  clearConversationContext() {
+    this.sql`DELETE FROM conversation_context WHERE context_id = 'primary'`;
+    return { cleared: true };
+  }
+
+  @callable()
   listUserMemories() {
     const rows = this.sql<MemoryRow>`SELECT memory_key AS key, memory_value AS value, updated_at
       FROM user_memory ORDER BY updated_at DESC LIMIT 100`;
