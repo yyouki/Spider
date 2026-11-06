@@ -3,7 +3,7 @@ import { callable } from "agents";
 import { createAI } from "agents/models/ai-sdk";
 import { convertToModelMessages, generateText, pruneMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
-import { getOwnerSession, handleAuthRequest, requireOwnerAccess } from "./security/access";
+import { getOwnerSession, googleOAuthReady, handleAuthRequest, requireOwnerAccess } from "./security/access";
 import { getSpaceAgentName, isSameOriginAgentRequest } from "./security/tenant-routing.js";
 import { ChatShares, type SharedChatSnapshot } from "./chat-shares";
 import { languageForPath, normalizeWorkspacePath, type WorkspaceFile, type WorkspaceFileMetadata } from "./workspace";
@@ -1436,7 +1436,7 @@ export default {
           } : null,
           providers: {
             github: Boolean(env.GITHUB_OAUTH_CLIENT_ID && env.GITHUB_OAUTH_CLIENT_SECRET && env.GITHUB_OWNER_LOGIN),
-            google: Boolean(env.GOOGLE_OAUTH_CLIENT_ID && env.GOOGLE_OAUTH_CLIENT_SECRET && env.GOOGLE_OWNER_EMAIL)
+            google: googleOAuthReady(env)
           }
         },
         { headers: { "Cache-Control": "no-store" } }
