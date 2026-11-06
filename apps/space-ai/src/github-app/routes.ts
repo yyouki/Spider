@@ -562,8 +562,20 @@ export async function handleGitHubAppRequest(request: Request, env: Env): Promis
     }
     if (!isConfigured(env)) return Response.json({ error: "GitHub App is not configured." }, { status: 503 });
     const vault = env.GitHubVault.get(env.GitHubVault.idFromName(session.userId));
-    const record = await vault.getConnection();
-    if (!record) return Response.json({ disconnected: true });
+    const stored = await vault.getConnection();
+    if (!stored) return Response.json({ disconnected: true });
+
+    let record = stored;
+    try {
+      record = await getFreshRecord(env, session.userId);
+    } catch {
+      // A still-valid access token may be revoked even when token refresh is unavailable.
+      if (stored.accessExpiresAt <= Date.now()) {
+        return Response.json({
+          error: "GitHub token refresh has expired. Revoke the Space GitHub App from GitHub Settings → Applications before removing the local connection."
+        }, { status: 409 });
+      }
+    }
 
     const basic = encodeBasic(config.GITHUB_APP_CLIENT_ID! + ":" + config.GITHUB_APP_CLIENT_SECRET!);
     const revoked = await fetch(
