@@ -24,6 +24,7 @@ Last implementation pass: November 6, 2026.
 | Long-history context management | Implemented in source; runtime not yet verified | AIChatAgent unlimited persisted message setting, background summary compaction, summary + recent context on model calls |
 | Self-update release policy | Implemented in source | Deterministic release gate + Node unit tests |
 | Private owner access | Implemented in source | GitHub OAuth identity check, signed session cookie |
+| Session-routed Agent access | Implemented in current branch | The Worker checks the signed owner session and same-origin Origin header, then routes to the server-selected Durable Object; the owner's existing `default` Agent remains unchanged |
 | Python/JavaScript sandbox | Implemented in source; deployment-gated | GitHub Actions runner dispatch, encrypted source/result, restricted Docker runner |
 | CI build and test workflow | Added | `.github/workflows/space-ai-check.yml` |
 | Manual free-tier deploy workflow | Added in branch | `.github/workflows/deploy-space-ai.yml` |
@@ -87,3 +88,10 @@ The server contains callable file/folder deletion operations that validate works
 ## VS Code Web transition
 
 The embedded Monaco IDE implementation and the `monaco-editor` runtime dependency have been removed. The `/ide` route now opens the official VS Code Web service at `github.dev` for a validated GitHub repository. VS Code Web is a separate browser application and is not embedded inside Space. The current Space OAuth flow does not provide GitHub repository access tokens, and private Space workspace files do not yet sync to GitHub. Keep the sync limitation visible until the GitHub App authorization and publishing integration is complete.
+
+
+## Agent routing security
+
+The React client uses the fixed `/api/me` base path. The Worker validates the owner session and exact same-origin Origin header, then routes the request to the Agent instance selected by server-side session identity. The browser cannot choose the Durable Object name, and the previous client-addressable `/agents/*` routes return 404. The owner remains mapped to the existing `default` Agent instance to preserve current chat and SQLite data.
+
+This is a routing foundation, not public multi-user login. The OAuth callback still permits only the configured owner. Google/email/provider onboarding, revocable sessions, login throttling, recovery, user lifecycle, and complete cross-tenant access tests must pass before public registration is enabled.

@@ -287,6 +287,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 
   const agent = useAgent<SpaceAgent>({
     agent: "SpaceAgent",
+    basePath: "/api/me",
     onOpen: useCallback(() => {
       setConnected(true);
       setError("");

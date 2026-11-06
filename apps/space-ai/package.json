@@ -8,7 +8,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "types": "wrangler types env.d.ts",
-    "test": "node --test src/self-update/release-gate.test.js src/sandbox/execution-policy.test.js ../../scripts/sandbox-runtime.test.mjs",
+    "test": "node --test src/security/tenant-routing.test.js src/self-update/release-gate.test.js src/sandbox/execution-policy.test.js ../../scripts/sandbox-runtime.test.mjs",
     "check": "npm run types && tsc --noEmit && npm test",
     "deploy": "npm run check && vite build && wrangler deploy"
   },

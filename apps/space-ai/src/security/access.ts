@@ -8,7 +8,9 @@ type AuthEnvironment = {
 };
 
 export type OwnerSession = {
+  userId: string;
   login: string;
+  role: "owner";
   expiresAt: number;
 };
 
@@ -95,7 +97,9 @@ export async function getOwnerSession(
 ): Promise<OwnerSession | null> {
   if (localBypass(env)) {
     return {
+      userId: "local-development",
       login: env.GITHUB_OWNER_LOGIN || "local-development",
+      role: "owner",
       expiresAt: Number.MAX_SAFE_INTEGER
     };
   }
@@ -110,12 +114,13 @@ export async function getOwnerSession(
   const payloadPart = token.slice(0, separator);
   const signaturePart = token.slice(separator + 1);
   let expectedSignature: string;
-  let payload: { login?: unknown; expiresAt?: unknown };
+  let payload: { userId?: unknown; login?: unknown; expiresAt?: unknown };
 
   try {
     expectedSignature = await hmac(payloadPart, env.SESSION_SECRET);
     if (!constantTimeEqual(signaturePart, expectedSignature)) return null;
     payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadPart))) as {
+      userId?: unknown;
       login?: unknown;
       expiresAt?: unknown;
     };
@@ -132,7 +137,13 @@ export async function getOwnerSession(
     return null;
   }
 
-  return { login: payload.login, expiresAt: payload.expiresAt };
+  return {
+    // Older owner cookies did not include a GitHub numeric ID; preserve their default Agent storage.
+    userId: typeof payload.userId === "string" ? payload.userId : "legacy-owner",
+    login: payload.login,
+    role: "owner",
+    expiresAt: payload.expiresAt
+  };
 }
 
 export async function requireOwnerAccess(
@@ -251,7 +262,7 @@ export async function handleAuthRequest(
         });
       }
 
-      const user = await userResponse.json() as { login?: string };
+      const user = await userResponse.json() as { id?: number; login?: string };
       const allowed = typeof user.login === "string" &&
         user.login.toLowerCase() === env.GITHUB_OWNER_LOGIN.toLowerCase();
 
@@ -264,6 +275,7 @@ export async function handleAuthRequest(
       }
 
       const payload = base64UrlEncode(encoder.encode(JSON.stringify({
+        userId: typeof user.id === "number" ? "github:" + user.id : "legacy-owner",
         login: user.login,
         expiresAt: Date.now() + SESSION_SECONDS * 1000
       })));
