@@ -31,3 +31,12 @@ Cloud Storage bukan otomatis gratis. Google Cloud mencantumkan kuota Always Free
 ## AI tools dan akun
 
 `scripts/install-ai-tools.ps1` mencoba memasang Cursor dan aplikasi ChatGPT yang menyediakan Codex di Windows; untuk Antigravity, script membuka halaman resmi agar installer Windows saat ini diunduh langsung dari vendor. Login dilakukan manual. Repo tidak menyimpan password/API keys, membuat akun Google, atau memberi langganan berbayar secara otomatis.
+
+
+## VS Code Web recommendation
+
+Keep Monaco as the built-in editor for the Space workspace. Offer an "Open in VS Code Web" action after a project has been pushed to GitHub, opening the repository at https://github.dev/OWNER/REPOSITORY. This is an external editor, not an embedded VS Code instance, and it still depends on GitHub access and browser limitations. It does not provide the same machine environment as Codespaces.
+
+## Android companion and background access
+
+A future Android companion may perform explicitly approved, OS-supported tasks. Ongoing work must be visible to the user (for example, a foreground-service notification where required), with a stop control and permission revocation. Do not implement hidden screen, microphone, camera, notification, or activity monitoring. Android limits background starts and access to while-in-use permissions; a user's broad consent does not override those platform restrictions.

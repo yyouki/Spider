@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAgent } from "agents/react";
+import { parseSupportedVideoLink, type SupportedVideoLink } from "./video-links";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, type UIMessage } from "ai";
 import type { AutonomySettings, SpaceAgent } from "./server";
@@ -272,6 +273,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const [memoriesBusy, setMemoriesBusy] = useState(false);
   const [memoryNotice, setMemoryNotice] = useState("");
   const [pendingImage, setPendingImage] = useState<{ id: string; filename: string; mimeType: string; contentBase64: string } | null>(null);
+  const [pendingVideoLinks, setPendingVideoLinks] = useState<SupportedVideoLink[]>([]);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "/" : window.location.pathname);
   const endRef = useRef<HTMLDivElement>(null);
@@ -416,20 +418,40 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     if (currentPath === "/") endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, currentPath]);
 
+  const addVideoLink = () => {
+    const raw = window.prompt("Tempel tautan video YouTube, TikTok, Vimeo, atau Dailymotion:");
+    if (!raw) return;
+    const parsed = parseSupportedVideoLink(raw);
+    if (!parsed) {
+      setError("Tautan tidak valid atau platform belum didukung. Gunakan tautan HTTPS dari YouTube, TikTok, Vimeo, atau Dailymotion.");
+      return;
+    }
+    setPendingVideoLinks((current) =>
+      current.some((item) => item.url === parsed.url) ? current : [...current, parsed].slice(0, 5)
+    );
+    setError("");
+  };
+
   const send = () => {
     const text = draft.trim();
-    if (!text || !connected || busy) return;
+    if ((!text && !pendingImage && pendingVideoLinks.length === 0) || !connected || busy) return;
 
     setDraft("");
     setError("");
-    const attachmentNote = pendingImage
-      ? `\\n\\n[Image attachment: ${pendingImage.filename}; asset ID: ${pendingImage.id}. Use editImage with this asset ID if I ask you to edit the image.]`
+    const imageNote = pendingImage
+      ? `\n\n[Image attachment: ${pendingImage.filename}; asset ID: ${pendingImage.id}. Use editImage with this asset ID if I ask you to edit the image.]`
+      : "";
+    const videoNote = pendingVideoLinks.length
+      ? "\n\n" + pendingVideoLinks.map((item) =>
+          `[Video link attachment: ${item.platform}; URL: ${item.url}. This is a link reference only. Do not claim to have watched or analyzed the media unless a video-analysis tool provides evidence.]`
+        ).join("\n")
       : "";
     sendMessage({
       role: "user",
-      parts: [{ type: "text", text: text + attachmentNote }]
+      parts: [{ type: "text", text: text + imageNote + videoNote }]
     });
     setPendingImage(null);
+    setPendingVideoLinks([]);
   };
 
   const clear = async () => {
@@ -707,18 +729,33 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
               <button type="button" onClick={() => setPendingImage(null)} aria-label="Remove attached image">×</button>
             </div>
           )}
+          {pendingVideoLinks.length > 0 && (
+            <div className="pending-video-links" aria-label="Video link attachments">
+              {pendingVideoLinks.map((item) => (
+                <div className="pending-video-link" key={item.url}>
+                  <span className="video-link-icon" aria-hidden="true">▶</span>
+                  <span className="video-link-copy">
+                    <strong>{item.platform}</strong>
+                    <a href={item.url} target="_blank" rel="noreferrer">{item.url}</a>
+                  </span>
+                  <button type="button" onClick={() => setPendingVideoLinks((current) => current.filter((link) => link.url !== item.url))} aria-label={"Remove " + item.platform + " link"}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="composer-footer">
             <div className="composer-tools">
               <label className="attach-image-button">
                 {uploadBusy ? "Preparing image…" : "＋ Image"}
                 <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadBusy || busy} onChange={(event) => { void uploadImage(event.target.files?.[0]); event.currentTarget.value = ""; }} />
               </label>
+              <button type="button" className="attach-link-button" onClick={addVideoLink} disabled={busy}>＋ Video link</button>
               <span>Enter to send · Shift + Enter for a new line</span>
             </div>
             {busy ? (
               <button type="button" className="button button-primary" onClick={stop}>Stop response</button>
             ) : (
-              <button type="submit" className="button button-primary" disabled={!draft.trim() || !connected}>Send message <span>↗</span></button>
+              <button type="submit" className="button button-primary" disabled={(!draft.trim() && !pendingImage && pendingVideoLinks.length === 0) || !connected}>Send message <span>↗</span></button>
             )}
           </div>
         </form>
