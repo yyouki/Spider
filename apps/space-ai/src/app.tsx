@@ -295,6 +295,15 @@ type PublishedRepository = {
   commit: string;
 };
 
+type GitHubRepositoryOption = {
+  name: string;
+  fullName: string;
+  url: string;
+  isPrivate: boolean;
+  defaultBranch: string;
+  description: string | null;
+};
+
 function Workspace({ onLogout, profile }: { onLogout: () => void; profile: AccountProfile }) {
   const [connected, setConnected] = useState(false);
   const [draft, setDraft] = useState("");
@@ -318,8 +327,11 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
   const [githubStatusBusy, setGithubStatusBusy] = useState(false);
   const [githubActionBusy, setGithubActionBusy] = useState(false);
   const [githubNotice, setGithubNotice] = useState("");
+  const [repositoryMode, setRepositoryMode] = useState<"new" | "existing">("new");
   const [repositoryName, setRepositoryName] = useState("space-project");
   const [repositoryDescription, setRepositoryDescription] = useState("Project published from Space AI");
+  const [githubRepositories, setGitHubRepositories] = useState<GitHubRepositoryOption[]>([]);
+  const [selectedExistingRepository, setSelectedExistingRepository] = useState("");
   const [publishConsent, setPublishConsent] = useState(false);
   const [publishedRepository, setPublishedRepository] = useState<PublishedRepository | null>(null);
   const [pendingImage, setPendingImage] = useState<{ id: string; filename: string; mimeType: string; contentBase64: string } | null>(null);
@@ -384,6 +396,28 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
       const result = await response.json() as GitHubConnectionStatus & { error?: string };
       if (!response.ok) throw new Error(result.error || "Could not load GitHub connection status.");
       setGithubStatus(result);
+      if (result.connection.connected && result.canConnect) {
+        const repositoriesResponse = await fetch("/api/github/repositories", {
+          credentials: "same-origin",
+          cache: "no-store"
+        });
+        const repositoriesResult = await repositoriesResponse.json() as {
+          repositories?: GitHubRepositoryOption[];
+          error?: string;
+        };
+        if (!repositoriesResponse.ok) {
+          setGitHubRepositories([]);
+          throw new Error(repositoriesResult.error || "Could not load your GitHub repositories.");
+        }
+        const repositories = repositoriesResult.repositories ?? [];
+        setGitHubRepositories(repositories);
+        setSelectedExistingRepository((current) =>
+          repositories.some((item) => item.fullName === current) ? current : repositories[0]?.fullName ?? ""
+        );
+      } else {
+        setGitHubRepositories([]);
+        setSelectedExistingRepository("");
+      }
     } catch (error) {
       setGithubNotice(error instanceof Error ? error.message : "Could not load GitHub status.");
     } finally {
@@ -394,10 +428,17 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
   const publishWorkspaceToGitHub = async () => {
     if (!publishConsent || !githubStatus?.connection.connected || githubActionBusy) return;
     const filesCount = workspaceFiles.length;
+    const selectedRepository = githubRepositories.find((item) => item.fullName === selectedExistingRepository);
+    if (repositoryMode === "existing" && !selectedRepository) {
+      setGithubNotice("Select an existing repository with push access.");
+      return;
+    }
+    const targetDescription = repositoryMode === "new"
+      ? "Create a PRIVATE GitHub repository named \"" + repositoryName + "\" under @" + profile.login
+      : "Commit to " + selectedRepository!.fullName + " (" + (selectedRepository!.isPrivate ? "private" : "public") + ") on its default branch";
     const confirmation = window.confirm(
-      "Create a PRIVATE GitHub repository named \"" + repositoryName +
-      "\" under @" + profile.login + " and publish " + filesCount +
-      " workspace files? This will create a new repository and commit the current workspace snapshot."
+      targetDescription + " and publish " + filesCount +
+      " workspace files? Existing files with the same paths will be replaced; other repository files are preserved."
     );
     if (!confirmation) return;
 
@@ -409,7 +450,11 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: repositoryName, description: repositoryDescription })
+        body: JSON.stringify({
+          name: repositoryName,
+          description: repositoryDescription,
+          existingRepository: repositoryMode === "existing" ? selectedExistingRepository : undefined
+        })
       });
       const result = await response.json() as {
         error?: string;
@@ -1137,43 +1182,85 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
             </div>
             <div className="github-publish-form">
               <label>
-                <span>New private repository name</span>
-                <input
-                  value={repositoryName}
-                  onChange={(event) => setRepositoryName(event.target.value)}
-                  maxLength={100}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  placeholder="my-project"
-                />
+                <span>Publish target</span>
+                <select
+                  value={repositoryMode}
+                  onChange={(event) => {
+                    setRepositoryMode(event.target.value as "new" | "existing");
+                    setPublishConsent(false);
+                    setPublishedRepository(null);
+                  }}
+                >
+                  <option value="new">Create a new private repository</option>
+                  <option value="existing">Use one of my existing repositories</option>
+                </select>
               </label>
-              <label>
-                <span>Description (optional)</span>
-                <input
-                  value={repositoryDescription}
-                  onChange={(event) => setRepositoryDescription(event.target.value)}
-                  maxLength={300}
-                  placeholder="Project published from Space AI"
-                />
-              </label>
+              {repositoryMode === "new" ? (
+                <>
+                  <label>
+                    <span>New private repository name</span>
+                    <input
+                      value={repositoryName}
+                      onChange={(event) => setRepositoryName(event.target.value)}
+                      maxLength={100}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="my-project"
+                    />
+                  </label>
+                  <label>
+                    <span>Description (optional)</span>
+                    <input
+                      value={repositoryDescription}
+                      onChange={(event) => setRepositoryDescription(event.target.value)}
+                      maxLength={300}
+                      placeholder="Project published from Space AI"
+                    />
+                  </label>
+                </>
+              ) : (
+                <label>
+                  <span>Existing repository</span>
+                  <select
+                    value={selectedExistingRepository}
+                    onChange={(event) => { setSelectedExistingRepository(event.target.value); setPublishConsent(false); setPublishedRepository(null); }}
+                  >
+                    {githubRepositories.length === 0 && <option value="">No writable personal repositories found</option>}
+                    {githubRepositories.map((repository) => (
+                      <option key={repository.fullName} value={repository.fullName}>
+                        {repository.fullName} · {repository.isPrivate ? "Private" : "Public"} · {repository.defaultBranch}
+                      </option>
+                    ))}
+                  </select>
+                  <small>Only personal repositories where the connected GitHub account has push access are listed.</small>
+                </label>
+              )}
               <label className="github-publish-consent">
                 <input
                   type="checkbox"
                   checked={publishConsent}
                   onChange={(event) => setPublishConsent(event.target.checked)}
                 />
-                <span>I approve creating a new private repository under my GitHub account and publishing the current Space workspace files.</span>
+                <span>{repositoryMode === "new"
+                  ? "I approve creating a new private repository under my GitHub account and publishing the current Space workspace files."
+                  : "I approve committing the current Space workspace files to the selected repository's default branch. Existing files at matching paths will be replaced."}</span>
               </label>
               <div className="github-publishing-actions">
-                <span>{workspaceFiles.length} workspace files · private by default</span>
+                <span>{workspaceFiles.length} workspace files · {repositoryMode === "new" ? "private by default" : selectedExistingRepository || "select a repository"}</span>
                 <button
                   type="button"
                   className="button button-primary"
                   onClick={() => void publishWorkspaceToGitHub()}
-                  disabled={!publishConsent || !repositoryName.trim() || !workspaceFiles.length || githubActionBusy}
+                  disabled={
+                    !publishConsent ||
+                    !workspaceFiles.length ||
+                    githubActionBusy ||
+                    (repositoryMode === "new" && !repositoryName.trim()) ||
+                    (repositoryMode === "existing" && !selectedExistingRepository)
+                  }
                 >
-                  {githubActionBusy ? "Publishing…" : "Create private repo & publish"}
+                  {githubActionBusy ? "Publishing…" : repositoryMode === "new" ? "Create private repo & publish" : "Publish to existing repo"}
                 </button>
               </div>
               {publishedRepository && (
@@ -1186,7 +1273,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
             </div>
           </div>
         )}
-        <p className="github-publishing-footnote">Publishing creates a new private repository; it does not overwrite or delete any existing repository. Public repositories and publishing into an existing repository are not enabled in this first release.</p>
+        <p className="github-publishing-footnote">New repositories are always private. When publishing to an existing repository, Space adds one commit to its default branch and preserves other paths; files at matching paths are replaced. Public repositories are listed only when your connected GitHub account owns them and has push access. Space does not delete repositories or commits.</p>
       </section>
 
       <section className="surface-card settings-card">
