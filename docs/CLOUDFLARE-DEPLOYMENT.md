@@ -13,7 +13,7 @@ This deployment keeps the existing Cloudflare Agents / Durable Objects architect
 | Owner login | GitHub OAuth App |
 | Python/JavaScript execution | Temporary GitHub-hosted Actions runner + restricted Docker container |
 
-This avoids Cloudflare Zero Trust organization setup and Cloudflare Workers Paid Containers. It does not provide unlimited AI inference or unlimited runner capacity. The browser IDE uses Monaco Editor, with the Vite worker modules bundled into the app rather than loaded from a third-party CDN.
+This avoids Cloudflare Zero Trust organization setup and Cloudflare Workers Paid Containers. It does not provide unlimited AI inference or unlimited runner capacity. The `/ide` route hands off to the official VS Code Web editor at `github.dev`; the editor is a separate GitHub service, not embedded in Space.
 
 ## Cloudflare requirements
 
@@ -124,3 +124,14 @@ Adding the `ChatShares` Durable Object requires migration tag `v3`; Wrangler app
 - GitHub Actions billing: https://docs.github.com/en/actions/concepts/billing-and-usage
 - Monaco Editor ESM/Vite integration: https://github.com/microsoft/monaco-editor/blob/main/docs/integrate-esm.md
 - AI SDK streamText usage: https://ai-sdk.dev/docs/reference/ai-sdk-core/stream-text
+
+
+## Worker Previews for pull requests
+
+Workers Builds runs the configured Preview command for branches that are not the production branch. The default command is `npx wrangler preview`; Wrangler requires a top-level `previews` block for this command. The repository's `apps/space-ai/wrangler.jsonc` now includes Preview-specific variables, the Workers AI binding, and all three Durable Object bindings.
+
+Preview settings do not inherit production variables or bindings. Assets, compatibility settings, and migrations remain top-level. Each Preview automatically receives isolated Durable Object namespaces and SQLite storage, while the Preview AI binding is explicitly declared. This keeps preview chat, memory, files, and share records separate from production.
+
+Preview secrets are not inherited from production and must be configured separately in Cloudflare **Workers & Pages → space-ai → Settings → Builds / Previews Base → Variables and secrets**. Use a dedicated preview GitHub OAuth App (with the Preview callback URL), a new random `SESSION_SECRET`, and a dedicated least-privilege GitHub Actions token restricted to a test repository. Do not copy the production Actions token into Preview. The Worker declares required secret names; configure Preview-specific values before expecting the Preview login and sandbox flows to work.
+
+If the Preview base is configured after a Preview has already been created, update that Preview's secrets too; changing the base applies to new Previews, not existing ones. Use the Cloudflare dashboard's Preview settings to confirm the Preview-specific secret configuration. The current GitHub connection does not expose Cloudflare account settings or secret values.
