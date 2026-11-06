@@ -49,7 +49,7 @@ The Windows VM experiment remains separate from the AI workspace. It requires a 
 
 - Never commit `.env`, `.dev.vars`, OAuth tokens, service-account JSON, cookies, passwords, or private keys.
 - Never commit VM disk images or private user data.
-- Protect all Agent/API/WebSocket routes with the owner-only GitHub OAuth session.
+- Route chat Agent WebSocket/RPC traffic through the fixed `/api/me` endpoint; the Worker validates the signed owner session and same-origin Origin header, chooses the Durable Object identity server-side, and blocks the legacy client-selected `/agents/*` route. Public multi-user registration remains disabled until the full tenant-isolation release gate passes.
 - The sandbox job receives no repository write token, deployment credentials, persistent volume, or host directory mount.
 - Do not treat a successful CI build as proof of live deployment or provider availability.
 
