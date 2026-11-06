@@ -660,6 +660,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
   const tree = useMemo(() => buildTree(filteredFiles), [filteredFiles]);
   const selected = files.find((file) => file.path === selectedPath);
   const currentLanguage = selected?.language ?? "plaintext";
+  const runIsActive = Boolean(runTask && !["succeeded", "failed", "cancelled", "timed_out"].includes(runTask.status));
 
   const downloadFolder = async (folderPath: string) => {
     try {
@@ -744,7 +745,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
   };
 
   const executeWorkspaceFile = async (path: string) => {
-    if (runBusy) throw new Error("A workspace task is already running.");
+    if (runBusy || runIsActive) throw new Error("Wait for the active workspace task to finish before starting another.");
     const file = files.find((item) => item.path === path);
     if (!file) throw new Error("File not found: " + path);
     if (selectedPath === path && dirty) throw new Error("Save the file before running it.");
@@ -1010,7 +1011,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
               </label>
             )}
             <button type="button" className="ide-terminal-toggle" onClick={() => setTerminalOpen((open) => !open)} aria-expanded={terminalOpen}>Terminal</button>
-            <button type="button" className="ide-run-button" onClick={() => void runSelectedFile()} disabled={!selectedPath || dirty || runBusy || !["python","javascript"].includes(currentLanguage)}>
+            <button type="button" className="ide-run-button" onClick={() => void runSelectedFile()} disabled={!selectedPath || dirty || runBusy || runIsActive || !["python","javascript"].includes(currentLanguage)}>
               {runBusy ? "Starting…" : "▶ Run File"}
             </button>
             <button type="button" className="ide-save" onClick={() => void saveFile()} disabled={!dirty || saving}>
