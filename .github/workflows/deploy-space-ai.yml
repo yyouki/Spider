@@ -43,6 +43,9 @@ jobs:
           SPACE_OAUTH_CLIENT_SECRET: ${{ secrets.SPACE_OAUTH_CLIENT_SECRET }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           SPACE_ACTIONS_TOKEN: ${{ secrets.SPACE_ACTIONS_TOKEN }}
+          SPACE_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.SPACE_GOOGLE_OAUTH_CLIENT_ID }}
+          SPACE_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.SPACE_GOOGLE_OAUTH_CLIENT_SECRET }}
+          SPACE_GOOGLE_OWNER_EMAIL: ${{ secrets.SPACE_GOOGLE_OWNER_EMAIL }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
@@ -76,6 +79,9 @@ jobs:
           SPACE_OAUTH_CLIENT_SECRET: ${{ secrets.SPACE_OAUTH_CLIENT_SECRET }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           SPACE_ACTIONS_TOKEN: ${{ secrets.SPACE_ACTIONS_TOKEN }}
+          SPACE_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.SPACE_GOOGLE_OAUTH_CLIENT_ID }}
+          SPACE_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.SPACE_GOOGLE_OAUTH_CLIENT_SECRET }}
+          SPACE_GOOGLE_OWNER_EMAIL: ${{ secrets.SPACE_GOOGLE_OWNER_EMAIL }}
         run: |
           set -euo pipefail
           node <<'NODE'
@@ -90,6 +96,18 @@ jobs:
             throw new Error('One or more required Worker secrets are missing.');
           }
           if (values.SESSION_SECRET.length < 32) throw new Error('SESSION_SECRET is too short.');
+
+          const google = {
+            GOOGLE_OAUTH_CLIENT_ID: process.env.SPACE_GOOGLE_OAUTH_CLIENT_ID,
+            GOOGLE_OAUTH_CLIENT_SECRET: process.env.SPACE_GOOGLE_OAUTH_CLIENT_SECRET,
+            GOOGLE_OWNER_EMAIL: process.env.SPACE_GOOGLE_OWNER_EMAIL
+          };
+          const googleValues = Object.values(google);
+          if (googleValues.some(Boolean) && !googleValues.every(Boolean)) {
+            throw new Error('Configure all three optional Google owner sign-in secrets together, or leave all three empty.');
+          }
+          if (googleValues.every(Boolean)) Object.assign(values, google);
+
           writeFileSync('.cloudflare-secrets.json', JSON.stringify(values), { mode: 0o600 });
           NODE
       - name: Deploy to Cloudflare Workers
