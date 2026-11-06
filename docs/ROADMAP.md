@@ -100,3 +100,9 @@ Satu tahap belum boleh disebut selesai sebelum:
 - Commit and push generated project files; use task branches and pull requests for risky changes.
 - Android Gradle project template and GitHub Actions APK artifact workflow.
 - Retrieve the completed APK artifact and attach it to the originating conversation.
+
+
+## VS Code Web migration
+- [x] Remove the embedded Monaco editor and dependency.
+- [x] Replace the IDE route with a validated handoff to official VS Code Web at `github.dev`.
+- [ ] Implement GitHub App authorization and project repository publishing so private Space workspace files can be synchronized through an explicit user-approved workflow.
