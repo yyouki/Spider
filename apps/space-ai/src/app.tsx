@@ -1,23 +1,15 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useAgent } from "agents/react";
 import { parseSupportedVideoLink, type SupportedVideoLink } from "./video-links";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, type UIMessage } from "ai";
 import type { AutonomySettings, SpaceAgent } from "./server";
-import type { ComponentType, MouseEvent } from "react";
-import type { Props as WorkspaceIDEProps } from "./ide";
+import type { MouseEvent } from "react";
 import type { TokenUsageSummary, WorkspaceFileMetadata } from "./analytics";
 
 const AnalyticsPage = lazy(() => import("./analytics"));
 
-const WorkspaceIDE = lazy<ComponentType<WorkspaceIDEProps>>(() => {
-  // Monaco and its Web Workers are browser-only; keep them out of the Cloudflare SSR bundle.
-  if (import.meta.env.SSR) {
-    const Placeholder: ComponentType<WorkspaceIDEProps> = () => null;
-    return Promise.resolve({ default: Placeholder });
-  }
-  return import("./ide");
-});
+const VSCodeWebPage = lazy(() => import("./vscode-web"));
 
 const DEFAULT_SETTINGS: AutonomySettings = {
   workspaceExecution: "autonomous_sandbox",
@@ -28,7 +20,7 @@ const DEFAULT_SETTINGS: AutonomySettings = {
 
 const NAV_ITEMS = [
   { href: "/", label: "Chat" },
-  { href: "/ide", label: "IDE" },
+  { href: "/ide", label: "VS Code" },
   { href: "/analytics", label: "Analytics" },
   { href: "/settings", label: "Settings" }
 ];
@@ -496,32 +488,10 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 
   const readWorkspaceFile = useCallback((path: string) => agent.stub.readWorkspaceFile(path), [agent]);
   const readWorkspaceAsset = useCallback((id: string) => agent.stub.readWorkspaceAsset(id), [agent]);
-  const writeWorkspaceFile = useCallback((path: string, content: string) => agent.stub.writeWorkspaceFile(path, content), [agent]);
-  const deleteWorkspaceFile = useCallback((path: string) => agent.stub.deleteWorkspaceFile(path), [agent]);
-  const deleteWorkspaceFolder = useCallback((path: string) => agent.stub.deleteWorkspaceFolder(path), [agent]);
-  const listWorkspaceFileHistory = useCallback((path: string) => agent.stub.listWorkspaceFileHistory(path), [agent]);
-  const restoreWorkspaceFile = useCallback((path: string, revisionId: string) => agent.stub.restoreWorkspaceFile(path, revisionId), [agent]);
-  const runWorkspaceFile = useCallback(async (path: string) => {
-    if (settings.workspaceExecution === "manual" &&
-        !window.confirm("Workspace execution is set to manual. Run this file once in the restricted offline sandbox?")) {
-      return { accepted: false, note: "Run cancelled by owner." };
-    }
-    return agent.stub.runWorkspaceFile(path, 10, settings.workspaceExecution === "manual");
-  }, [agent, settings.workspaceExecution]);
-  const getWorkspaceRunStatus = useCallback((taskId: string) => agent.stub.getWorkspaceRunStatus(taskId), [agent]);
-  const searchWorkspaceFiles = useCallback((query: string) => agent.stub.searchWorkspaceFiles(query), [agent]);
 
   useEffect(() => {
-    if (connected && (currentPath === "/analytics" || currentPath === "/ide")) void listWorkspaceFiles().catch(() => undefined);
+    if (connected && currentPath === "/analytics") void listWorkspaceFiles().catch(() => undefined);
   }, [connected, currentPath, listWorkspaceFiles]);
-
-  const workspaceRefreshKey = useMemo(
-    () => messages.map((message) => message.parts
-      .filter(isToolUIPart)
-      .map((part) => part.type + ":" + part.state)
-      .join(",")).join("|"),
-    [messages]
-  );
 
   useEffect(() => {
     if (currentPath === "/") endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -949,32 +919,10 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     </main>
   );
 
-  const idePage = (
-    <main className="page-container ide-page">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">DEVELOPMENT WORKSPACE</p>
-          <h1>Code workspace</h1>
-          <p>Browse project files, edit source, and save changes to your private Space workspace.</p>
-        </div>
-        <div className="page-heading-meta"><span className="meta-chip">{workspaceFiles.length} files</span><span className="meta-chip">Private storage · 2 MB</span></div>
-      </div>
-      <Suspense fallback={<section className="ide-panel ide-loading">Loading editor…</section>}>
-        <WorkspaceIDE
-          refreshKey={workspaceRefreshKey}
-          onListFiles={listWorkspaceFiles}
-          onReadFile={readWorkspaceFile}
-          onWriteFile={writeWorkspaceFile}
-          onDeleteFile={deleteWorkspaceFile}
-          onDeleteFolder={deleteWorkspaceFolder}
-          onListHistory={listWorkspaceFileHistory}
-          onRestoreFile={restoreWorkspaceFile}
-          onRunFile={runWorkspaceFile}
-          onGetRunStatus={getWorkspaceRunStatus}
-          onSearchFiles={searchWorkspaceFiles}
-        />
-      </Suspense>
-    </main>
+  const vscodePage = (
+    <Suspense fallback={<main className="page-container"><p>Opening VS Code Web launcher…</p></main>}>
+      <VSCodeWebPage />
+    </Suspense>
   );
 
   const settingsPage = (
@@ -1079,7 +1027,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="app-shell">
       {header}
-      {currentPath === "/ide" ? idePage :
+      {currentPath === "/ide" ? vscodePage :
         currentPath === "/analytics" ? (
           <Suspense fallback={<main className="page-container"><p>Loading analytics…</p></main>}>
             <AnalyticsPage usage={tokenUsage} files={workspaceFiles} />
