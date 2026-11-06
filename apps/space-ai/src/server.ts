@@ -1422,7 +1422,23 @@ export default {
     if (url.pathname === "/api/session") {
       const session = await getOwnerSession(request, env);
       return Response.json(
-        { authenticated: Boolean(session), login: session?.login ?? null },
+        {
+          authenticated: Boolean(session),
+          login: session?.login ?? null,
+          profile: session ? {
+            userId: session.userId,
+            provider: session.provider,
+            login: session.login,
+            name: session.name,
+            avatarUrl: session.avatarUrl,
+            profileUrl: session.profileUrl,
+            email: session.email
+          } : null,
+          providers: {
+            github: Boolean(env.GITHUB_OAUTH_CLIENT_ID && env.GITHUB_OAUTH_CLIENT_SECRET && env.GITHUB_OWNER_LOGIN),
+            google: Boolean(env.GOOGLE_OAUTH_CLIENT_ID && env.GOOGLE_OAUTH_CLIENT_SECRET && env.GOOGLE_OWNER_EMAIL)
+          }
+        },
         { headers: { "Cache-Control": "no-store" } }
       );
     }
