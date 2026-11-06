@@ -207,13 +207,6 @@ export class SpaceAgent extends AIChatAgent<Env> {
       updated_at INTEGER NOT NULL
     )`;
 
-    // GitHub App user access and refresh tokens are encrypted with a key derived from SESSION_SECRET.
-    this.sql`CREATE TABLE IF NOT EXISTS github_app_credentials (
-      credential_id TEXT PRIMARY KEY,
-      encrypted_json TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`;
-
     // AI-created files stay in the private Durable Object workspace.
     this.sql`CREATE TABLE IF NOT EXISTS workspace_files (
       path TEXT PRIMARY KEY,
