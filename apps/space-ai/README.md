@@ -18,14 +18,14 @@ A first, deliberately small implementation of the single-core space AI workspace
 - Workers AI model: `@cf/zai-org/glm-4.7-flash`.
 - Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
 - A dedicated VS Code Web launcher page. It validates a GitHub owner/repository path and opens the selected repository at github.dev in a separate tab.
-- An interactive, keyboard-focusable workspace terminal with command input/history, scrollable output, and commands for `help`, `pwd`, `ls`, `cd`, `tree`, `cat`, `touch`, `open`, `run`, `python`, `node`, `echo`, and `clear`. It operates on the private workspace and can launch Python/JavaScript files through the existing restricted runner.
+- Restricted Python/JavaScript snippet execution through the Chat code tool and temporary GitHub-hosted runner; no general shell or terminal is exposed in the web UI.
 - Persistent private workspace files created or updated by AI tools or the editor. Folder structure is inferred from file paths. Successful AI file writes show a downloadable file attachment in the conversation.
 - A separate Analytics page with provider-reported token usage, daily activity and workspace storage estimates.
 - Private image assets, FLUX.2 Klein image generation/editing, and chat image previews with download actions.
 
 ## Not included yet
 
-Autonomous browser, GitHub repository sync, image understanding/OCR, audio/video understanding, Android/Windows/macOS device runners, Gmail or other account integrations, multi-language compilers beyond Python/JavaScript, binary disassembly, live market-data feeds, brokerage/exchange connectors, and a production updater are not connected. The workspace is an isolated app-level file store, not the user device filesystem or repository checkout. The sandbox is for small snippets, not a persistent coding VM or full shell. The interactive terminal is a workspace command console, not a general Linux shell: arbitrary OS commands, package installs, arbitrary processes, and network access are not available. Its Python/JavaScript runner currently executes saved file contents in the restricted offline runner and does not mount the full workspace, repository, or host filesystem.
+Autonomous browser, GitHub repository sync, image understanding/OCR, audio/video understanding, Android/Windows/macOS device runners, Gmail or other account integrations, multi-language compilers beyond Python/JavaScript, binary disassembly, live market-data feeds, brokerage/exchange connectors, and a production updater are not connected. The workspace is an isolated app-level file store, not the user device filesystem or repository checkout. The sandbox is for small snippets, not a persistent coding VM or full shell. The current web UI exposes no embedded terminal; bounded Python/JavaScript snippets are available through the Chat code tool. The runner does not mount the full workspace, repository, or host filesystem.
 
 ## VS Code Web and private workspace
 
@@ -33,7 +33,7 @@ The `/ide` route is now a launcher for the official Visual Studio Code Web servi
 
 The private Space workspace remains stored in the owning SpaceAgent Durable Object SQLite database. Limits are 200 files, 128 KB per file, and 2 MB total. The last 20 prior versions per file are retained when saved content changes. Hidden paths and sensitive config filenames such as `.env` and `.dev.vars` are rejected. AI-created files appear in chat with a direct Download action. Confirmed file and recursive folder deletion also clear the associated revisions. These files do not yet synchronize to GitHub, so edits made in VS Code Web affect the selected GitHub repository, not the private Space workspace, until the GitHub App publishing integration is implemented.
 
-The workspace terminal is keyboard-operated and retains a short command history in the current page session. Its command parser is intentionally allowlisted; it is not a host shell and does not support arbitrary bash/zsh commands, `npm install`, package managers, piping, or internet commands. The `run` / `python` / `node` commands are submitted to the same single-active-task, restricted offline runner described below.
+The VS Code Web launcher is a separate browser tab and does not expose a terminal. When a project needs a terminal, build, or debugger, configure an explicitly selected compute environment such as a Codespace. Do not treat the browser editor as a compute host.
 
 User memory is separate from chat history and project notes. Space adds memory to future model context only when the owner explicitly asks to save it and approves the tool action. Settings displays saved memory entries and offers per-entry deletion or clearing all entries. The model is instructed to keep only low-sensitivity preferences and useful facts; do not use memory for credentials, private keys, authentication codes, or sensitive medical/financial information.
 
