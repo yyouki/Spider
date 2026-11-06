@@ -56,8 +56,8 @@ The Windows VM experiment remains separate from the AI workspace. It requires a 
 
 ## Planned integrations and current boundaries
 
-- GitHub project publishing will use a GitHub App user authorization with least-privilege repository-creation and contents permissions. Creating a repository, changing visibility, or pushing to a protected/default branch requires explicit approval. The current MVP does not yet store per-user GitHub grants or push workspace files to repositories.
-- The `/ide` page now hands off to official VS Code Web at https://github.dev/OWNER/REPOSITORY. The embedded Monaco implementation has been removed. Space workspace files are not automatically synced to GitHub yet.
+- The current feature branch adds owner-approved GitHub App authorization and publishing of the validated workspace snapshot to a new private repository in the signed-in user's personal GitHub account. It uses encrypted, per-account expiring tokens and least-privilege Repository creation/Contents permissions. CI and Cloudflare Preview verification remain release gates; existing repositories, organizations, and public visibility are not supported yet.
+- The `/ide` page hands off to official VS Code Web at https://github.dev/OWNER/REPOSITORY. The embedded Monaco implementation has been removed. The new GitHub App publishing panel can publish a confirmed workspace snapshot to a new private repository; it does not continuously synchronize later edits.
 - Video links can be attached as validated references, but actual video watching, transcription, and frame analysis remain unimplemented.
 - Public multi-user login stays disabled until tenant isolation, per-user token storage, abuse controls, and cross-user authorization tests are complete.
 - Android companion access must use visible, revocable Android permissions. Hidden background monitoring or unrestricted device control is not part of the design.
