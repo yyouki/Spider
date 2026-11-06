@@ -579,14 +579,33 @@ a { color: inherit; }
   border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink);
   font-size: 10px;
 }
-.ide-tree-row { padding-right: 30px; }
-.ide-folder-download {
-  position: relative; display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; margin: -26px 5px 4px auto; float: right;
-  border: 0; border-radius: 5px; background: transparent; color: #98a39e;
-  font-size: 12px; cursor: pointer;
+.ide-tree-row { padding-right: 58px; }
+.ide-tree-actions {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: fit-content;
+  height: 0;
+  margin: -27px 4px 0 auto;
+}
+.ide-folder-download, .ide-delete-path {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #98a39e;
+  font-size: 12px;
+  cursor: pointer;
 }
 .ide-folder-download:hover { background: #e8f0eb; color: var(--accent); }
+.ide-delete-path { color: #a66b6b; }
+.ide-delete-path:hover { background: #fff0f0; color: #a43f3f; }
 .ide-history-button, .ide-run-button {
   align-self: center; margin-right: 6px; padding: 6px 9px;
   border: 1px solid #46534e; border-radius: 6px; background: #293d34;
@@ -1261,4 +1280,9 @@ a { color: inherit; }
   .conversation-list { max-height: 190px; }
   .message-actions { padding-left: 4px; }
   .editing-message-banner { align-items: flex-start; font-size: 9px; }
+}
+
+@media (max-width: 700px) {
+  .ide-tree-row { padding-right: 56px; }
+  .ide-tree-actions { margin-right: 2px; }
 }
