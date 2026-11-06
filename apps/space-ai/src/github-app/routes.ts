@@ -223,38 +223,45 @@ function htmlPage(title: string, message: string, actionUrl?: string, actionLabe
   });
 }
 
-async function createPrivateRepository(
+type GitHubRepositoryInfo = {
+  name: string;
+  full_name: string;
+  html_url: string;
+  default_branch: string;
+  private: boolean;
+  archived?: boolean;
+  disabled?: boolean;
+  owner: { login: string };
+  permissions?: { push?: boolean };
+};
+
+type GitHubRepositoryOption = {
+  name: string;
+  fullName: string;
+  url: string;
+  isPrivate: boolean;
+  defaultBranch: string;
+  description: string | null;
+};
+
+async function commitWorkspaceSnapshot(
   accessToken: string,
   login: string,
-  name: string,
-  description: string,
+  repository: GitHubRepositoryInfo,
   snapshot: WorkspaceSnapshot
-): Promise<{ url: string; fullName: string; branch: string; filesPublished: number; commit: string }> {
-  const repo = await githubApi<{
-    full_name: string;
-    html_url: string;
-    default_branch: string;
-    owner: { login: string };
-  }>(accessToken, "/user/repos", {
-    method: "POST",
-    body: JSON.stringify({
-      name,
-      description,
-      private: true,
-      auto_init: true,
-      has_issues: true,
-      has_wiki: false
-    })
-  });
-
-  if (repo.owner.login.toLowerCase() !== login.toLowerCase()) {
-    throw new Error("GitHub returned a repository for an unexpected owner. Publishing was stopped.");
+): Promise<{ url: string; fullName: string; branch: string; filesPublished: number; commit: string; isPrivate: boolean; createdNew: boolean }> {
+  if (repository.owner.login.toLowerCase() !== login.toLowerCase()) {
+    throw new Error("The target repository must belong to the connected personal GitHub account.");
+  }
+  if (repository.archived || repository.disabled || repository.permissions?.push !== true) {
+    throw new Error("You do not have push access to this repository, or it is archived/disabled.");
   }
 
   const owner = encodeURIComponent(login);
-  const repository = encodeURIComponent(name);
-  const branch = repo.default_branch || "main";
-  const basePath = "/repos/" + owner + "/" + repository;
+  const name = encodeURIComponent(repository.name);
+  const branch = repository.default_branch;
+  if (!branch) throw new Error("The target repository has no default branch.");
+  const basePath = "/repos/" + owner + "/" + name;
   const ref = await githubApi<{ object: { sha: string } }>(
     accessToken,
     basePath + "/git/ref/heads/" + encodeURIComponent(branch)
@@ -265,11 +272,19 @@ async function createPrivateRepository(
   );
 
   if (!snapshot.files.length) {
-    return { url: repo.html_url, fullName: repo.full_name, branch, filesPublished: 0, commit: ref.object.sha };
+    return {
+      url: repository.html_url,
+      fullName: repository.full_name,
+      branch,
+      filesPublished: 0,
+      commit: ref.object.sha,
+      isPrivate: repository.private,
+      createdNew: false
+    };
   }
 
   const treeEntries: Array<{ path: string; mode: "100644"; type: "blob"; sha: string }> = [];
-  // Limit concurrent API calls so a large workspace does not create a burst of requests.
+  // Small batches avoid bursty API calls while keeping medium projects practical.
   for (let start = 0; start < snapshot.files.length; start += 5) {
     const batch = snapshot.files.slice(start, start + 5);
     const blobs = await Promise.all(batch.map((file) =>
@@ -290,7 +305,7 @@ async function createPrivateRepository(
   const commit = await githubApi<{ sha: string }>(accessToken, basePath + "/git/commits", {
     method: "POST",
     body: JSON.stringify({
-      message: "Publish Space workspace",
+      message: "Publish Space workspace snapshot",
       tree: tree.sha,
       parents: [ref.object.sha]
     })
@@ -301,12 +316,84 @@ async function createPrivateRepository(
   });
 
   return {
-    url: repo.html_url,
-    fullName: repo.full_name,
+    url: repository.html_url,
+    fullName: repository.full_name,
     branch,
     filesPublished: snapshot.files.length,
-    commit: commit.sha
+    commit: commit.sha,
+    isPrivate: repository.private,
+    createdNew: false
   };
+}
+
+async function createPrivateRepository(
+  accessToken: string,
+  login: string,
+  name: string,
+  description: string,
+  snapshot: WorkspaceSnapshot
+): Promise<{ url: string; fullName: string; branch: string; filesPublished: number; commit: string; isPrivate: boolean; createdNew: boolean }> {
+  const created = await githubApi<GitHubRepositoryInfo>(accessToken, "/user/repos", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      description,
+      private: true,
+      auto_init: true,
+      has_issues: true,
+      has_wiki: false
+    })
+  });
+  if (created.owner.login.toLowerCase() !== login.toLowerCase()) {
+    throw new Error("GitHub returned a repository for an unexpected owner. Publishing was stopped.");
+  }
+
+  const repo = await githubApi<GitHubRepositoryInfo>(
+    accessToken,
+    "/repos/" + encodeURIComponent(login) + "/" + encodeURIComponent(created.name)
+  );
+  const published = await commitWorkspaceSnapshot(accessToken, login, repo, snapshot);
+  return { ...published, createdNew: true, isPrivate: true };
+}
+
+async function publishToExistingRepository(
+  accessToken: string,
+  login: string,
+  fullName: string,
+  snapshot: WorkspaceSnapshot
+): Promise<{ url: string; fullName: string; branch: string; filesPublished: number; commit: string; isPrivate: boolean; createdNew: boolean }> {
+  const parts = fullName.split("/");
+  if (parts.length !== 2 || parts[0].toLowerCase() !== login.toLowerCase()) {
+    throw new Error("Only repositories owned by the connected personal GitHub account can be selected.");
+  }
+  const repo = await githubApi<GitHubRepositoryInfo>(
+    accessToken,
+    "/repos/" + encodeURIComponent(parts[0]) + "/" + encodeURIComponent(parts[1])
+  );
+  return commitWorkspaceSnapshot(accessToken, login, repo, snapshot);
+}
+
+async function listWritableRepositories(accessToken: string, login: string): Promise<GitHubRepositoryOption[]> {
+  const repositories = await githubApi<Array<GitHubRepositoryInfo & { description?: string | null }>>(
+    accessToken,
+    "/user/repos?per_page=100&sort=updated"
+  );
+  return repositories
+    .filter((repo) =>
+      repo.owner?.login?.toLowerCase() === login.toLowerCase() &&
+      repo.permissions?.push === true &&
+      !repo.archived &&
+      !repo.disabled &&
+      typeof repo.default_branch === "string"
+    )
+    .map((repo) => ({
+      name: repo.name,
+      fullName: repo.full_name,
+      url: repo.html_url,
+      isPrivate: repo.private,
+      defaultBranch: repo.default_branch,
+      description: typeof repo.description === "string" ? repo.description : null
+    }));
 }
 
 export async function handleGitHubAppRequest(request: Request, env: Env): Promise<Response | null> {
@@ -316,6 +403,7 @@ export async function handleGitHubAppRequest(request: Request, env: Env): Promis
     "/auth/github-app",
     "/auth/github-app/callback",
     "/api/github/status",
+    "/api/github/repositories",
     "/api/github/publish",
     "/api/github/disconnect"
   ]);
@@ -447,6 +535,27 @@ export async function handleGitHubAppRequest(request: Request, env: Env): Promis
     }, { headers: { "Cache-Control": "no-store" } });
   }
 
+  if (route === "/api/github/repositories" && request.method === "GET") {
+    if (session.provider !== "github" || !session.userId.startsWith("github:")) {
+      return Response.json({ error: "Sign in using the GitHub account that owns your repositories." }, { status: 403 });
+    }
+    try {
+      const record = await getFreshRecord(env, session.userId);
+      if (record.login.toLowerCase() !== session.login.toLowerCase()) {
+        return Response.json({ error: "The connected GitHub account does not match your Space session." }, { status: 403 });
+      }
+      const installation = await verifyInstallation(record.accessToken, record.userId);
+      if (installation.id !== record.installationId) {
+        return Response.json({ error: "GitHub App installation changed. Reconnect GitHub." }, { status: 403 });
+      }
+      const repositories = await listWritableRepositories(record.accessToken, record.login);
+      return Response.json({ repositories }, { headers: { "Cache-Control": "no-store" } });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not list GitHub repositories.";
+      return Response.json({ error: message }, { status: 502 });
+    }
+  }
+
   if (route === "/api/github/disconnect" && request.method === "POST") {
     if (request.headers.get("origin") !== url.origin) {
       return Response.json({ error: "Invalid request origin." }, { status: 403 });
@@ -486,17 +595,19 @@ export async function handleGitHubAppRequest(request: Request, env: Env): Promis
     }
     if (!isConfigured(env)) return Response.json({ error: "GitHub App is not configured." }, { status: 503 });
 
-    let input: { name?: unknown; description?: unknown };
+    let input: { name?: unknown; description?: unknown; existingRepository?: unknown };
     try {
-      if (Number(request.headers.get("content-length") ?? "0") > 8_000) throw new Error("Request too large.");
-      input = await request.json() as { name?: unknown; description?: unknown };
+      const body = await request.text();
+      if (body.length > 8_000) throw new Error("Request too large.");
+      input = JSON.parse(body) as { name?: unknown; description?: unknown; existingRepository?: unknown };
     } catch {
       return Response.json({ error: "Invalid repository request." }, { status: 400 });
     }
 
     const name = typeof input.name === "string" ? input.name.trim() : "";
     const description = typeof input.description === "string" ? input.description.trim().slice(0, 300) : "";
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(name) || name.endsWith(".")) {
+    const existingRepository = typeof input.existingRepository === "string" ? input.existingRepository.trim() : "";
+    if (!existingRepository && (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(name) || name.endsWith("."))) {
       return Response.json({ error: "Use a repository name with up to 100 letters, numbers, dots, underscores, or hyphens." }, { status: 400 });
     }
 
@@ -520,10 +631,12 @@ export async function handleGitHubAppRequest(request: Request, env: Env): Promis
         return Response.json({ error: "Workspace export exceeds its file or storage limit." }, { status: 400 });
       }
 
-      const result = await createPrivateRepository(record.accessToken, record.login, name, description, snapshot);
+      const result = existingRepository
+        ? await publishToExistingRepository(record.accessToken, record.login, existingRepository, snapshot)
+        : await createPrivateRepository(record.accessToken, record.login, name, description, snapshot);
       return Response.json({
         success: true,
-        visibility: "private",
+        visibility: result.isPrivate ? "private" : "public",
         owner: record.login,
         repository: result
       }, { headers: { "Cache-Control": "no-store" } });
