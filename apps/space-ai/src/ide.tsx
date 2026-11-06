@@ -45,6 +45,103 @@ type TreeNode = {
   children: TreeNode[];
 };
 
+type EditorTheme = "vs-dark" | "vs" | "space-github-dark" | "space-monokai" | "space-custom";
+type TerminalLine = { kind: "command" | "output" | "error" | "system"; text: string };
+
+const EDITOR_THEME_OPTIONS: { value: EditorTheme; label: string }[] = [
+  { value: "vs-dark", label: "VS Code Dark" },
+  { value: "vs", label: "VS Code Light" },
+  { value: "space-github-dark", label: "GitHub Dark" },
+  { value: "space-monokai", label: "Monokai" },
+  { value: "space-custom", label: "Custom Dark" }
+];
+
+function initialEditorTheme(): EditorTheme {
+  if (typeof window === "undefined") return "vs-dark";
+  try {
+    const stored = window.localStorage.getItem("space-editor-theme");
+    return EDITOR_THEME_OPTIONS.some((item) => item.value === stored) ? stored as EditorTheme : "vs-dark";
+  } catch {
+    return "vs-dark";
+  }
+}
+
+function initialCustomBackground(): string {
+  if (typeof window === "undefined") return "#1e1e1e";
+  try {
+    const stored = window.localStorage.getItem("space-editor-custom-background");
+    return /^#[0-9a-f]{6}$/i.test(stored ?? "") ? stored as string : "#1e1e1e";
+  } catch {
+    return "#1e1e1e";
+  }
+}
+
+function registerSpaceThemes(customBackground: string) {
+  monaco.editor.defineTheme("space-github-dark", {
+    base: "vs-dark", inherit: true,
+    rules: [
+      { token: "comment", foreground: "8b949e" },
+      { token: "keyword", foreground: "ff7b72" },
+      { token: "string", foreground: "a5d6ff" }
+    ],
+    colors: {
+      "editor.background": "#0d1117", "editor.foreground": "#e6edf3",
+      "editorLineNumber.foreground": "#6e7681", "editorLineNumber.activeForeground": "#e6edf3",
+      "editor.lineHighlightBackground": "#161b22", "editor.selectionBackground": "#264f78",
+      "editorCursor.foreground": "#58a6ff"
+    }
+  });
+  monaco.editor.defineTheme("space-monokai", {
+    base: "vs-dark", inherit: true,
+    rules: [
+      { token: "comment", foreground: "75715e" },
+      { token: "keyword", foreground: "f92672" },
+      { token: "string", foreground: "e6db74" },
+      { token: "number", foreground: "ae81ff" }
+    ],
+    colors: {
+      "editor.background": "#272822", "editor.foreground": "#f8f8f2",
+      "editorLineNumber.foreground": "#90908a", "editorLineNumber.activeForeground": "#f8f8f2",
+      "editor.lineHighlightBackground": "#303128", "editor.selectionBackground": "#49483e",
+      "editorCursor.foreground": "#f8f8f0"
+    }
+  });
+  monaco.editor.defineTheme("space-custom", {
+    base: "vs-dark", inherit: true, rules: [],
+    colors: {
+      "editor.background": customBackground, "editor.foreground": "#f0f2f5",
+      "editorLineNumber.foreground": "#8b949e", "editorLineNumber.activeForeground": "#f0f2f5",
+      "editor.lineHighlightBackground": "#ffffff0d", "editor.selectionBackground": "#3d5a8090",
+      "editorCursor.foreground": "#a5d6ff"
+    }
+  });
+}
+
+function resolveTerminalPath(input: string, cwd: string): string {
+  if (input.length > 240 || input.includes("\\") || /[\u0000-\u001f]/.test(input)) {
+    throw new Error("Invalid workspace path.");
+  }
+  const parts = input.startsWith("/") ? [] : cwd ? cwd.split("/") : [];
+  for (const segment of input.replace(/^\/+/, "").split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      if (!parts.length) throw new Error("Cannot move above the workspace root.");
+      parts.pop();
+      continue;
+    }
+    if (segment.startsWith(".") || !/^[A-Za-z0-9_@()+ -][A-Za-z0-9_.@()+ -]*$/.test(segment)) {
+      throw new Error("That path is not allowed in the workspace.");
+    }
+    parts.push(segment);
+  }
+  return parts.join("/");
+}
+
+function tokenizeTerminalInput(input: string): string[] {
+  return (input.match(/"[^"]*"|'[^']*'|\S+/g) ?? [])
+    .map((part) => part.replace(/^["']|["']$/g, ""));
+}
+
 export type Props = {
   refreshKey: unknown;
   onListFiles: () => Promise<WorkspaceFileMetadata[]>;
@@ -194,20 +291,33 @@ function CodeEditor({
   language,
   value,
   onChange,
-  onSave
+  onSave,
+  theme,
+  customBackground
 }: {
   path: string;
   language: string;
   value: string;
   onChange: (value: string) => void;
   onSave: () => void;
+  theme: EditorTheme;
+  customBackground: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
+  const themeRef = useRef(theme);
+  const customBackgroundRef = useRef(customBackground);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+  themeRef.current = theme;
+  customBackgroundRef.current = customBackground;
+
+  useEffect(() => {
+    registerSpaceThemes(customBackground);
+    monaco.editor.setTheme(theme);
+  }, [theme, customBackground]);
 
   useEffect(() => {
     let disposed = false;
@@ -217,6 +327,7 @@ function CodeEditor({
 
     void ensureLanguageRegistered(language).then(() => {
       if (disposed || !hostRef.current) return;
+      registerSpaceThemes(customBackgroundRef.current);
       model = monaco.editor.createModel(
         value,
         language,
@@ -224,7 +335,7 @@ function CodeEditor({
       );
       editor = monaco.editor.create(hostRef.current, {
         model,
-        theme: "vs-dark",
+        theme: themeRef.current,
         automaticLayout: true,
         fontFamily: "'JetBrains Mono', 'SFMono-Regular', Consolas, monospace",
         fontSize: 13,
@@ -250,8 +361,9 @@ function CodeEditor({
     }).catch(() => {
       // Keep the editor usable as plain text if a language chunk cannot be loaded.
       if (!disposed && hostRef.current) {
+        registerSpaceThemes(customBackgroundRef.current);
         model = monaco.editor.createModel(value, "plaintext");
-        editor = monaco.editor.create(hostRef.current, { model, theme: "vs-dark", automaticLayout: true });
+        editor = monaco.editor.create(hostRef.current, { model, theme: themeRef.current, automaticLayout: true });
         editorRef.current = editor;
       }
     });
@@ -351,14 +463,44 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
   const [runTask, setRunTask] = useState<{
     id: string;
     status: string;
+    path?: string;
     exitCode?: number | null;
     stdout?: string;
     stderr?: string;
     error?: string;
   } | null>(null);
   const [runBusy, setRunBusy] = useState(false);
+  const [editorTheme, setEditorTheme] = useState<EditorTheme>(initialEditorTheme);
+  const [customEditorBackground, setCustomEditorBackground] = useState(initialCustomBackground);
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalInput, setTerminalInput] = useState("");
+  const [terminalCwd, setTerminalCwd] = useState("");
+  const [terminalHistory, setTerminalHistory] = useState<string[]>([]);
+  const [terminalHistoryIndex, setTerminalHistoryIndex] = useState(-1);
+  const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([
+    { kind: "system", text: "Space Workspace terminal · type help to see available commands." }
+  ]);
+  const terminalInputRef = useRef<HTMLInputElement>(null);
+  const terminalEndRef = useRef<HTMLDivElement>(null);
+  const terminalReportedTaskRef = useRef("");
+  const appendTerminalLines = useCallback((lines: TerminalLine[]) => {
+    setTerminalLines((current) => [...current, ...lines].slice(-300));
+  }, []);
 
   useEffect(() => { draftRef.current = draft; }, [draft]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("space-editor-theme", editorTheme);
+      window.localStorage.setItem("space-editor-custom-background", customEditorBackground);
+    } catch {
+      // Theme choices remain usable for this session when local storage is unavailable.
+    }
+  }, [editorTheme, customEditorBackground]);
+
+  useEffect(() => {
+    terminalEndRef.current?.scrollIntoView({ block: "end" });
+  }, [terminalLines, terminalOpen]);
 
   const refreshFiles = useCallback(async () => {
     try {
@@ -518,6 +660,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
   const tree = useMemo(() => buildTree(filteredFiles), [filteredFiles]);
   const selected = files.find((file) => file.path === selectedPath);
   const currentLanguage = selected?.language ?? "plaintext";
+  const runIsActive = Boolean(runTask && !["succeeded", "failed", "cancelled", "timed_out"].includes(runTask.status));
 
   const downloadFolder = async (folderPath: string) => {
     try {
@@ -601,23 +744,160 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
     }
   };
 
-  const runSelectedFile = async () => {
-    if (!selectedPath || dirty || runBusy) {
-      if (dirty) setNotice("Save the file before running it.");
-      return;
+  const executeWorkspaceFile = async (path: string) => {
+    if (runBusy || runIsActive) throw new Error("Wait for the active workspace task to finish before starting another.");
+    const file = files.find((item) => item.path === path);
+    if (!file) throw new Error("File not found: " + path);
+    if (selectedPath === path && dirty) throw new Error("Save the file before running it.");
+    if (!["python", "javascript"].includes(file.language)) {
+      throw new Error("The workspace runner supports Python and JavaScript files only.");
     }
     setRunBusy(true);
     setNotice("");
     setRunTask(null);
+    terminalReportedTaskRef.current = "";
+    setTerminalOpen(true);
     try {
-      const result = await onRunFile(selectedPath);
+      const result = await onRunFile(path);
       if (!result.accepted || !result.taskId) throw new Error(result.note || "The sandbox did not accept this file.");
-      setRunTask({ id: result.taskId, status: result.status || "queued" });
+      setRunTask({ id: result.taskId, path, status: result.status || "queued" });
+      appendTerminalLines([{ kind: "system", text: "Started " + path + " in the restricted offline runner." }]);
       setNotice("File submitted to the temporary offline sandbox.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not run the selected file.");
+      const message = error instanceof Error ? error.message : "Could not run the selected file.";
+      appendTerminalLines([{ kind: "error", text: message }]);
+      setNotice(message);
     } finally {
       setRunBusy(false);
+    }
+  };
+
+  const runSelectedFile = async () => {
+    if (!selectedPath) return;
+    try {
+      await executeWorkspaceFile(selectedPath);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not run the selected file.");
+    }
+  };
+
+  const submitTerminalCommand = async () => {
+    const raw = terminalInput.trim();
+    if (!raw) return;
+    setTerminalInput("");
+    setTerminalHistory((current) => [...current, raw].slice(-60));
+    setTerminalHistoryIndex(-1);
+    appendTerminalLines([{ kind: "command", text: "space@workspace:" + (terminalCwd ? "~/" + terminalCwd : "~") + "$ " + raw }]);
+    const [command, ...args] = tokenizeTerminalInput(raw);
+    const name = (command ?? "").toLowerCase();
+    const print = (text: string) => appendTerminalLines([{ kind: "output", text }]);
+    try {
+      switch (name) {
+        case "help":
+          print([
+            "Available workspace commands:",
+            "  help                 Show this help",
+            "  pwd                  Show the current workspace folder",
+            "  ls [path]            List files and folders",
+            "  cd [path]            Change the workspace folder",
+            "  tree [path]          Show files below a folder",
+            "  cat <file>           Print a text file",
+            "  touch <file>         Create an empty workspace file",
+            "  open <file>          Open a file in the editor",
+            "  run <file>           Run a saved Python or JavaScript file",
+            "  python <file.py>     Run a Python file",
+            "  node <file.js>       Run a JavaScript file",
+            "  echo <text>          Print text",
+            "  clear                Clear terminal output",
+            "",
+            "Workspace-only terminal. It is not a host shell; arbitrary OS commands, package installation, and network access are unavailable."
+          ].join("\n"));
+          break;
+        case "clear":
+          setTerminalLines([]);
+          break;
+        case "pwd":
+          print("/workspace" + (terminalCwd ? "/" + terminalCwd : ""));
+          break;
+        case "echo":
+          print(args.join(" "));
+          break;
+        case "ls": {
+          const target = resolveTerminalPath(args[0] ?? ".", terminalCwd);
+          if (target && files.some((file) => file.path === target)) {
+            print(target);
+            break;
+          }
+          const prefix = target ? target + "/" : "";
+          const children = new Map<string, boolean>();
+          for (const file of files) {
+            if (!file.path.startsWith(prefix)) continue;
+            const remainder = file.path.slice(prefix.length);
+            const [child, ...rest] = remainder.split("/");
+            if (child) children.set(child, rest.length > 0 || children.get(child) === true);
+          }
+          const rows = [...children.entries()].sort((a, b) => Number(b[1]) - Number(a[1]) || a[0].localeCompare(b[0]));
+          print(rows.length ? rows.map(([child, folder]) => child + (folder ? "/" : "")).join("\n") : "(empty directory)");
+          break;
+        }
+        case "tree": {
+          const target = resolveTerminalPath(args[0] ?? ".", terminalCwd);
+          const prefix = target ? target + "/" : "";
+          const matches = files.filter((file) => file.path.startsWith(prefix));
+          print(matches.length ? (target || "workspace") + "\n" + matches.map((file) => "  " + file.path.slice(prefix.length)).join("\n") : "(empty directory)");
+          break;
+        }
+        case "cd": {
+          const target = resolveTerminalPath(args[0] ?? "/", terminalCwd);
+          if (target && !files.some((file) => file.path.startsWith(target + "/"))) {
+            throw new Error("Directory not found: " + target);
+          }
+          setTerminalCwd(target);
+          print("Current directory: /workspace" + (target ? "/" + target : ""));
+          break;
+        }
+        case "cat": {
+          if (!args[0]) throw new Error("Usage: cat <file>");
+          const target = resolveTerminalPath(args[0], terminalCwd);
+          const file = await onReadFile(target);
+          if (!file) throw new Error("File not found: " + target);
+          print(file.content.length > 16_000 ? file.content.slice(0, 16_000) + "\n… output truncated …" : file.content || "(empty file)");
+          break;
+        }
+        case "touch": {
+          if (!args[0]) throw new Error("Usage: touch <file>");
+          const target = resolveTerminalPath(args[0], terminalCwd);
+          if (files.some((file) => file.path === target)) throw new Error("File already exists: " + target);
+          await onWriteFile(target, "");
+          await refreshFiles();
+          print("Created " + target);
+          break;
+        }
+        case "open":
+        case "code": {
+          if (!args[0]) throw new Error("Usage: open <file>");
+          const target = resolveTerminalPath(args[0], terminalCwd);
+          await openFile(target);
+          print("Opened " + target);
+          break;
+        }
+        case "run":
+        case "python":
+        case "node": {
+          if (!args[0]) throw new Error("Usage: " + name + " <file>");
+          const target = resolveTerminalPath(args[0], terminalCwd);
+          const file = files.find((item) => item.path === target);
+          if (!file) throw new Error("File not found: " + target);
+          if (name === "python" && file.language !== "python") throw new Error("python expects a Python file.");
+          if (name === "node" && file.language !== "javascript") throw new Error("node expects a JavaScript file.");
+          await executeWorkspaceFile(target);
+          break;
+        }
+        default:
+          throw new Error("Command not found: " + name + ". Type help for supported workspace commands.");
+      }
+    } catch (error) {
+      appendTerminalLines([{ kind: "error", text: error instanceof Error ? error.message : "Command failed." }]);
     }
   };
 
@@ -631,6 +911,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
         if (!active || !result) return;
         setRunTask({
           id: result.id,
+          path: runTask.path,
           status: result.status,
           exitCode: result.exitCode,
           stdout: result.stdout,
@@ -657,7 +938,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
   }, [runTask?.id, runTask?.status, onGetRunStatus]);
 
   return (
-    <section className="ide-panel" aria-label="Private code workspace">
+    <section className="ide-panel" aria-label="Private code workspace" data-editor-theme={editorTheme}>
       <div className="ide-titlebar">
         <div className="ide-title"><span className="ide-title-mark">S</span><span>SPACE WORKSPACE</span></div>
         <div className="ide-title-actions">
@@ -707,7 +988,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
           <div className="ide-explorer-footer">WORKSPACE STORAGE · 2 MB</div>
         </aside>
 
-        <div className={`ide-editor-column ${mobileTab === "editor" ? "mobile-visible" : ""}`}>
+        <div className={`ide-editor-column ${mobileTab === "editor" ? "mobile-visible" : ""}`} data-editor-theme={editorTheme}>
           <div className="ide-tabs">
             {tabs.map((tab) => (
               <div className={`ide-tab ${selectedPath === tab ? "active" : ""}`} key={tab}>
@@ -717,7 +998,20 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
             ))}
             <div className="ide-tabs-spacer" />
             <button type="button" className="ide-history-button" onClick={() => void loadHistory()} disabled={!selectedPath}>History</button>
-            <button type="button" className="ide-run-button" onClick={() => void runSelectedFile()} disabled={!selectedPath || dirty || runBusy || !["python","javascript"].includes(currentLanguage)}>
+            <label className="ide-theme-control">
+              <span>Theme</span>
+              <select value={editorTheme} onChange={(event) => setEditorTheme(event.target.value as EditorTheme)} aria-label="Editor color theme">
+                {EDITOR_THEME_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            {editorTheme === "space-custom" && (
+              <label className="ide-custom-color" title="Custom editor background">
+                <span>BG</span>
+                <input type="color" value={customEditorBackground} onChange={(event) => setCustomEditorBackground(event.target.value)} aria-label="Custom editor background color" />
+              </label>
+            )}
+            <button type="button" className="ide-terminal-toggle" onClick={() => setTerminalOpen((open) => !open)} aria-expanded={terminalOpen}>Terminal</button>
+            <button type="button" className="ide-run-button" onClick={() => void runSelectedFile()} disabled={!selectedPath || dirty || runBusy || runIsActive || !["python","javascript"].includes(currentLanguage)}>
               {runBusy ? "Starting…" : "▶ Run File"}
             </button>
             <button type="button" className="ide-save" onClick={() => void saveFile()} disabled={!dirty || saving}>
@@ -749,6 +1043,8 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
               value={content}
               onChange={(value) => { setDraft(value); setDirty(value !== content); }}
               onSave={() => void saveFile()}
+              theme={editorTheme}
+              customBackground={customEditorBackground}
             />
           ) : (
             <div className="ide-editor-empty">
@@ -759,14 +1055,46 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
             </div>
           )}
 
-          {runTask && (
-            <section className="ide-output-panel" aria-label="File execution output">
-              <header>
-                <span><strong>RUN OUTPUT</strong><small>{runTask.status} {runTask.exitCode !== undefined && runTask.exitCode !== null ? "· exit " + runTask.exitCode : ""}</small></span>
-                <button type="button" onClick={() => setRunTask(null)}>Close</button>
+          {terminalOpen && (
+            <section className="ide-terminal-panel" aria-label="Interactive workspace terminal">
+              <header className="ide-terminal-header">
+                <div><strong>TERMINAL</strong><span>SPACE WORKSPACE</span></div>
+                <div>
+                  <button type="button" onClick={() => setTerminalLines([])}>Clear</button>
+                  <button type="button" onClick={() => setTerminalOpen(false)} aria-label="Close terminal">×</button>
+                </div>
               </header>
-              {runTask.error && <p className="ide-output-error">{runTask.error}</p>}
-              <pre>{[runTask.stdout || "", runTask.stderr ? "STDERR:\\n" + runTask.stderr : ""].filter(Boolean).join("\\n") || (["succeeded","failed","cancelled","timed_out"].includes(runTask.status) ? "(no output)" : "Waiting for the temporary runner…")}</pre>
+              <div className="ide-terminal-output" role="log" aria-live="polite" onClick={() => terminalInputRef.current?.focus()}>
+                {terminalLines.map((line, index) => <pre className={"terminal-line terminal-" + line.kind} key={index}>{line.text}</pre>)}
+                <div ref={terminalEndRef} />
+              </div>
+              <form className="ide-terminal-prompt" onSubmit={(event) => { event.preventDefault(); void submitTerminalCommand(); }}>
+                <label htmlFor="space-terminal-input">space@workspace:{terminalCwd ? "~/" + terminalCwd : "~"}$</label>
+                <input
+                  id="space-terminal-input"
+                  ref={terminalInputRef}
+                  value={terminalInput}
+                  onChange={(event) => setTerminalInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      const next = Math.max(0, terminalHistoryIndex < 0 ? terminalHistory.length - 1 : terminalHistoryIndex - 1);
+                      setTerminalHistoryIndex(next);
+                      setTerminalInput(terminalHistory[next] ?? "");
+                    } else if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      const next = terminalHistoryIndex + 1;
+                      setTerminalHistoryIndex(next >= terminalHistory.length ? -1 : next);
+                      setTerminalInput(next >= terminalHistory.length ? "" : terminalHistory[next] ?? "");
+                    }
+                  }}
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  aria-label="Terminal command"
+                  placeholder="Type a workspace command…"
+                />
+              </form>
             </section>
           )}
           <div className="ide-statusbar">

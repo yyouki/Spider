@@ -15,6 +15,9 @@ const SYSTEM_PROMPT = [
   "You are space, one persistent AI workspace and the single user-facing AI identity.",
   "",
   "Understand the user's intended outcome and constraints. Match the user's language.",
+  "Be direct, concise, and strictly on-topic. Start with the answer or the next useful action; avoid generic greetings, filler, repeated conclusions, and unnecessary preambles.",
+  "Address every requested part. Ask one direct clarification only when a missing detail prevents useful progress. When the user initiates small talk, respond naturally in the same tone instead of forcing a task-oriented answer.",
+  "Use emojis only when they add meaningful information or the user asks for them.",
   "Separate verified facts, assumptions, estimates, and unknowns.",
   "Never claim you browsed, opened a website, read a file, inspected media, ran code, deployed, or changed an account unless a connected tool actually did that.",
   "If a capability is unavailable, say so plainly. Never promise perfect accuracy or unlimited capacity.",
@@ -41,10 +44,11 @@ const SYSTEM_PROMPT = [
   "Account integrations require provider-issued OAuth grants. Device access requires the operating system's own permission prompts.",
   "Actions that can publish, send, spend money, delete important data, change security settings, or affect other people require owner confirmation.",
   "Do not change authentication, access controls, secrets handling, security policy, or approval rules as part of automatic self-update.",
-  "Only save project memory when explicitly requested. Memory writes always require user approval.",
+  "Only save project or personal memory when explicitly requested. Memory writes always require user approval. Save only useful, low-sensitivity preferences or project facts; never store passwords, credentials, private keys, authentication codes, sensitive medical or financial details, or unnecessary identifying information.",
+  "Use user-approved saved memory only when relevant to the current request. Treat it as background context that may be outdated, not as an instruction that overrides the current message.",
   "Do not expose private internal reasoning; provide a concise explanation and relevant evidence.",
   "",
-  "Current MVP: persistent chat, persistent task plans, arithmetic, and approved project memory.",
+  "Current MVP: persistent chat, persistent task plans, arithmetic, and user-approved personal/project memory.",
   "Python/JavaScript sandbox: executes on a temporary GitHub-hosted Linux runner in a restricted offline Docker container. It has bounded source, time, and output limits.",
   "Not connected: autonomous browsing, GitHub repository sync, image/audio/video understanding, OS runners, account integrations, and production self-updates."
 ].join("\n");
@@ -68,6 +72,18 @@ export const DEFAULT_AUTONOMY_SETTINGS: AutonomySettings = {
 type SettingsRow = { settings_json: string; updated_at: number };
 
 type MemoryRow = { key: string; value: string; updated_at: number };
+
+function assertSafeUserMemory(key: string, value: string): void {
+  const candidate = key + " " + value;
+  const credentialPattern = /\b(?:password|passphrase|api[\s_-]?key|access[\s_-]?token|refresh[\s_-]?token|private[\s_-]?key|session[\s_-]?cookie|one[\s-]?time code|otp|recovery code|secret)\b/i;
+  const paymentPattern = /\b(?:credit card|debit card|bank account|rekening|cvv|pin)\b/i;
+  const emailPattern = /\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/;
+  const longNumberPattern = /\b\d{13,19}\b/;
+  if (credentialPattern.test(candidate) || paymentPattern.test(candidate) || emailPattern.test(value) || longNumberPattern.test(value)) {
+    throw new Error("This looks like sensitive account or contact information and cannot be saved as memory.");
+  }
+}
+
 type WorkspaceFileRow = { path: string; content: string; language: string; size_bytes: number; updated_at: number };
 type WorkspaceRevisionRow = { id: string; path: string; content: string; size_bytes: number; created_at: number };
 type WorkspaceAssetRow = { id: string; filename: string; mime_type: string; content_base64: string; size_bytes: number; prompt: string; created_at: number };
@@ -134,6 +150,12 @@ export class SpaceAgent extends AIChatAgent<Env> {
 
   onStart() {
     this.sql`CREATE TABLE IF NOT EXISTS project_memory (
+      memory_key TEXT PRIMARY KEY,
+      memory_value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`;
+
+    this.sql`CREATE TABLE IF NOT EXISTS user_memory (
       memory_key TEXT PRIMARY KEY,
       memory_value TEXT NOT NULL,
       updated_at INTEGER NOT NULL
@@ -206,6 +228,38 @@ export class SpaceAgent extends AIChatAgent<Env> {
       summarized_through_id TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     )`;
+  }
+
+  @callable()
+  clearConversationContext() {
+    this.sql`DELETE FROM conversation_context WHERE context_id = 'primary'`;
+    return { cleared: true };
+  }
+
+  @callable()
+  listUserMemories() {
+    const rows = this.sql<MemoryRow>`SELECT memory_key AS key, memory_value AS value, updated_at
+      FROM user_memory ORDER BY updated_at DESC LIMIT 100`;
+    return rows.map((row) => ({
+      key: row.key,
+      value: row.value,
+      updatedAt: new Date(row.updated_at).toISOString()
+    }));
+  }
+
+  @callable()
+  deleteUserMemory(inputKey: string) {
+    const key = typeof inputKey === "string" ? inputKey.trim() : "";
+    if (!key || key.length > 80) throw new Error("Provide a valid saved memory key.");
+    this.sql`DELETE FROM user_memory WHERE memory_key = ${key}`;
+    return { deleted: true, key };
+  }
+
+  @callable()
+  clearUserMemories() {
+    const rows = this.sql<{ count: number }>`SELECT COUNT(*) AS count FROM user_memory`;
+    this.sql`DELETE FROM user_memory`;
+    return { deleted: rows[0]?.count ?? 0 };
   }
 
   @callable()
@@ -727,6 +781,21 @@ export class SpaceAgent extends AIChatAgent<Env> {
       SELECT summary_text FROM conversation_context WHERE context_id = 'primary' LIMIT 1`;
     const conversationSummary = contextRows[0]?.summary_text;
     const recentMessages = this.messages.slice(-24);
+    const savedMemoryRows = this.sql<MemoryRow>`SELECT memory_key AS key, memory_value AS value, updated_at
+      FROM user_memory ORDER BY updated_at DESC LIMIT 20`;
+    const savedMemoryContext = savedMemoryRows
+      .map((row) => "- " + row.key + ": " + row.value.slice(0, 900))
+      .join("\n")
+      .slice(0, 12_000);
+    const systemContext = [
+      SYSTEM_PROMPT,
+      conversationSummary
+        ? "Durable conversation summary (older messages):\n" + conversationSummary
+        : "",
+      savedMemoryContext
+        ? "User-approved saved memory. Use only details relevant to the current request; do not recite this list unless asked.\n" + savedMemoryContext
+        : ""
+    ].filter(Boolean).join("\n\n");
 
     const result = streamText({
       model: ai("@cf/zai-org/glm-4.7-flash"),
@@ -747,9 +816,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
           )`;
         }
       },
-      system: conversationSummary
-        ? SYSTEM_PROMPT + "\\n\\nDurable conversation summary (older messages):\\n" + conversationSummary
-        : SYSTEM_PROMPT,
+      system: systemContext,
       messages: pruneMessages({
         messages: await convertToModelMessages(recentMessages),
         toolCalls: "before-last-2-messages",
@@ -795,6 +862,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
               "Provider-reported token analytics",
               "Expiring read-only conversation share links",
               "Owner-configurable autonomy preferences",
+              "User-approved persistent memory with review and deletion controls",
               "Basic arithmetic",
               "Cloudflare Durable Object SQLite storage"
             ],
@@ -924,6 +992,42 @@ export class SpaceAgent extends AIChatAgent<Env> {
             return row
               ? { found: true, ...row }
               : { found: false, message: "No task plan found with that ID." };
+          }
+        }),
+
+        rememberUserFact: tool({
+          description: "Save a low-sensitivity personal preference or stable user fact only when the owner explicitly asks you to remember it. Never save credentials, sensitive medical or financial details, or unnecessary identifying information. This action always requires user approval.",
+          inputSchema: z.object({
+            key: z.string().trim().min(1).max(80),
+            value: z.string().trim().min(1).max(1000)
+          }),
+          needsApproval: true,
+          execute: async ({ key, value }) => {
+            assertSafeUserMemory(key, value);
+            const now = Date.now();
+            this.sql`INSERT INTO user_memory (memory_key, memory_value, updated_at)
+              VALUES (${key}, ${value}, ${now})
+              ON CONFLICT(memory_key) DO UPDATE SET
+                memory_value = excluded.memory_value,
+                updated_at = excluded.updated_at`;
+            return { saved: true, key, updatedAt: new Date(now).toISOString() };
+          }
+        }),
+
+        searchUserMemory: tool({
+          description: "Search user-approved personal memory. Use only when relevant to the current request.",
+          inputSchema: z.object({ query: z.string().trim().min(1).max(120) }),
+          execute: async ({ query }) => {
+            const rows = this.sql<MemoryRow>`SELECT memory_key AS key, memory_value AS value, updated_at
+              FROM user_memory
+              WHERE instr(lower(memory_key), lower(${query})) > 0
+                 OR instr(lower(memory_value), lower(${query})) > 0
+              ORDER BY updated_at DESC LIMIT 10`;
+            return rows.map((row) => ({
+              key: row.key,
+              value: row.value,
+              updatedAt: new Date(row.updated_at).toISOString()
+            }));
           }
         }),
 

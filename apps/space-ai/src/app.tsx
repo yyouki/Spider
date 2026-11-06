@@ -42,6 +42,12 @@ type WorkspaceAsset = {
   createdAt: string;
 };
 
+type SavedMemory = {
+  key: string;
+  value: string;
+  updatedAt: string;
+};
+
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -262,6 +268,9 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const [shareNotice, setShareNotice] = useState("");
   const [tokenUsage, setTokenUsage] = useState<TokenUsageSummary | null>(null);
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileMetadata[]>([]);
+  const [savedMemories, setSavedMemories] = useState<SavedMemory[]>([]);
+  const [memoriesBusy, setMemoriesBusy] = useState(false);
+  const [memoryNotice, setMemoryNotice] = useState("");
   const [pendingImage, setPendingImage] = useState<{ id: string; filename: string; mimeType: string; contentBase64: string } | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "/" : window.location.pathname);
@@ -338,6 +347,44 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     return files;
   }, [agent]);
 
+  const loadSavedMemories = useCallback(async () => {
+    setMemoriesBusy(true);
+    setMemoryNotice("");
+    try {
+      setSavedMemories(await agent.stub.listUserMemories());
+    } catch {
+      setMemoryNotice("Saved memory could not be loaded. Check the connection and retry.");
+    } finally {
+      setMemoriesBusy(false);
+    }
+  }, [agent]);
+
+  useEffect(() => {
+    if (connected && currentPath === "/settings") void loadSavedMemories();
+  }, [connected, currentPath, loadSavedMemories]);
+
+  const deleteSavedMemory = async (key: string) => {
+    if (!window.confirm("Delete this saved memory? Space will no longer use it in future replies.")) return;
+    try {
+      await agent.stub.deleteUserMemory(key);
+      setMemoryNotice("Memory deleted.");
+      await loadSavedMemories();
+    } catch {
+      setMemoryNotice("Memory could not be deleted.");
+    }
+  };
+
+  const clearSavedMemories = async () => {
+    if (!savedMemories.length || !window.confirm("Delete all saved memories? This cannot be undone.")) return;
+    try {
+      const result = await agent.stub.clearUserMemories();
+      setSavedMemories([]);
+      setMemoryNotice((result.deleted ?? 0) + " memories deleted.");
+    } catch {
+      setMemoryNotice("Saved memories could not be cleared.");
+    }
+  };
+
   const readWorkspaceFile = useCallback((path: string) => agent.stub.readWorkspaceFile(path), [agent]);
   const readWorkspaceAsset = useCallback((id: string) => agent.stub.readWorkspaceAsset(id), [agent]);
   const writeWorkspaceFile = useCallback((path: string, content: string) => agent.stub.writeWorkspaceFile(path, content), [agent]);
@@ -385,9 +432,17 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     setPendingImage(null);
   };
 
-  const clear = () => {
-    if (!window.confirm("Hapus riwayat percakapan? Catatan proyek, file workspace, dan rencana kerja yang tersimpan terpisah tidak ikut dihapus.")) return;
-    clearHistory();
+  const clear = async () => {
+    if (!window.confirm("Mulai chat baru dan hapus pesan serta ringkasan konteks percakapan saat ini? Memori tersimpan, catatan proyek, file workspace, dan rencana kerja tidak ikut dihapus.")) return;
+    try {
+      await agent.stub.clearConversationContext();
+      clearHistory();
+      setShareInfo(null);
+      setShareNotice("");
+      setError("");
+    } catch {
+      setError("Chat baru tidak dapat dimulai. Riwayat dan konteks lama tetap tersimpan.");
+    }
   };
 
   const uploadImage = async (file?: File) => {
@@ -504,6 +559,14 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
         <span className="brand-mark">s</span>
         <span className="brand-copy"><strong>space</strong><small>AI workspace</small></span>
       </a>
+      <button
+        type="button"
+        className="sidebar-new-chat"
+        onClick={clear}
+        disabled={!messages.length || busy}
+      >
+        <span aria-hidden="true">＋</span> New chat
+      </button>
       <nav className="primary-nav" aria-label="Main navigation">
         {NAV_ITEMS.map((item) => (
           <a
@@ -749,6 +812,34 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           <button type="button" className="button button-primary" onClick={() => void saveSettings()} disabled={!connected || settingsBusy}>
             {settingsBusy ? "Saving…" : "Save preferences"}
           </button>
+        </div>
+      </section>
+
+      <section className="surface-card settings-card memory-settings-card">
+        <div className="section-title">
+          <div><h2>Saved memory</h2><p>Space can use approved preferences and useful facts in future responses. Memory is only added when you explicitly ask and approve it.</p></div>
+          <button type="button" className="button button-secondary" onClick={() => void loadSavedMemories()} disabled={!connected || memoriesBusy}>Refresh</button>
+        </div>
+        {memoryNotice && <p className="memory-notice" role="status">{memoryNotice}</p>}
+        {memoriesBusy ? <p className="memory-empty">Loading saved memory…</p> : savedMemories.length ? (
+          <div className="memory-list">
+            {savedMemories.map((memory) => (
+              <article className="memory-row" key={memory.key}>
+                <div>
+                  <strong>{memory.key}</strong>
+                  <p>{memory.value}</p>
+                  <small>Updated {new Date(memory.updatedAt).toLocaleString()}</small>
+                </div>
+                <button type="button" className="memory-delete-button" onClick={() => void deleteSavedMemory(memory.key)}>Delete</button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="memory-empty">No saved memory yet. In chat, say “remember that…” to ask Space to save a non-sensitive fact.</p>
+        )}
+        <div className="settings-footer">
+          <span>Only use memory that is relevant to the current request.</span>
+          <button type="button" className="button button-secondary" onClick={() => void clearSavedMemories()} disabled={!savedMemories.length || memoriesBusy}>Clear all memory</button>
         </div>
       </section>
 
