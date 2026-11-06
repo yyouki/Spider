@@ -1,15 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as monaco from "monaco-editor/editor";
-import "monaco-editor/features/register.all";
-import "monaco-editor/languages/definitions/python/register";
-import "monaco-editor/languages/definitions/javascript/register";
-import "monaco-editor/languages/definitions/typescript/register";
-import "monaco-editor/languages/definitions/css/register";
-import "monaco-editor/languages/definitions/html/register";
-import "monaco-editor/languages/definitions/markdown/register";
-import "monaco-editor/languages/definitions/yaml/register";
-import "monaco-editor/languages/definitions/sql/register";
-import "monaco-editor/languages/definitions/shell/register";
+import { strToU8, zipSync } from "fflate";
+// Register the common IDE commands individually. The full registry also imports unused
+// high-contrast and other contributions that add a very large client chunk.
+import "monaco-editor/features/anchorSelect/register";
+import "monaco-editor/features/bracketMatching/register";
+import "monaco-editor/features/caretOperations/register";
+import "monaco-editor/features/clipboard/register";
+import "monaco-editor/features/codeAction/register";
+import "monaco-editor/features/codeEditor/register";
+import "monaco-editor/features/contextmenu/register";
+import "monaco-editor/features/cursorUndo/register";
+import "monaco-editor/features/find/register";
+import "monaco-editor/features/folding/register";
+import "monaco-editor/features/format/register";
+import "monaco-editor/features/gotoLine/register";
+import "monaco-editor/features/hover/register";
+import "monaco-editor/features/indentation/register";
+import "monaco-editor/features/multicursor/register";
+import "monaco-editor/features/parameterHints/register";
+import "monaco-editor/features/rename/register";
+import "monaco-editor/features/snippet/register";
+import "monaco-editor/features/suggest/register";
+import "monaco-editor/features/tokenization/register";
+import "monaco-editor/features/wordHighlighter/register";
+import "monaco-editor/features/wordOperations/register";
 import "monaco-editor/languages/features/register.all";
 
 export type WorkspaceFileMetadata = {
@@ -35,6 +50,13 @@ export type Props = {
   onListFiles: () => Promise<WorkspaceFileMetadata[]>;
   onReadFile: (path: string) => Promise<WorkspaceFile | null>;
   onWriteFile: (path: string, content: string) => Promise<WorkspaceFileMetadata>;
+  onListHistory: (path: string) => Promise<{ id: string; createdAt: string; sizeBytes: number; preview: string }[]>;
+  onRestoreFile: (path: string, revisionId: string) => Promise<WorkspaceFileMetadata>;
+  onRunFile: (path: string) => Promise<{ accepted: boolean; taskId?: string; status?: string; note?: string }>;
+  onGetRunStatus: (taskId: string) => Promise<{
+    id: string; status: string; exitCode?: number | null; stdout?: string; stderr?: string; error?: string; workflowRunId?: number;
+  } | null>;
+  onSearchFiles: (query: string) => Promise<{ path: string; language: string; updatedAt: number; preview: string }[]>;
 };
 
 const workerScope = globalThis as typeof globalThis & {
@@ -75,8 +97,70 @@ workerScope.MonacoEnvironment = {
   }
 };
 
+// Register only the language used by the open file. Vite emits separate chunks for these definitions.
+const languageLoaders: Record<string, () => Promise<unknown>> = {
+  python: () => import("monaco-editor/languages/definitions/python/register"),
+  javascript: () => import("monaco-editor/languages/definitions/javascript/register"),
+  typescript: () => import("monaco-editor/languages/definitions/typescript/register"),
+  css: () => import("monaco-editor/languages/definitions/css/register"),
+  html: () => import("monaco-editor/languages/definitions/html/register"),
+  markdown: () => import("monaco-editor/languages/definitions/markdown/register"),
+  yaml: () => import("monaco-editor/languages/definitions/yaml/register"),
+  sql: () => import("monaco-editor/languages/definitions/sql/register"),
+  shell: () => import("monaco-editor/languages/definitions/shell/register"),
+  cpp: () => import("monaco-editor/languages/definitions/cpp/register"),
+  csharp: () => import("monaco-editor/languages/definitions/csharp/register"),
+  dart: () => import("monaco-editor/languages/definitions/dart/register"),
+  dockerfile: () => import("monaco-editor/languages/definitions/dockerfile/register"),
+  go: () => import("monaco-editor/languages/definitions/go/register"),
+  graphql: () => import("monaco-editor/languages/definitions/graphql/register"),
+  ini: () => import("monaco-editor/languages/definitions/ini/register"),
+  java: () => import("monaco-editor/languages/definitions/java/register"),
+  kotlin: () => import("monaco-editor/languages/definitions/kotlin/register"),
+  lua: () => import("monaco-editor/languages/definitions/lua/register"),
+  "objective-c": () => import("monaco-editor/languages/definitions/objective-c/register"),
+  perl: () => import("monaco-editor/languages/definitions/perl/register"),
+  php: () => import("monaco-editor/languages/definitions/php/register"),
+  powershell: () => import("monaco-editor/languages/definitions/powershell/register"),
+  r: () => import("monaco-editor/languages/definitions/r/register"),
+  ruby: () => import("monaco-editor/languages/definitions/ruby/register"),
+  rust: () => import("monaco-editor/languages/definitions/rust/register"),
+  scala: () => import("monaco-editor/languages/definitions/scala/register"),
+  solidity: () => import("monaco-editor/languages/definitions/solidity/register"),
+  swift: () => import("monaco-editor/languages/definitions/swift/register")
+};
+
+const loadedLanguages = new Set<string>();
+const languageLoads = new Map<string, Promise<void>>();
+
+async function ensureLanguageRegistered(language: string): Promise<void> {
+  if (loadedLanguages.has(language)) return;
+  const existing = languageLoads.get(language);
+  if (existing) return existing;
+
+  const loader = languageLoaders[language];
+  if (!loader) {
+    loadedLanguages.add(language);
+    return;
+  }
+
+  const loading = loader().then(() => {
+    loadedLanguages.add(language);
+  }).finally(() => {
+    languageLoads.delete(language);
+  });
+  languageLoads.set(language, loading);
+  return loading;
+}
+
 function basename(path: string): string {
   return path.split("/").at(-1) ?? path;
+}
+
+function archiveBlob(bytes: Uint8Array): Blob {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return new Blob([buffer], { type: "application/zip" });
 }
 
 function buildTree(files: WorkspaceFileMetadata[]): TreeNode[] {
@@ -126,42 +210,57 @@ function CodeEditor({
   onSaveRef.current = onSave;
 
   useEffect(() => {
-    if (!hostRef.current) return undefined;
-    const model = monaco.editor.createModel(
-      value,
-      language,
-      monaco.Uri.parse("inmemory://space/" + encodeURIComponent(path))
-    );
-    const editor = monaco.editor.create(hostRef.current, {
-      model,
-      theme: "vs-dark",
-      automaticLayout: true,
-      fontFamily: "'JetBrains Mono', 'SFMono-Regular', Consolas, monospace",
-      fontSize: 13,
-      lineHeight: 21,
-      tabSize: 2,
-      insertSpaces: true,
-      minimap: { enabled: true, scale: 0.75 },
-      scrollBeyondLastLine: false,
-      renderLineHighlight: "all",
-      roundedSelection: false,
-      padding: { top: 14, bottom: 14 },
-      wordWrap: "on",
-      suggestOnTriggerCharacters: true,
-      quickSuggestions: true,
-      folding: true,
-      bracketPairColorization: { enabled: true }
+    let disposed = false;
+    let model: monaco.editor.ITextModel | null = null;
+    let editor: monaco.editor.IStandaloneCodeEditor | null = null;
+    let modelSubscription: monaco.IDisposable | null = null;
+
+    void ensureLanguageRegistered(language).then(() => {
+      if (disposed || !hostRef.current) return;
+      model = monaco.editor.createModel(
+        value,
+        language,
+        monaco.Uri.parse("inmemory://space/" + encodeURIComponent(path))
+      );
+      editor = monaco.editor.create(hostRef.current, {
+        model,
+        theme: "vs-dark",
+        automaticLayout: true,
+        fontFamily: "'JetBrains Mono', 'SFMono-Regular', Consolas, monospace",
+        fontSize: 13,
+        lineHeight: 21,
+        tabSize: 2,
+        insertSpaces: true,
+        minimap: { enabled: true, scale: 0.75 },
+        scrollBeyondLastLine: false,
+        renderLineHighlight: "all",
+        roundedSelection: false,
+        padding: { top: 14, bottom: 14 },
+        wordWrap: "on",
+        suggestOnTriggerCharacters: true,
+        quickSuggestions: true,
+        folding: true,
+        bracketPairColorization: { enabled: true }
+      });
+      editorRef.current = editor;
+      modelSubscription = model.onDidChangeContent(() => {
+        if (editor) onChangeRef.current(editor.getValue());
+      });
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => onSaveRef.current());
+    }).catch(() => {
+      // Keep the editor usable as plain text if a language chunk cannot be loaded.
+      if (!disposed && hostRef.current) {
+        model = monaco.editor.createModel(value, "plaintext");
+        editor = monaco.editor.create(hostRef.current, { model, theme: "vs-dark", automaticLayout: true });
+        editorRef.current = editor;
+      }
     });
-    editorRef.current = editor;
-    const modelSubscription = model.onDidChangeContent(() => {
-      onChangeRef.current(editor.getValue());
-    });
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => onSaveRef.current());
 
     return () => {
-      modelSubscription.dispose();
-      editor.dispose();
-      model.dispose();
+      disposed = true;
+      modelSubscription?.dispose();
+      editor?.dispose();
+      model?.dispose();
       editorRef.current = null;
     };
   }, [path, language]);
@@ -175,7 +274,8 @@ function FileTree({
   expanded,
   selectedPath,
   onToggle,
-  onSelect
+  onSelect,
+  onDownloadFolder
 }: {
   nodes: TreeNode[];
   depth: number;
@@ -183,6 +283,7 @@ function FileTree({
   selectedPath: string;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
+  onDownloadFolder: (path: string) => void;
 }) {
   return (
     <>
@@ -199,6 +300,15 @@ function FileTree({
             <span className="ide-tree-icon">{node.folder ? "▰" : "◦"}</span>
             <span className="ide-tree-name">{node.name}</span>
           </button>
+          {node.folder && (
+            <button
+              type="button"
+              className="ide-folder-download"
+              title={"Download " + node.path + " as ZIP"}
+              aria-label={"Download folder " + node.path}
+              onClick={() => onDownloadFolder(node.path)}
+            >↓</button>
+          )}
           {node.folder && expanded.has(node.path) && (
             <FileTree
               nodes={node.children}
@@ -207,6 +317,7 @@ function FileTree({
               selectedPath={selectedPath}
               onToggle={onToggle}
               onSelect={onSelect}
+              onDownloadFolder={onDownloadFolder}
             />
           )}
         </div>
@@ -215,7 +326,7 @@ function FileTree({
   );
 }
 
-export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile }: Props) {
+export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile, onListHistory, onRestoreFile, onRunFile, onGetRunStatus, onSearchFiles }: Props) {
   const [files, setFiles] = useState<WorkspaceFileMetadata[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
   const [content, setContent] = useState("");
@@ -229,6 +340,25 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
   const [newPath, setNewPath] = useState("src/main.py");
   const [showNewFile, setShowNewFile] = useState(false);
   const [mobileTab, setMobileTab] = useState<"files" | "editor">("editor");
+  const [search, setSearch] = useState("");
+  const [searchMatches, setSearchMatches] = useState<{ path: string; language: string; updatedAt: number; preview: string }[]>([]);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [history, setHistory] = useState<{ id: string; createdAt: string; sizeBytes: number; preview: string }[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const draftRef = useRef(draft);
+  const autosaveValueRef = useRef("");
+  const [runTask, setRunTask] = useState<{
+    id: string;
+    status: string;
+    exitCode?: number | null;
+    stdout?: string;
+    stderr?: string;
+    error?: string;
+  } | null>(null);
+  const [runBusy, setRunBusy] = useState(false);
+
+  useEffect(() => { draftRef.current = draft; }, [draft]);
 
   const refreshFiles = useCallback(async () => {
     try {
@@ -288,12 +418,13 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
 
   const saveFile = useCallback(async () => {
     if (!selectedPath || !dirty || saving) return;
+    const valueToSave = draft;
     setSaving(true);
     setNotice("");
     try {
-      await onWriteFile(selectedPath, draft);
-      setContent(draft);
-      setDirty(false);
+      await onWriteFile(selectedPath, valueToSave);
+      setContent(valueToSave);
+      if (draftRef.current === valueToSave) setDirty(false);
       setNotice("Saved");
       await refreshFiles();
     } catch (error) {
@@ -302,6 +433,17 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
       setSaving(false);
     }
   }, [dirty, draft, onWriteFile, refreshFiles, saving, selectedPath]);
+
+  useEffect(() => {
+    if (!dirty || !selectedPath || saving) return undefined;
+    const valueToSave = draft;
+    const timer = window.setTimeout(() => {
+      if (autosaveValueRef.current === valueToSave) return;
+      autosaveValueRef.current = valueToSave;
+      void saveFile();
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [dirty, draft, saveFile, saving, selectedPath]);
 
   const createFile = async () => {
     const path = newPath.trim();
@@ -342,9 +484,177 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
     }
   };
 
-  const tree = useMemo(() => buildTree(files), [files]);
+  useEffect(() => {
+    const query = search.trim();
+    if (query.length < 2) {
+      setSearchMatches([]);
+      setSearchBusy(false);
+      return undefined;
+    }
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setSearchBusy(true);
+      try {
+        const matches = await onSearchFiles(query);
+        if (active) setSearchMatches(matches);
+      } catch {
+        if (active) setNotice("Search could not reach the workspace database.");
+      } finally {
+        if (active) setSearchBusy(false);
+      }
+    }, 300);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [onSearchFiles, search]);
+
+  const filteredFiles = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return files;
+    const matchedPaths = new Set(searchMatches.map((match) => match.path));
+    return files.filter((file) => file.path.toLowerCase().includes(query) || matchedPaths.has(file.path));
+  }, [files, search, searchMatches]);
+  const tree = useMemo(() => buildTree(filteredFiles), [filteredFiles]);
   const selected = files.find((file) => file.path === selectedPath);
   const currentLanguage = selected?.language ?? "plaintext";
+
+  const downloadFolder = async (folderPath: string) => {
+    try {
+      const members = files.filter((file) => file.path.startsWith(folderPath + "/"));
+      if (!members.length) throw new Error("Folder does not contain any files.");
+      const entries: Record<string, Uint8Array> = {};
+      for (const member of members) {
+        const file = await onReadFile(member.path);
+        if (file) entries[member.path.slice(folderPath.length + 1)] = strToU8(file.content);
+      }
+      if (!Object.keys(entries).length) throw new Error("No files were available to download.");
+      const archive = zipSync(entries, { level: 6 });
+      const url = URL.createObjectURL(archiveBlob(archive));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = (basename(folderPath) || "workspace") + ".zip";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setNotice("Folder archive downloaded.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not create the folder archive.");
+    }
+  };
+
+  const downloadProject = async () => {
+    try {
+      const entries: Record<string, Uint8Array> = {};
+      for (const member of files) {
+        const file = await onReadFile(member.path);
+        if (file) entries[member.path] = strToU8(file.content);
+      }
+      if (!Object.keys(entries).length) throw new Error("The workspace is empty.");
+      const archive = zipSync(entries, { level: 6 });
+      const url = URL.createObjectURL(archiveBlob(archive));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "space-workspace.zip";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setNotice("Workspace archive downloaded.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not download the workspace.");
+    }
+  };
+
+  const loadHistory = async () => {
+    if (!selectedPath) return;
+    setHistoryBusy(true);
+    setShowHistory(true);
+    try {
+      setHistory(await onListHistory(selectedPath));
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not load file history.");
+    } finally {
+      setHistoryBusy(false);
+    }
+  };
+
+  const restoreRevision = async (revisionId: string) => {
+    if (!selectedPath || dirty) {
+      setNotice("Save or discard the current draft before restoring a version.");
+      return;
+    }
+    if (!window.confirm("Restore this revision? The current saved version will remain in history.")) return;
+    try {
+      await onRestoreFile(selectedPath, revisionId);
+      const file = await onReadFile(selectedPath);
+      if (!file) throw new Error("Restored file could not be reloaded.");
+      setContent(file.content);
+      setDraft(file.content);
+      setDirty(false);
+      setShowHistory(false);
+      setNotice("Revision restored.");
+      await refreshFiles();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not restore the revision.");
+    }
+  };
+
+  const runSelectedFile = async () => {
+    if (!selectedPath || dirty || runBusy) {
+      if (dirty) setNotice("Save the file before running it.");
+      return;
+    }
+    setRunBusy(true);
+    setNotice("");
+    setRunTask(null);
+    try {
+      const result = await onRunFile(selectedPath);
+      if (!result.accepted || !result.taskId) throw new Error(result.note || "The sandbox did not accept this file.");
+      setRunTask({ id: result.taskId, status: result.status || "queued" });
+      setNotice("File submitted to the temporary offline sandbox.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not run the selected file.");
+    } finally {
+      setRunBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!runTask || ["succeeded", "failed", "cancelled", "timed_out"].includes(runTask.status)) return undefined;
+    let active = true;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const result = await onGetRunStatus(runTask.id);
+        if (!active || !result) return;
+        setRunTask({
+          id: result.id,
+          status: result.status,
+          exitCode: result.exitCode,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          error: result.error
+        });
+        if (!["succeeded", "failed", "cancelled", "timed_out"].includes(result.status)) {
+          timer = window.setTimeout(() => void poll(), 1800);
+        }
+      } catch (error) {
+        if (active) {
+          setRunTask((current) => current ? {
+            ...current,
+            error: error instanceof Error ? error.message : "Could not refresh sandbox status."
+          } : current);
+        }
+      }
+    };
+    timer = window.setTimeout(() => void poll(), 900);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [runTask?.id, runTask?.status, onGetRunStatus]);
 
   return (
     <section className="ide-panel" aria-label="Private code workspace">
@@ -353,6 +663,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
         <div className="ide-title-actions">
           <span className="ide-private">PRIVATE</span>
           <button type="button" title="Create file" onClick={() => setShowNewFile((shown) => !shown)}>＋</button>
+          <button type="button" title="Download entire workspace as ZIP" onClick={() => void downloadProject()} disabled={!files.length}>⇩</button>
           <button type="button" title="Refresh files" onClick={() => void refreshFiles()}>↻</button>
         </div>
       </div>
@@ -366,6 +677,17 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
         <aside className={`ide-explorer ${mobileTab === "files" ? "mobile-visible" : ""}`}>
           <div className="ide-section-heading"><span>EXPLORER</span><span>{files.length}</span></div>
           <div className="ide-root-label"><span>▾</span> SPACE-PROJECT</div>
+          <input
+            className="ide-search"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search files and contents…"
+            aria-label="Search workspace file names and contents"
+          />
+          {search.trim().length >= 2 && (
+            <div className="ide-search-status">{searchBusy ? "Searching file contents…" : searchMatches.length + " matching files"}</div>
+          )}
           {showNewFile && (
             <form className="ide-new-file" onSubmit={(event) => { event.preventDefault(); void createFile(); }}>
               <input value={newPath} onChange={(event) => setNewPath(event.target.value)} aria-label="New file path" placeholder="folder/file.py" autoFocus />
@@ -374,7 +696,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
           )}
           <div className="ide-tree">
             {loading ? <p className="ide-empty-small">Loading files…</p> : tree.length ? (
-              <FileTree nodes={tree} depth={0} expanded={expanded} selectedPath={selectedPath} onToggle={toggleFolder} onSelect={(path) => void openFile(path)} />
+              <FileTree nodes={tree} depth={0} expanded={expanded} selectedPath={selectedPath} onToggle={toggleFolder} onSelect={(path) => void openFile(path)} onDownloadFolder={(path) => void downloadFolder(path)} />
             ) : (
               <div className="ide-empty-tree">
                 <span>No files yet</span>
@@ -394,14 +716,30 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
               </div>
             ))}
             <div className="ide-tabs-spacer" />
+            <button type="button" className="ide-history-button" onClick={() => void loadHistory()} disabled={!selectedPath}>History</button>
+            <button type="button" className="ide-run-button" onClick={() => void runSelectedFile()} disabled={!selectedPath || dirty || runBusy || !["python","javascript"].includes(currentLanguage)}>
+              {runBusy ? "Starting…" : "▶ Run File"}
+            </button>
             <button type="button" className="ide-save" onClick={() => void saveFile()} disabled={!dirty || saving}>
-              {saving ? "Saving…" : dirty ? "Save" : "Saved"}
+              {saving ? "Saving…" : dirty ? "Save now" : "Auto-saved"}
             </button>
           </div>
 
           <div className="ide-breadcrumb">
             <span>workspace</span><span>›</span><strong>{selectedPath || "No file selected"}</strong>
           </div>
+
+          {showHistory && (
+            <div className="ide-history-panel">
+              <div><strong>File history</strong><button type="button" onClick={() => setShowHistory(false)}>×</button></div>
+              {historyBusy ? <p>Loading revisions…</p> : history.length ? history.map((revision) => (
+                <article key={revision.id}>
+                  <span><strong>{new Date(revision.createdAt).toLocaleString()}</strong><small>{revision.sizeBytes.toLocaleString()} bytes · {revision.preview || "Empty file"}</small></span>
+                  <button type="button" onClick={() => void restoreRevision(revision.id)}>Restore</button>
+                </article>
+              )) : <p>No saved revisions yet. Revisions are created when a saved file changes.</p>}
+            </div>
+          )}
 
           {selectedPath ? (
             <CodeEditor
@@ -421,6 +759,16 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
             </div>
           )}
 
+          {runTask && (
+            <section className="ide-output-panel" aria-label="File execution output">
+              <header>
+                <span><strong>RUN OUTPUT</strong><small>{runTask.status} {runTask.exitCode !== undefined && runTask.exitCode !== null ? "· exit " + runTask.exitCode : ""}</small></span>
+                <button type="button" onClick={() => setRunTask(null)}>Close</button>
+              </header>
+              {runTask.error && <p className="ide-output-error">{runTask.error}</p>}
+              <pre>{[runTask.stdout || "", runTask.stderr ? "STDERR:\\n" + runTask.stderr : ""].filter(Boolean).join("\\n") || (["succeeded","failed","cancelled","timed_out"].includes(runTask.status) ? "(no output)" : "Waiting for the temporary runner…")}</pre>
+            </section>
+          )}
           <div className="ide-statusbar">
             <span>{currentLanguage.toUpperCase()}</span>
             <span>{selectedPath ? basename(selectedPath) : "No file"}</span>

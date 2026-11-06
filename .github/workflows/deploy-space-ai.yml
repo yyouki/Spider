@@ -25,14 +25,15 @@ jobs:
         working-directory: apps/space-ai
     steps:
       - name: Check out main
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v7.0.1
         with:
           ref: main
           persist-credentials: false
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
+          package-manager-cache: false
       - name: Verify production environment secrets
         shell: bash
         env:
@@ -55,8 +56,19 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Type-check and run all tests
         run: npm run check
+      - name: Create build-only placeholder secrets
+        run: |
+          cat > .dev.vars <<'EOF'
+          GITHUB_OAUTH_CLIENT_ID=ci-placeholder
+          GITHUB_OAUTH_CLIENT_SECRET=ci-placeholder
+          SESSION_SECRET=ci-only-session-placeholder-not-valid-for-production
+          GITHUB_ACTIONS_TOKEN=ci-placeholder
+          EOF
       - name: Build the Worker and dashboard
         run: npm run build
+      - name: Remove build-only placeholder secrets
+        if: always()
+        run: rm -f .dev.vars
       - name: Create encrypted Worker secrets upload file
         shell: bash
         env:

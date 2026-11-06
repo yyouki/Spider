@@ -505,3 +505,110 @@ a { color: inherit; }
   }
   .ide-mobile-tabs button.active { border-color: #c6d8ce; background: var(--accent-soft); color: var(--accent); }
 }
+
+/* File and image attachments rendered inline in the conversation. */
+.message-attachment {
+  display: flex; align-items: center; gap: 11px; max-width: min(100%, 560px);
+  margin: 11px 0; padding: 11px 12px; border: 1px solid var(--line);
+  border-radius: 9px; background: #fff;
+}
+.attachment-file-icon {
+  display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px;
+  border-radius: 8px; background: #edf3ef; color: var(--accent);
+  font: 700 10px ui-monospace, monospace;
+}
+.attachment-file-name { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.attachment-file-name strong { color: var(--ink); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-file-name small { color: var(--muted); font: 9px ui-monospace, monospace; overflow-wrap: anywhere; }
+.message-attachment button, .message-image-attachment button {
+  border: 1px solid var(--line-strong); border-radius: 6px; padding: 7px 9px;
+  background: #fff; color: var(--accent); font-size: 9px; font-weight: 650; cursor: pointer;
+}
+.message-attachment button:hover, .message-image-attachment button:hover { background: var(--accent-pale); border-color: #c3d5ca; }
+.attachment-error, .message-attachment-error { color: var(--danger); font-size: 9px; }
+.message-attachment-loading { padding: 12px; color: var(--muted); font-size: 10px; }
+.message-image-attachment {
+  display: grid; gap: 10px; width: min(100%, 520px); margin: 12px 0;
+  overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: #fff;
+}
+.message-image-attachment img { display: block; width: 100%; max-height: 520px; object-fit: contain; background: #f0f2f1; }
+.message-image-attachment > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 11px 11px; }
+.message-image-attachment > div > span { display: grid; gap: 3px; min-width: 0; }
+.message-image-attachment strong { color: var(--ink); font-size: 10px; }
+.message-image-attachment small { color: var(--muted); font-size: 9px; }
+.pending-image-attachment {
+  display: flex; align-items: center; gap: 9px; padding: 9px 12px 0;
+}
+.pending-image-attachment img { width: 44px; height: 44px; object-fit: cover; border: 1px solid var(--line); border-radius: 7px; }
+.pending-image-attachment span { color: var(--muted-strong); font-size: 10px; overflow-wrap: anywhere; flex: 1; }
+.pending-image-attachment button { width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 50%; background: #fff; color: var(--muted); cursor: pointer; }
+.composer-tools { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.attach-image-button {
+  display: inline-flex; align-items: center; gap: 5px; color: var(--muted-strong);
+  font-size: 9px; font-weight: 650; cursor: pointer;
+}
+.attach-image-button:hover { color: var(--accent); }
+.attach-image-button input { display: none; }
+
+/* Explicit file write review: keep the before/after readable without a fake diff. */
+.file-approval-card { width: min(100%, 760px); margin: 8px 0 8px 38px; border-color: #d6e0d9; background: #fbfdfb; }
+.approval-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; }
+.approval-heading > div { display: grid; gap: 4px; }
+.approval-heading strong { color: var(--accent); font-size: 12px; }
+.approval-heading small { color: var(--muted); font-size: 9px; }
+.approval-heading code { max-width: 55%; padding: 5px 7px; overflow-wrap: anywhere; border-radius: 5px; background: #edf2ef; color: #435b4e; font-size: 9px; }
+.file-approval-card > p { margin: 9px 0; color: var(--muted-strong); font-size: 10px; }
+.file-diff-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.file-diff-grid > div { min-width: 0; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: #fff; }
+.file-diff-grid header { padding: 7px 9px; border-bottom: 1px solid var(--line); color: var(--muted-strong); font-size: 9px; font-weight: 700; }
+.file-diff-grid pre { max-height: 240px; min-height: 90px; margin: 0; padding: 9px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #f7f9f8; color: #34423b; font: 9px/1.55 ui-monospace, monospace; }
+
+/* IDE controls: search, history, folder archives, and sandbox run output. */
+.ide-search {
+  display: block; width: calc(100% - 20px); margin: 7px 10px 10px; padding: 8px 9px;
+  border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink);
+  font-size: 10px;
+}
+.ide-tree-row { padding-right: 30px; }
+.ide-folder-download {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; margin: -26px 5px 4px auto; float: right;
+  border: 0; border-radius: 5px; background: transparent; color: #98a39e;
+  font-size: 12px; cursor: pointer;
+}
+.ide-folder-download:hover { background: #e8f0eb; color: var(--accent); }
+.ide-history-button, .ide-run-button {
+  align-self: center; margin-right: 6px; padding: 6px 9px;
+  border: 1px solid #46534e; border-radius: 6px; background: #293d34;
+  color: #dae7df; font-size: 9px; cursor: pointer; white-space: nowrap;
+}
+.ide-history-button:hover, .ide-run-button:hover { background: #355648; }
+.ide-history-button:disabled, .ide-run-button:disabled { opacity: .45; cursor: not-allowed; }
+.ide-history-panel { max-height: 260px; overflow: auto; border-bottom: 1px solid #3b4742; background: #252f37; color: #e2e9e4; }
+.ide-history-panel > div { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid #3b4742; }
+.ide-history-panel > div strong { font-size: 10px; }
+.ide-history-panel > div button { border: 0; background: transparent; color: #afbbb5; font-size: 16px; cursor: pointer; }
+.ide-history-panel > article { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; border-bottom: 1px solid #35413b; }
+.ide-history-panel > article span { display: grid; gap: 4px; min-width: 0; }
+.ide-history-panel > article strong { color: #dbe5df; font-size: 9px; }
+.ide-history-panel > article small { overflow: hidden; color: #95a39b; font: 8px/1.4 ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.ide-history-panel > article button { align-self: center; padding: 6px 8px; border: 1px solid #60766a; border-radius: 5px; background: #30483b; color: #e1eee6; font-size: 8px; cursor: pointer; }
+.ide-history-panel > p { padding: 10px 12px; color: #9caca3; font-size: 9px; }
+.ide-output-panel { max-height: 260px; overflow: auto; border-top: 1px solid #3d4944; background: #151c20; }
+.ide-output-panel > header { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid #34413b; }
+.ide-output-panel > header span { display: flex; align-items: center; gap: 11px; }
+.ide-output-panel > header strong { color: #d5e2d9; font-size: 9px; letter-spacing: .1em; }
+.ide-output-panel > header small { color: #96b4a3; font-size: 9px; }
+.ide-output-panel > header button { border: 0; background: transparent; color: #a6b3ac; font-size: 9px; cursor: pointer; }
+.ide-output-panel pre { min-height: 50px; max-height: 180px; margin: 0; padding: 11px 13px; overflow: auto; color: #d0ddd5; font: 10px/1.6 ui-monospace, monospace; white-space: pre-wrap; }
+.ide-output-error { margin: 9px 12px 0; color: #e1a4a4; font-size: 9px; }
+.ide-output-panel + .ide-statusbar { border-top: 1px solid #43504a; }
+@media (max-width: 700px) {
+  .file-approval-card { width: calc(100% - 38px); margin-left: 38px; }
+  .file-diff-grid { grid-template-columns: 1fr; }
+  .approval-heading { flex-direction: column; }
+  .approval-heading code { max-width: 100%; }
+  .composer-tools { flex-wrap: wrap; gap: 7px; }
+  .ide-tabs { flex-wrap: nowrap; }
+  .ide-history-button, .ide-run-button { padding: 5px 7px; font-size: 8px; }
+}

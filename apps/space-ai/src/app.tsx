@@ -5,7 +5,9 @@ import { isToolUIPart, type UIMessage } from "ai";
 import type { AutonomySettings, SpaceAgent } from "./server";
 import type { ComponentType, MouseEvent } from "react";
 import type { Props as WorkspaceIDEProps } from "./ide";
-import AnalyticsPage, { type TokenUsageSummary, type WorkspaceFileMetadata } from "./analytics";
+import type { TokenUsageSummary, WorkspaceFileMetadata } from "./analytics";
+
+const AnalyticsPage = lazy(() => import("./analytics"));
 
 const WorkspaceIDE = lazy<ComponentType<WorkspaceIDEProps>>(() => {
   // Monaco and its Web Workers are browser-only; keep them out of the Cloudflare SSR bundle.
@@ -30,7 +32,104 @@ const NAV_ITEMS = [
   { href: "/settings", label: "Settings" }
 ];
 
-function MessageParts({ message }: { message: UIMessage }) {
+type WorkspaceAsset = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  contentBase64: string;
+  sizeBytes: number;
+  prompt: string;
+  createdAt: string;
+};
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function WorkspaceFileAttachment({
+  path,
+  onReadFile
+}: {
+  path: string;
+  onReadFile: (path: string) => Promise<{ path: string; content: string } | null>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const download = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const file = await onReadFile(path);
+      if (!file) throw new Error("File is no longer available.");
+      triggerDownload(new Blob([file.content], { type: "text/plain;charset=utf-8" }), path.split("/").at(-1) || "workspace-file.txt");
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Download failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="message-attachment">
+      <span className="attachment-file-icon">{"</>"}</span>
+      <span className="attachment-file-name"><strong>{path.split("/").at(-1)}</strong><small>{path}</small></span>
+      <button type="button" onClick={() => void download()} disabled={busy}>{busy ? "Preparing…" : "Download"}</button>
+      {error && <small className="attachment-error">{error}</small>}
+    </div>
+  );
+}
+
+function WorkspaceImageAttachment({
+  assetId,
+  onReadAsset
+}: {
+  assetId: string;
+  onReadAsset: (id: string) => Promise<WorkspaceAsset | null>;
+}) {
+  const [asset, setAsset] = useState<WorkspaceAsset | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void onReadAsset(assetId).then((result) => {
+      if (active) setAsset(result);
+    }).catch(() => {
+      if (active) setError("Image preview is unavailable.");
+    });
+    return () => { active = false; };
+  }, [assetId, onReadAsset]);
+  if (error) return <div className="message-attachment-error">{error}</div>;
+  if (!asset) return <div className="message-attachment-loading">Preparing image…</div>;
+  const source = "data:" + asset.mimeType + ";base64," + asset.contentBase64;
+  return (
+    <div className="message-image-attachment">
+      <img src={source} alt={asset.filename} loading="lazy" />
+      <div><span><strong>{asset.filename}</strong><small>{(asset.sizeBytes / 1024).toFixed(0)} KB · generated in Space</small></span>
+        <button type="button" onClick={() => {
+          const bytes = Uint8Array.from(atob(asset.contentBase64), (char) => char.charCodeAt(0));
+          const buffer = new ArrayBuffer(bytes.byteLength);
+          new Uint8Array(buffer).set(bytes);
+          triggerDownload(new Blob([buffer], { type: asset.mimeType }), asset.filename);
+        }}>Download image</button>
+      </div>
+    </div>
+  );
+}
+
+function MessageParts({
+  message,
+  onReadFile,
+  onReadAsset
+}: {
+  message: UIMessage;
+  onReadFile: (path: string) => Promise<{ path: string; content: string } | null>;
+  onReadAsset: (id: string) => Promise<WorkspaceAsset | null>;
+}) {
   const isUser = message.role === "user";
 
   return (
@@ -45,6 +144,20 @@ function MessageParts({ message }: { message: UIMessage }) {
             }
 
             if (isToolUIPart(part)) {
+              const toolPart = part as unknown as { type: string; state: string; output?: unknown };
+              const output = toolPart.output && typeof toolPart.output === "object"
+                ? toolPart.output as Record<string, unknown>
+                : null;
+              if (toolPart.state === "output-available" && toolPart.type === "tool-writeWorkspaceFile" && typeof output?.path === "string") {
+                return <WorkspaceFileAttachment key={index} path={output.path} onReadFile={onReadFile} />;
+              }
+              if (
+                toolPart.state === "output-available" &&
+                (toolPart.type === "tool-generateImage" || toolPart.type === "tool-editImage") &&
+                typeof output?.assetId === "string"
+              ) {
+                return <WorkspaceImageAttachment key={index} assetId={output.assetId} onReadAsset={onReadAsset} />;
+              }
               return (
                 <details className="tool-event" key={index}>
                   <summary><span className="tool-event-dot" />{part.type.replace("tool-", "")}<span className="tool-event-state">{part.state}</span></summary>
@@ -58,6 +171,55 @@ function MessageParts({ message }: { message: UIMessage }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function FileWriteApproval({
+  path,
+  content,
+  onReadFile,
+  onApprove,
+  onReject
+}: {
+  path: string;
+  content: string;
+  onReadFile: (path: string) => Promise<{ path: string; content: string } | null>;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const [previous, setPrevious] = useState<{ path: string; content: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void onReadFile(path).then((file) => {
+      if (active) setPrevious(file);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [onReadFile, path]);
+
+  const oldLines = previous?.content.split("\\n") ?? [];
+  const newLines = content.split("\\n");
+  const changed = oldLines.length !== newLines.length || oldLines.some((line, index) => line !== newLines[index]);
+  return (
+    <section className="approval-card file-approval-card">
+      <div className="approval-heading">
+        <div><strong>Review file change</strong><small>{previous ? "Update existing file" : "Create new file"}</small></div>
+        <code>{path}</code>
+      </div>
+      <p>{loading ? "Loading the current file…" : changed ? "Compare the saved version with the proposed content before applying it." : "The proposed content matches the current file."}</p>
+      {!loading && (
+        <div className="file-diff-grid">
+          <div><header>Current</header><pre>{previous?.content ?? "(new file)"}</pre></div>
+          <div><header>Proposed</header><pre>{content}</pre></div>
+        </div>
+      )}
+      <div className="approval-actions">
+        <button type="button" className="button button-primary" onClick={onApprove} disabled={loading}>Approve and apply</button>
+        <button type="button" className="button button-secondary" onClick={onReject}>Reject</button>
+      </div>
+    </section>
   );
 }
 
@@ -100,6 +262,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const [shareNotice, setShareNotice] = useState("");
   const [tokenUsage, setTokenUsage] = useState<TokenUsageSummary | null>(null);
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileMetadata[]>([]);
+  const [pendingImage, setPendingImage] = useState<{ id: string; filename: string; mimeType: string; contentBase64: string } | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
   const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "/" : window.location.pathname);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -175,7 +339,19 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   }, [agent]);
 
   const readWorkspaceFile = useCallback((path: string) => agent.stub.readWorkspaceFile(path), [agent]);
+  const readWorkspaceAsset = useCallback((id: string) => agent.stub.readWorkspaceAsset(id), [agent]);
   const writeWorkspaceFile = useCallback((path: string, content: string) => agent.stub.writeWorkspaceFile(path, content), [agent]);
+  const listWorkspaceFileHistory = useCallback((path: string) => agent.stub.listWorkspaceFileHistory(path), [agent]);
+  const restoreWorkspaceFile = useCallback((path: string, revisionId: string) => agent.stub.restoreWorkspaceFile(path, revisionId), [agent]);
+  const runWorkspaceFile = useCallback(async (path: string) => {
+    if (settings.workspaceExecution === "manual" &&
+        !window.confirm("Workspace execution is set to manual. Run this file once in the restricted offline sandbox?")) {
+      return { accepted: false, note: "Run cancelled by owner." };
+    }
+    return agent.stub.runWorkspaceFile(path, 10, settings.workspaceExecution === "manual");
+  }, [agent, settings.workspaceExecution]);
+  const getWorkspaceRunStatus = useCallback((taskId: string) => agent.stub.getWorkspaceRunStatus(taskId), [agent]);
+  const searchWorkspaceFiles = useCallback((query: string) => agent.stub.searchWorkspaceFiles(query), [agent]);
 
   useEffect(() => {
     if (connected && (currentPath === "/analytics" || currentPath === "/ide")) void listWorkspaceFiles().catch(() => undefined);
@@ -199,15 +375,64 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 
     setDraft("");
     setError("");
+    const attachmentNote = pendingImage
+      ? `\\n\\n[Image attachment: ${pendingImage.filename}; asset ID: ${pendingImage.id}. Use editImage with this asset ID if I ask you to edit the image.]`
+      : "";
     sendMessage({
       role: "user",
-      parts: [{ type: "text", text }]
+      parts: [{ type: "text", text: text + attachmentNote }]
     });
+    setPendingImage(null);
   };
 
   const clear = () => {
     if (!window.confirm("Hapus riwayat percakapan? Catatan proyek, file workspace, dan rencana kerja yang tersimpan terpisah tidak ikut dihapus.")) return;
     clearHistory();
+  };
+
+  const uploadImage = async (file?: File) => {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setError("File sumber melebihi 8 MB. Pilih gambar yang lebih kecil.");
+      return;
+    }
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setError("Gunakan gambar PNG, JPEG, atau WebP.");
+      return;
+    }
+    setUploadBusy(true);
+    setError("");
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 510 / bitmap.width, 510 / bitmap.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Image processing is unavailable in this browser.");
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not prepare the image.")), "image/webp", 0.84);
+      });
+      if (blob.size > 1_350_000) throw new Error("Gambar hasil kompresi melebihi 1,35 MB. Pilih gambar lain atau kecilkan resolusinya.");
+      const buffer = new Uint8Array(await blob.arrayBuffer());
+      let binary = "";
+      for (let offset = 0; offset < buffer.length; offset += 0x8000) {
+        binary += String.fromCharCode(...buffer.subarray(offset, offset + 0x8000));
+      }
+      const contentBase64 = btoa(binary);
+      const saved = await agent.stub.uploadWorkspaceAsset({
+        filename: file.name.replace(/\\.[^.]+$/, "") + ".webp",
+        mimeType: "image/webp",
+        contentBase64
+      });
+      setPendingImage({ id: saved.id, filename: saved.filename, mimeType: saved.mimeType, contentBase64 });
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Image upload failed.");
+    } finally {
+      setUploadBusy(false);
+    }
   };
 
   const shareChat = async () => {
@@ -334,7 +559,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
       <section className="chat-card">
         <div className="chat-card-header">
           <div><span className="chat-status-dot" /> <strong>Space</strong><span>Persistent conversation</span></div>
-          <small>{messages.length} / 100 messages retained</small>
+          <small>Persistent history · automatic context summaries</small>
         </div>
         <div className="messages" aria-live="polite">
           {messages.length === 0 && (
@@ -352,7 +577,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 
           {messages.map((message) => (
             <div className="message-group" key={message.id}>
-              <MessageParts message={message} />
+              <MessageParts message={message} onReadFile={readWorkspaceFile} onReadAsset={readWorkspaceAsset} />
               {message.parts.map((part, index) => {
                 if (!isToolUIPart(part) || part.state !== "approval-requested") return null;
                 const approvalId =
@@ -361,6 +586,22 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
                     : undefined;
                 if (!approvalId) return null;
 
+                const pendingTool = part as unknown as { type: string; input?: unknown };
+                const pendingInput = pendingTool.input && typeof pendingTool.input === "object"
+                  ? pendingTool.input as Record<string, unknown>
+                  : null;
+                if (pendingTool.type === "tool-writeWorkspaceFile" && typeof pendingInput?.path === "string" && typeof pendingInput.content === "string") {
+                  return (
+                    <FileWriteApproval
+                      key={`${message.id}-approval-${index}`}
+                      path={pendingInput.path}
+                      content={pendingInput.content}
+                      onReadFile={readWorkspaceFile}
+                      onApprove={() => addToolApprovalResponse({ id: approvalId, approved: true })}
+                      onReject={() => addToolApprovalResponse({ id: approvalId, approved: false })}
+                    />
+                  );
+                }
                 return (
                   <div className="approval-card" key={`${message.id}-approval-${index}`}>
                     <strong>Approval required</strong>
@@ -393,12 +634,24 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
             }}
             placeholder="Message Space…"
             rows={3}
-            maxLength={8000}
             disabled={!connected || busy}
             aria-label="Message Space"
           />
+          {pendingImage && (
+            <div className="pending-image-attachment">
+              <img src={"data:" + pendingImage.mimeType + ";base64," + pendingImage.contentBase64} alt={pendingImage.filename} />
+              <span>{pendingImage.filename}</span>
+              <button type="button" onClick={() => setPendingImage(null)} aria-label="Remove attached image">×</button>
+            </div>
+          )}
           <div className="composer-footer">
-            <span>Enter to send · Shift + Enter for a new line</span>
+            <div className="composer-tools">
+              <label className="attach-image-button">
+                {uploadBusy ? "Preparing image…" : "＋ Image"}
+                <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadBusy || busy} onChange={(event) => { void uploadImage(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+              </label>
+              <span>Enter to send · Shift + Enter for a new line</span>
+            </div>
             {busy ? (
               <button type="button" className="button button-primary" onClick={stop}>Stop response</button>
             ) : (
@@ -427,6 +680,11 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           onListFiles={listWorkspaceFiles}
           onReadFile={readWorkspaceFile}
           onWriteFile={writeWorkspaceFile}
+          onListHistory={listWorkspaceFileHistory}
+          onRestoreFile={restoreWorkspaceFile}
+          onRunFile={runWorkspaceFile}
+          onGetRunStatus={getWorkspaceRunStatus}
+          onSearchFiles={searchWorkspaceFiles}
         />
       </Suspense>
     </main>
@@ -467,11 +725,12 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
         />
         <SettingSelect
           label="Project files"
-          description="Create, read, and edit files in the private Space workspace shown in the IDE."
+          description="Choose how Space applies file changes. Review mode presents the current and proposed file side by side."
           value={settings.projectFiles}
           options={[
             { value: "ask_before_write", label: "Ask before every write" },
-            { value: "selected_workspace", label: "Private Space workspace" }
+            { value: "review_changes", label: "Review diff before applying" },
+            { value: "selected_workspace", label: "Apply inside private workspace" }
           ]}
           onChange={(value) => setSettings((current) => ({ ...current, projectFiles: value }))}
         />
@@ -506,7 +765,11 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     <div className="app-shell">
       {header}
       {currentPath === "/ide" ? idePage :
-        currentPath === "/analytics" ? <AnalyticsPage usage={tokenUsage} files={workspaceFiles} /> :
+        currentPath === "/analytics" ? (
+          <Suspense fallback={<main className="page-container"><p>Loading analytics…</p></main>}>
+            <AnalyticsPage usage={tokenUsage} files={workspaceFiles} />
+          </Suspense>
+        ) :
         currentPath === "/settings" ? settingsPage : chatPage}
     </div>
   );

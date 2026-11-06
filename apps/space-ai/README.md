@@ -6,7 +6,7 @@ A first, deliberately small implementation of the single-core space AI workspace
 
 - One user-facing AI identity: `SpaceAgent`.
 - Streaming text chat from a mobile-first React interface.
-- Persistent chat history and resumable chat state through Cloudflare Agents / Durable Objects SQLite.
+- Persistent chat history through Cloudflare Agents / Durable Objects SQLite, with no fixed message-count cap and an automatically maintained summary for older context. Storage and inference still obey Cloudflare's quotas and per-row limits.
 - Owner-triggered read-only conversation share links. Links contain a random bearer token, expose the currently loaded conversation and tool events, expire after seven days, and can be revoked. Anyone with the link can read the snapshot.
 - A task ledger for saving, listing, and cancelling plans. A saved plan is not executed automatically.
 - Owner-configurable autonomy preferences stored in the Agent's SQLite database.
@@ -17,19 +17,20 @@ A first, deliberately small implementation of the single-core space AI workspace
 - Owner-only GitHub OAuth login. The temporary read:user token is used only for the identity lookup and is not stored; Space stores only a signed session cookie. Keep the OAuth App's expiring user-token setting enabled.
 - Workers AI model: `@cf/zai-org/glm-4.7-flash`.
 - Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
-- A human-authored IDE interface using Monaco Editor, with folder Explorer, file tabs, keyboard save, and mobile Explorer/Editor tabs.
-- Persistent private workspace files created or updated by AI tools or the editor. Folder structure is inferred from file paths.
-- Provider-reported recent input/output token usage plus clearly labeled file/workspace token estimates.
+- A dedicated IDE page using Monaco Editor, with Explorer, folder ZIP downloads, project ZIP download, multi-file tabs, automatic saving, file history/restore, full-text search, Run File output, and mobile Explorer/Editor tabs. Monaco provides syntax highlighting for many languages; the sandbox executes Python and JavaScript only.
+- Persistent private workspace files created or updated by AI tools or the editor. Folder structure is inferred from file paths. Successful AI file writes show a downloadable file attachment in the conversation.
+- A separate Analytics page with provider-reported token usage, daily activity and workspace storage estimates.
+- Private image assets, FLUX.2 Klein image generation/editing, and chat image previews with download actions.
 
 ## Not included yet
 
-Autonomous browser, GitHub repository sync, image/video/audio understanding, Android/Windows/macOS device runners, Gmail or other account integrations, and a production updater are not connected. The workspace is an isolated app-level file store, not the user device filesystem or repository checkout. The sandbox is for small snippets, not a persistent coding VM or full shell. It does not mount the workspace, repository, or host filesystem and provides no internet access.
+Autonomous browser, GitHub repository sync, image understanding/OCR, audio/video understanding, Android/Windows/macOS device runners, Gmail or other account integrations, multi-language compilers beyond Python/JavaScript, binary disassembly, live market-data feeds, brokerage/exchange connectors, and a production updater are not connected. The workspace is an isolated app-level file store, not the user device filesystem or repository checkout. The sandbox is for small snippets, not a persistent coding VM or full shell. It does not mount the workspace, repository, or host filesystem and provides no internet access.
 
 ## Private workspace and IDE
 
 The IDE uses Monaco Editor with Vite-bundled language workers; it does not load editor code from a third-party CDN. The Explorer derives folders from saved relative file paths. Selecting a file opens it in a syntax-aware editor tab; use **Save** or Ctrl/Cmd+S to persist edits.
 
-Workspace files are stored in the owning SpaceAgent Durable Object SQLite database. Limits are 200 files, 128 KB per file, and 2 MB total. Hidden paths and sensitive config filenames such as `.env` and `.dev.vars` are rejected. AI-created files appear in the Explorer after the write tool completes. These files do not automatically sync to GitHub or the device.
+Workspace files are stored in the owning SpaceAgent Durable Object SQLite database. Limits are 200 files, 128 KB per file, and 2 MB total. The last 20 prior versions per file are retained when saved content changes. Hidden paths and sensitive config filenames such as `.env` and `.dev.vars` are rejected. AI-created files appear in the Explorer after the write tool completes and show a direct Download action in chat. The IDE supports search inside file contents, automatic saving, version restore, ZIP download of a folder/project, and a bounded Run File action for Python/JavaScript. Files do not automatically sync to GitHub or the device.
 
 The separate **Analytics** page shows provider-reported input/output usage for at most the 200 most recent responses, a 14-day daily activity chart, and the latest 12 responses. The workspace section shows file count and storage size plus a clearly labeled rough token estimate using UTF-8 bytes divided by four. It is not an exact GLM tokenizer count or model usage. The dashboard does not estimate monetary cost or expose account-wide Cloudflare Neurons.
 
@@ -62,7 +63,11 @@ Sending/publishing, spending money, deleting important data, changing account se
 
 ## Model
 
-The default model is `@cf/zai-org/glm-4.7-flash`. Cloudflare documents it as a multilingual reasoning and function-calling model with a 131,072-token context window. That makes it a reasonable MVP choice for chat and multi-turn tools, not a guarantee of perfect autonomous performance. Workers AI Free usage has a daily Neurons allocation; once exhausted, further inference stops until the allowance resets or the account moves to a paid plan.
+The default text model is `@cf/zai-org/glm-4.7-flash`; image generation and editing use `@cf/black-forest-labs/flux-2-klein-4b`. Cloudflare documents it as a multilingual reasoning and function-calling model with a 131,072-token context window. That makes it a reasonable MVP choice for chat and multi-turn tools, not a guarantee of perfect autonomous performance. Workers AI Free usage has a daily Neurons allocation; once exhausted, further inference stops until the allowance resets or the account moves to a paid plan.
+
+Image generation/editing is not image understanding: the current app does not yet provide general image description, OCR, audio, or video analysis. Image tasks consume Workers AI quota. Uploaded reference images are resized to at most 510×510 pixels for the connected editing model. Image storage is capped at 40 assets and 25 MB total, with a 1.35 MB per-image cap to stay below Durable Object SQLite row limits.
+
+Space can help explain and reason about many fields—including programming, mathematics, science, writing, design, automotive theory, business concepts, and personal-finance education—but it is not a licensed professional and does not connect to banks, brokerages, crypto exchanges, or trading accounts. It provides educational analysis, not trade execution or guaranteed investment results.
 
 A custom model does not remove inference cost or quotas. Training and serving a capable model require compute. Keep the provider/model behind the AI SDK adapter so a later tested model can replace it without rewriting the workspace.
 
