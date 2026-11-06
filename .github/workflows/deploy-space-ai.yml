@@ -55,6 +55,7 @@ jobs:
           test -n "$SESSION_SECRET"
           test -n "$SPACE_ACTIONS_TOKEN"
           node -e "if ((process.env.SESSION_SECRET || '').length < 32) process.exit(1)"
+          node -e "const values = [process.env.SPACE_GOOGLE_OAUTH_CLIENT_ID, process.env.SPACE_GOOGLE_OAUTH_CLIENT_SECRET, process.env.SPACE_GOOGLE_OWNER_EMAIL]; if (values.some(Boolean) && !values.every(Boolean)) { console.error('Configure all three optional Google secrets together, or leave them all empty.'); process.exit(1); }"
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Type-check and run all tests
