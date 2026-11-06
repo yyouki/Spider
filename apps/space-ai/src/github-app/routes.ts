@@ -1,6 +1,11 @@
 import type { GitHubAppTokenRecord } from "./vault";
 import { requireOwnerAccess } from "../security/access";
 import { getSpaceAgentName } from "../security/tenant-routing.js";
+import {
+  isValidNewRepositoryName,
+  isWritablePersonalRepository,
+  parsePersonalRepositoryTarget
+} from "./repository-policy.js";
 
 type GitHubAppEnvironment = Env & {
   GITHUB_APP_CLIENT_ID?: string;
@@ -362,13 +367,13 @@ async function publishToExistingRepository(
   fullName: string,
   snapshot: WorkspaceSnapshot
 ): Promise<{ url: string; fullName: string; branch: string; filesPublished: number; commit: string; isPrivate: boolean; createdNew: boolean }> {
-  const parts = fullName.split("/");
-  if (parts.length !== 2 || parts[0].toLowerCase() !== login.toLowerCase()) {
+  const target = parsePersonalRepositoryTarget(fullName, login);
+  if (!target) {
     throw new Error("Only repositories owned by the connected personal GitHub account can be selected.");
   }
   const repo = await githubApi<GitHubRepositoryInfo>(
     accessToken,
-    "/repos/" + encodeURIComponent(parts[0]) + "/" + encodeURIComponent(parts[1])
+    "/repos/" + encodeURIComponent(target.owner) + "/" + encodeURIComponent(target.name)
   );
   return commitWorkspaceSnapshot(accessToken, login, repo, snapshot);
 }
@@ -379,13 +384,7 @@ async function listWritableRepositories(accessToken: string, login: string): Pro
     "/user/repos?per_page=100&sort=updated"
   );
   return repositories
-    .filter((repo) =>
-      repo.owner?.login?.toLowerCase() === login.toLowerCase() &&
-      repo.permissions?.push === true &&
-      !repo.archived &&
-      !repo.disabled &&
-      typeof repo.default_branch === "string"
-    )
+    .filter((repo) => isWritablePersonalRepository(repo, login))
     .map((repo) => ({
       name: repo.name,
       fullName: repo.full_name,
@@ -619,7 +618,7 @@ export async function handleGitHubAppRequest(request: Request, env: Env): Promis
     const name = typeof input.name === "string" ? input.name.trim() : "";
     const description = typeof input.description === "string" ? input.description.trim().slice(0, 300) : "";
     const existingRepository = typeof input.existingRepository === "string" ? input.existingRepository.trim() : "";
-    if (!existingRepository && (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(name) || name.endsWith("."))) {
+    if (!existingRepository && !isValidNewRepositoryName(name)) {
       return Response.json({ error: "Use a repository name with up to 100 letters, numbers, dots, underscores, or hyphens." }, { status: 400 });
     }
 
