@@ -90,6 +90,18 @@ type WorkspaceRevisionRow = { id: string; path: string; content: string; size_by
 type WorkspaceAssetRow = { id: string; filename: string; mime_type: string; content_base64: string; size_bytes: number; prompt: string; created_at: number };
 type ConversationContextRow = { summary_text: string; summarized_through_id: string; updated_at: number };
 
+type ConversationListRow = {
+  id: string;
+  title: string;
+  pinned: number;
+  messages_json: string;
+  message_count: number;
+  created_at: number;
+  updated_at: number;
+};
+
+type ActiveConversationRow = { conversation_id: string };
+
 const WORKSPACE_FILE_LIMIT = 200;
 const WORKSPACE_FILE_MAX_BYTES = 128 * 1024;
 const WORKSPACE_TOTAL_MAX_BYTES = 2 * 1024 * 1024;
@@ -229,11 +241,193 @@ export class SpaceAgent extends AIChatAgent<Env> {
       summarized_through_id TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     )`;
+
+    // Keep conversations separate while reusing the durable AIChatAgent message store for the active chat.
+    this.sql`CREATE TABLE IF NOT EXISTS conversations (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      messages_json TEXT NOT NULL DEFAULT '[]',
+      message_count INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`;
+    this.sql`CREATE INDEX IF NOT EXISTS conversations_pinned_updated
+      ON conversations(pinned DESC, updated_at DESC)`;
+    this.sql`CREATE TABLE IF NOT EXISTS active_conversation (
+      state_key TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL
+    )`;
+
+    const now = Date.now();
+    this.sql`INSERT OR IGNORE INTO conversations
+      (id, title, pinned, messages_json, message_count, created_at, updated_at)
+      VALUES ('default', 'New chat', 0, '[]', 0, ${now}, ${now})`;
+    this.sql`INSERT OR IGNORE INTO active_conversation (state_key, conversation_id)
+      VALUES ('active', 'default')`;
+
+    // Preserve summaries written by versions that stored the single conversation under "primary".
+    this.sql`INSERT OR IGNORE INTO conversation_context
+      (context_id, summary_text, summarized_through_id, updated_at)
+      SELECT 'default', summary_text, summarized_through_id, updated_at
+      FROM conversation_context WHERE context_id = 'primary'`;
+  }
+
+  private getActiveConversationId(): string {
+    const rows = this.sql<ActiveConversationRow>`SELECT conversation_id
+      FROM active_conversation WHERE state_key = 'active' LIMIT 1`;
+    return rows[0]?.conversation_id ?? "default";
+  }
+
+  private getConversationTitle(messages: unknown): string {
+    if (!Array.isArray(messages)) return "New chat";
+    const firstUser = messages.find((message) =>
+      Boolean(message && typeof message === "object" && "role" in message && message.role === "user")
+    ) as { parts?: Array<{ type?: string; text?: unknown }> } | undefined;
+    const text = firstUser?.parts
+      ?.filter((part) => part?.type === "text" && typeof part.text === "string")
+      .map((part) => String(part.text))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!text) return "New chat";
+    return text.length > 72 ? text.slice(0, 69).trimEnd() + "..." : text;
+  }
+
+  private saveConversationSnapshot(messages: unknown = this.messages): void {
+    const conversationId = this.getActiveConversationId();
+    if (!Array.isArray(messages)) throw new Error("Conversation messages must be an array.");
+    const serialized = JSON.stringify(messages);
+    const size = new TextEncoder().encode(serialized).byteLength;
+    // Keep each archived snapshot bounded; active chat storage remains managed by AIChatAgent.
+    if (size > 2 * 1024 * 1024) {
+      throw new Error("This conversation snapshot is larger than the 2 MB archive limit.");
+    }
+    const rows = this.sql<Pick<ConversationListRow, "title">>`SELECT title FROM conversations
+      WHERE id = ${conversationId} LIMIT 1`;
+    const existingTitle = rows[0]?.title ?? "New chat";
+    const suggestedTitle = this.getConversationTitle(messages);
+    const title = existingTitle === "New chat" ? suggestedTitle : existingTitle;
+    const now = Date.now();
+    this.sql`UPDATE conversations SET
+      title = ${title},
+      messages_json = ${serialized},
+      message_count = ${messages.length},
+      updated_at = ${now}
+      WHERE id = ${conversationId}`;
+  }
+
+  @callable()
+  listConversations(inputQuery = "") {
+    const query = typeof inputQuery === "string" ? inputQuery.trim().slice(0, 100).toLowerCase() : "";
+    const rows = this.sql<ConversationListRow>`SELECT id, title, pinned, messages_json, message_count, created_at, updated_at
+      FROM conversations ORDER BY pinned DESC, updated_at DESC LIMIT 100`;
+    const activeId = this.getActiveConversationId();
+    return rows
+      .filter((row) => !query || row.title.toLowerCase().includes(query) || row.messages_json.toLowerCase().includes(query))
+      .map((row) => ({
+        id: row.id,
+        title: row.title,
+        pinned: row.pinned === 1,
+        messageCount: row.message_count,
+        createdAt: new Date(row.created_at).toISOString(),
+        updatedAt: new Date(row.updated_at).toISOString(),
+        active: row.id === activeId
+      }));
+  }
+
+  @callable()
+  saveActiveConversation(inputMessages: unknown) {
+    this.saveConversationSnapshot(inputMessages);
+    return { saved: true, conversationId: this.getActiveConversationId() };
+  }
+
+  @callable()
+  async createConversation() {
+    this.saveConversationSnapshot(this.messages);
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    this.sql`INSERT INTO conversations
+      (id, title, pinned, messages_json, message_count, created_at, updated_at)
+      VALUES (${id}, 'New chat', 0, '[]', 0, ${now}, ${now})`;
+    this.sql`UPDATE active_conversation SET conversation_id = ${id} WHERE state_key = 'active'`;
+    await this.persistMessages([]);
+    return { id, title: "New chat" };
+  }
+
+  @callable()
+  async activateConversation(inputId: string) {
+    const id = typeof inputId === "string" ? inputId.trim() : "";
+    if (!id || id.length > 80) throw new Error("Provide a valid conversation ID.");
+    const rows = this.sql<Pick<ConversationListRow, "messages_json" | "title">>`SELECT messages_json, title
+      FROM conversations WHERE id = ${id} LIMIT 1`;
+    if (!rows.length) throw new Error("Conversation not found.");
+    let messages: unknown;
+    try {
+      messages = JSON.parse(rows[0].messages_json);
+      if (!Array.isArray(messages)) throw new Error("Invalid snapshot.");
+    } catch {
+      throw new Error("This conversation snapshot could not be restored.");
+    }
+    this.sql`UPDATE active_conversation SET conversation_id = ${id} WHERE state_key = 'active'`;
+    await this.persistMessages(messages as Parameters<typeof this.persistMessages>[0]);
+    return { id, title: rows[0].title };
+  }
+
+  @callable()
+  renameConversation(input: { id: string; title: string }) {
+    const id = typeof input?.id === "string" ? input.id.trim() : "";
+    const title = typeof input?.title === "string" ? input.title.trim().replace(/\s+/g, " ") : "";
+    if (!id || id.length > 80 || !title || title.length > 80) {
+      throw new Error("Conversation titles must contain 1–80 characters.");
+    }
+    this.sql`UPDATE conversations SET title = ${title}, updated_at = ${Date.now()} WHERE id = ${id}`;
+    return { id, title };
+  }
+
+  @callable()
+  pinConversation(input: { id: string; pinned: boolean }) {
+    const id = typeof input?.id === "string" ? input.id.trim() : "";
+    if (!id || id.length > 80 || typeof input.pinned !== "boolean") {
+      throw new Error("Provide a valid conversation and pin state.");
+    }
+    this.sql`UPDATE conversations SET pinned = ${input.pinned ? 1 : 0}, updated_at = ${Date.now()} WHERE id = ${id}`;
+    return { id, pinned: input.pinned };
+  }
+
+  @callable()
+  async deleteConversation(inputId: string) {
+    const id = typeof inputId === "string" ? inputId.trim() : "";
+    if (!id || id.length > 80) throw new Error("Provide a valid conversation ID.");
+    const exists = this.sql<{ id: string }>`SELECT id FROM conversations WHERE id = ${id} LIMIT 1`;
+    if (!exists.length) throw new Error("Conversation not found.");
+    const remaining = this.sql<Pick<ConversationListRow, "id" | "messages_json">>`SELECT id, messages_json
+      FROM conversations WHERE id != ${id} ORDER BY pinned DESC, updated_at DESC LIMIT 1`;
+    const wasActive = this.getActiveConversationId() === id;
+    this.sql`DELETE FROM conversations WHERE id = ${id}`;
+    this.sql`DELETE FROM conversation_context WHERE context_id = ${id}`;
+    if (wasActive) {
+      if (remaining.length) {
+        this.sql`UPDATE active_conversation SET conversation_id = ${remaining[0].id} WHERE state_key = 'active'`;
+        const messages = JSON.parse(remaining[0].messages_json);
+        await this.persistMessages(Array.isArray(messages) ? messages as Parameters<typeof this.persistMessages>[0] : []);
+      } else {
+        const nextId = crypto.randomUUID();
+        const now = Date.now();
+        this.sql`INSERT INTO conversations
+          (id, title, pinned, messages_json, message_count, created_at, updated_at)
+          VALUES (${nextId}, 'New chat', 0, '[]', 0, ${now}, ${now})`;
+        this.sql`UPDATE active_conversation SET conversation_id = ${nextId} WHERE state_key = 'active'`;
+        await this.persistMessages([]);
+      }
+    }
+    return { deleted: true, activeConversationId: this.getActiveConversationId() };
   }
 
   @callable()
   clearConversationContext() {
-    this.sql`DELETE FROM conversation_context WHERE context_id = 'primary'`;
+    const activeId = this.getActiveConversationId();
+    this.sql`DELETE FROM conversation_context WHERE context_id = ${activeId}`;
     return { cleared: true };
   }
 
@@ -693,9 +887,10 @@ export class SpaceAgent extends AIChatAgent<Env> {
   protected async onChatResponse(result: ChatResponseResult) {
     if (result.status === "completed") {
       try {
+        this.saveConversationSnapshot(this.messages);
         await this.compactConversationContext();
       } catch {
-        // A failed summary must never invalidate a successful chat response.
+        // A failed archive or summary must never invalidate a successful chat response.
       }
     }
   }
@@ -703,7 +898,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
   private async compactConversationContext() {
     const rows = this.sql<ConversationContextRow>`
       SELECT summary_text, summarized_through_id, updated_at
-      FROM conversation_context WHERE context_id = 'primary' LIMIT 1`;
+      FROM conversation_context WHERE context_id = ${activeId} LIMIT 1`;
     const previous = rows[0];
     const messages = this.messages;
     const keepRecent = 16;
@@ -750,7 +945,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
     if (!summarizedThroughId) return;
     const now = Date.now();
     this.sql`INSERT INTO conversation_context (context_id, summary_text, summarized_through_id, updated_at)
-      VALUES ('primary', ${summary}, ${summarizedThroughId}, ${now})
+      VALUES (${activeId}, ${summary}, ${summarizedThroughId}, ${now})
       ON CONFLICT(context_id) DO UPDATE SET
         summary_text = excluded.summary_text,
         summarized_through_id = excluded.summarized_through_id,
@@ -778,8 +973,9 @@ export class SpaceAgent extends AIChatAgent<Env> {
     let requestOutputTokens = 0;
     let requestTotalTokens = 0;
 
+    const activeConversationId = this.getActiveConversationId();
     const contextRows = this.sql<Pick<ConversationContextRow, "summary_text">>`
-      SELECT summary_text FROM conversation_context WHERE context_id = 'primary' LIMIT 1`;
+      SELECT summary_text FROM conversation_context WHERE context_id = ${activeConversationId} LIMIT 1`;
     const conversationSummary = contextRows[0]?.summary_text;
     const recentMessages = this.messages.slice(-24);
     const savedMemoryRows = this.sql<MemoryRow>`SELECT memory_key AS key, memory_value AS value, updated_at
