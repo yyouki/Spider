@@ -623,7 +623,14 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
     const label = folder ? "folder and all its files" : "file and its saved revisions";
     if (!window.confirm("Permanently delete this " + label + ": " + path + "?")) return;
     try {
-      const result = folder ? await onDeleteFolder(path) : await onDeleteFile(path);
+      let noticeText: string;
+      if (folder) {
+        const result = await onDeleteFolder(path);
+        noticeText = result.deletedCount + " files deleted from " + path;
+      } else {
+        const result = await onDeleteFile(path);
+        noticeText = (result.deleted ? "File deleted: " : "File not found: ") + path;
+      }
       const removedPaths = folder
         ? files.filter((file) => file.path === path || file.path.startsWith(path + "/")).map((file) => file.path)
         : [path];
@@ -635,9 +642,7 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
         setDirty(false);
       }
       await refreshFiles();
-      setNotice(folder
-        ? result.deletedCount + " files deleted from " + path
-        : (result.deleted ? "File deleted: " : "File not found: ") + path);
+      setNotice(noticeText);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not delete workspace path.");
     }
