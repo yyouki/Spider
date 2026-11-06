@@ -122,3 +122,8 @@ The chat composer accepts validated HTTPS links from YouTube, TikTok, Vimeo, and
 ## GitHub project publishing and Android builds
 
 The current MVP stores source files in a private Space workspace and does not sync them to GitHub. The target integration is described in the root documentation. Android projects can use the reusable GitHub Actions workflow template in templates/android; APK artifact retrieval and attaching the APK directly to a Space chat are not yet wired into the app.
+
+
+## Account profile and sign-in providers
+
+Space displays the verified identity returned by the active OAuth provider. GitHub provides the account login, display name, avatar, profile URL, and public email if available. Google sign-in is an optional additional owner sign-in and requires three Cloudflare Worker secrets; it validates the verified email against the configured owner email. Both provider identities use the same owner Agent storage. Public multi-user registration remains disabled.
