@@ -46,3 +46,37 @@ export function parsePersonalRepositoryTarget(value, expectedLogin) {
   }
   return { owner: parts[0], name: parts[1] };
 }
+
+const SECRET_PATTERNS = [
+  /\\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{30,})\\b/,
+  /\\bAKIA[0-9A-Z]{16}\\b/,
+  /\\bAIza[0-9A-Za-z_-]{35}\\b/,
+  /\\bxox[baprs]-[A-Za-z0-9-]{20,}\\b/,
+  /\\bsk-[A-Za-z0-9_-]{24,}\\b/,
+  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+  /-----BEGIN PGP PRIVATE KEY BLOCK-----/
+];
+
+const SECRET_ASSIGNMENT_PATTERN =
+  /(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|private[_-]?key|password)\\s*[:=]\\s*["'` ](?!\\s*(?:process\\.env|import\\.meta\\.env|env\\.|your[_ -]|example|placeholder|replace[_ -]|<))[A-Za-z0-9_./+=-]{20,}["'` ]/i;
+
+/**
+ * Return only paths that appear to contain hard-coded credentials.
+ * Values are never returned or included in error messages.
+ * @param {unknown} files
+ * @returns {string[]}
+ */
+export function findPotentialSecretPaths(files) {
+  if (!Array.isArray(files)) return [];
+  const flagged = new Set();
+  for (const entry of files) {
+    if (!entry || typeof entry !== "object") continue;
+    const file = /** @type {{ path?: unknown, content?: unknown }} */ (entry);
+    if (typeof file.path !== "string" || typeof file.content !== "string") continue;
+    if (SECRET_PATTERNS.some((pattern) => pattern.test(file.content)) ||
+        SECRET_ASSIGNMENT_PATTERN.test(file.content)) {
+      flagged.add(file.path);
+    }
+  }
+  return [...flagged].sort();
+}
