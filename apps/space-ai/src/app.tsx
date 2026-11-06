@@ -443,7 +443,9 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
     if (!confirmation) return;
 
     setGithubActionBusy(true);
-    setGithubNotice("Creating a private repository and publishing workspace files…");
+    setGithubNotice(repositoryMode === "new"
+      ? "Creating a private repository and publishing workspace files…"
+      : "Publishing workspace files to " + selectedRepository!.fullName + "…");
     setPublishedRepository(null);
     try {
       const response = await fetch("/api/github/publish", {
