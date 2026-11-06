@@ -439,12 +439,12 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     setDraft("");
     setError("");
     const imageNote = pendingImage
-      ? `\\n\\n[Image attachment: ${pendingImage.filename}; asset ID: ${pendingImage.id}. Use editImage with this asset ID if I ask you to edit the image.]`
+      ? `\n\n[Image attachment: ${pendingImage.filename}; asset ID: ${pendingImage.id}. Use editImage with this asset ID if I ask you to edit the image.]`
       : "";
     const videoNote = pendingVideoLinks.length
-      ? "\\n\\n" + pendingVideoLinks.map((item) =>
+      ? "\n\n" + pendingVideoLinks.map((item) =>
           `[Video link attachment: ${item.platform}; URL: ${item.url}. This is a link reference only. Do not claim to have watched or analyzed the media unless a video-analysis tool provides evidence.]`
-        ).join("\\n")
+        ).join("\n")
       : "";
     sendMessage({
       role: "user",
