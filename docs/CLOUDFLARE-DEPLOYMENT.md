@@ -124,3 +124,28 @@ Adding the `ChatShares` Durable Object requires migration tag `v3`; Wrangler app
 - GitHub Actions billing: https://docs.github.com/en/actions/concepts/billing-and-usage
 - Monaco Editor ESM/Vite integration: https://github.com/microsoft/monaco-editor/blob/main/docs/integrate-esm.md
 - AI SDK streamText usage: https://ai-sdk.dev/docs/reference/ai-sdk-core/stream-text
+
+
+## Optional Google owner sign-in and profile
+
+GitHub remains the default owner sign-in. To enable Google as an additional sign-in for the same configured owner, create an OAuth 2.0 Client ID of type **Web application** in Google Cloud Console.
+
+Set the authorized redirect URI to:
+
+`https://space-ai.YOUR-SUBDOMAIN.workers.dev/auth/google/callback`
+
+Configure these three optional GitHub Actions production environment secrets together:
+
+| Secret | Purpose |
+|---|---|
+| `SPACE_GOOGLE_OAUTH_CLIENT_ID` | Google OAuth web client ID |
+| `SPACE_GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth client secret |
+| `SPACE_GOOGLE_OWNER_EMAIL` | The exact verified Google email allowed to sign in as the owner |
+
+The production deployment workflow maps them to Worker secrets named `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OWNER_EMAIL`. Configure all three or leave all three empty. The workflow rejects partial configuration. Never commit these values or paste them into chat or logs.
+
+The Worker requests `openid email profile`, obtains the user identity from Google's HTTPS UserInfo endpoint, requires `email_verified=true`, and compares the normalized email with `GOOGLE_OWNER_EMAIL`. Only that exact configured owner can sign in. The profile name, image, and email come from Google's verified UserInfo response. GitHub profile details come from GitHub's `/user` endpoint; GitHub's private email is not requested.
+
+Both provider identities are mapped to the existing owner Durable Object `default`, so the same owner sees the same Space data regardless of which provider they use. This is not public registration or multi-user onboarding. The owner-only access gate remains enabled.
+
+For a Cloudflare Worker Preview, secrets are not inherited from production. Add the three Google secrets to the Preview separately, using a test Google OAuth client and the Preview callback URL if Google sign-in is being tested there. Do not copy production client secrets into an untrusted Preview.
