@@ -1,0 +1,73 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Android build variant
+        required: true
+        type: choice
+        options:
+          - debug
+          - release
+        default: debug
+  push:
+    paths:
+      - "**/*.gradle"
+      - "**/*.gradle.kts"
+      - "gradle/**"
+      - "app/src/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: Build debug APK
+        if: ${{ inputs.variant != 'release' || github.event_name == 'push' }}
+        run: |
+          if [ -x ./gradlew ]; then
+            ./gradlew --no-daemon --stacktrace assembleDebug
+          else
+            echo "Gradle wrapper is missing. Add gradlew and gradle/wrapper files." >&2
+            exit 1
+          fi
+
+      - name: Build release APK
+        if: ${{ inputs.variant == 'release' && github.event_name == 'workflow_dispatch' }}
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: android-apk-${{ github.run_number }}
+          path: |
+            **/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 7
