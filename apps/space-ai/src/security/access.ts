@@ -2,6 +2,9 @@ type AuthEnvironment = {
   GITHUB_OAUTH_CLIENT_ID: string;
   GITHUB_OAUTH_CLIENT_SECRET: string;
   GITHUB_OWNER_LOGIN: string;
+  GOOGLE_OAUTH_CLIENT_ID?: string;
+  GOOGLE_OAUTH_CLIENT_SECRET?: string;
+  GOOGLE_OWNER_EMAIL?: string;
   SESSION_SECRET: string;
   DEPLOYMENT_ENV: string;
   ALLOW_LOCAL_DEV_AUTH_BYPASS?: string;
@@ -9,7 +12,12 @@ type AuthEnvironment = {
 
 export type OwnerSession = {
   userId: string;
+  provider: "github" | "google";
   login: string;
+  name: string | null;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+  email: string | null;
   role: "owner";
   expiresAt: number;
 };
@@ -76,14 +84,38 @@ async function hmac(value: string, secret: string): Promise<string> {
   return base64UrlEncode(new Uint8Array(signature));
 }
 
-function oauthReady(env: AuthEnvironment): boolean {
+function sessionSigningReady(env: AuthEnvironment): boolean {
+  return typeof env.SESSION_SECRET === "string" && env.SESSION_SECRET.length >= 32;
+}
+
+export function githubOAuthReady(env: AuthEnvironment): boolean {
   return Boolean(
     env.GITHUB_OAUTH_CLIENT_ID &&
     env.GITHUB_OAUTH_CLIENT_SECRET &&
     env.GITHUB_OWNER_LOGIN &&
-    env.SESSION_SECRET &&
-    env.SESSION_SECRET.length >= 32
+    sessionSigningReady(env)
   );
+}
+
+export function googleOAuthReady(env: AuthEnvironment): boolean {
+  return Boolean(
+    env.GOOGLE_OAUTH_CLIENT_ID &&
+    env.GOOGLE_OAUTH_CLIENT_SECRET &&
+    typeof env.GOOGLE_OWNER_EMAIL === "string" &&
+    env.GOOGLE_OWNER_EMAIL.includes("@") &&
+    sessionSigningReady(env)
+  );
+}
+
+function anyOAuthReady(env: AuthEnvironment): boolean {
+  return githubOAuthReady(env) || googleOAuthReady(env);
+}
+
+function createSignedSession(payload: Record<string, unknown>, env: AuthEnvironment): Promise<string> {
+  return (async () => {
+    const encoded = base64UrlEncode(encoder.encode(JSON.stringify(payload)));
+    return encoded + "." + await hmac(encoded, env.SESSION_SECRET);
+  })();
 }
 
 function localBypass(env: AuthEnvironment): boolean {
@@ -98,12 +130,17 @@ export async function getOwnerSession(
   if (localBypass(env)) {
     return {
       userId: "local-development",
+      provider: "github",
       login: env.GITHUB_OWNER_LOGIN || "local-development",
+      name: null,
+      avatarUrl: null,
+      profileUrl: null,
+      email: null,
       role: "owner",
       expiresAt: Number.MAX_SAFE_INTEGER
     };
   }
-  if (!oauthReady(env)) return null;
+  if (!sessionSigningReady(env)) return null;
 
   const token = cookieValue(request, SESSION_COOKIE);
   if (!token) return null;
@@ -114,33 +151,68 @@ export async function getOwnerSession(
   const payloadPart = token.slice(0, separator);
   const signaturePart = token.slice(separator + 1);
   let expectedSignature: string;
-  let payload: { userId?: unknown; login?: unknown; expiresAt?: unknown };
+  let payload: {
+    userId?: unknown;
+    provider?: unknown;
+    login?: unknown;
+    name?: unknown;
+    avatarUrl?: unknown;
+    profileUrl?: unknown;
+    email?: unknown;
+    expiresAt?: unknown;
+  };
 
   try {
     expectedSignature = await hmac(payloadPart, env.SESSION_SECRET);
     if (!constantTimeEqual(signaturePart, expectedSignature)) return null;
     payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadPart))) as {
       userId?: unknown;
+      provider?: unknown;
       login?: unknown;
+      name?: unknown;
+      avatarUrl?: unknown;
+      profileUrl?: unknown;
+      email?: unknown;
       expiresAt?: unknown;
     };
   } catch {
     return null;
   }
 
+  const provider = payload.provider === "google" ? "google" : "github";
+  const isAllowedGitHub = provider === "github" &&
+    typeof payload.login === "string" &&
+    typeof env.GITHUB_OWNER_LOGIN === "string" &&
+    payload.login.toLowerCase() === env.GITHUB_OWNER_LOGIN.toLowerCase();
+  const isAllowedGoogle = provider === "google" &&
+    typeof payload.email === "string" &&
+    typeof env.GOOGLE_OWNER_EMAIL === "string" &&
+    payload.email.toLowerCase() === env.GOOGLE_OWNER_EMAIL.toLowerCase() &&
+    googleOAuthReady(env);
+
   if (
-    typeof payload.login !== "string" ||
-    payload.login.toLowerCase() !== env.GITHUB_OWNER_LOGIN.toLowerCase() ||
+    (!isAllowedGitHub && !isAllowedGoogle) ||
     typeof payload.expiresAt !== "number" ||
     payload.expiresAt <= Date.now()
   ) {
     return null;
   }
 
+  const login = typeof payload.login === "string" ? payload.login : String(payload.email);
+  const avatarUrl = typeof payload.avatarUrl === "string" &&
+    /^https:\/\//i.test(payload.avatarUrl) ? payload.avatarUrl : null;
+  const profileUrl = typeof payload.profileUrl === "string" &&
+    /^https:\/\//i.test(payload.profileUrl) ? payload.profileUrl : null;
+
   return {
-    // Older owner cookies did not include a GitHub numeric ID; preserve their default Agent storage.
+    // Older GitHub owner cookies remain valid and keep using the legacy default Agent.
     userId: typeof payload.userId === "string" ? payload.userId : "legacy-owner",
-    login: payload.login,
+    provider,
+    login,
+    name: typeof payload.name === "string" ? payload.name : null,
+    avatarUrl,
+    profileUrl,
+    email: typeof payload.email === "string" ? payload.email : null,
     role: "owner",
     expiresAt: payload.expiresAt
   };
@@ -153,10 +225,10 @@ export async function requireOwnerAccess(
   const session = await getOwnerSession(request, env);
   if (session) return { ok: true, session };
 
-  if (!oauthReady(env)) {
+  if (!anyOAuthReady(env)) {
     return {
       ok: false,
-      response: Response.json({ error: "GitHub owner login is not configured." }, { status: 503 })
+      response: Response.json({ error: "No owner OAuth provider is fully configured." }, { status: 503 })
     };
   }
 
@@ -174,7 +246,7 @@ export async function handleAuthRequest(
   const url = new URL(request.url);
 
   if (url.pathname === "/auth/github" && request.method === "GET") {
-    if (!oauthReady(env)) {
+    if (!githubOAuthReady(env)) {
       return Response.json({ error: "GitHub OAuth is not configured." }, { status: 503 });
     }
 
@@ -202,7 +274,7 @@ export async function handleAuthRequest(
     const clearHeaders = new Headers({ "Cache-Control": "no-store" });
     clearHeaders.append("Set-Cookie", clearState);
 
-    if (!oauthReady(env)) {
+    if (!githubOAuthReady(env)) {
       return new Response("GitHub OAuth is not configured.", { status: 503, headers: clearHeaders });
     }
 
@@ -262,7 +334,14 @@ export async function handleAuthRequest(
         });
       }
 
-      const user = await userResponse.json() as { id?: number; login?: string };
+      const user = await userResponse.json() as {
+        id?: number;
+        login?: string;
+        name?: string | null;
+        avatar_url?: string;
+        html_url?: string;
+        email?: string | null;
+      };
       const allowed = typeof user.login === "string" &&
         user.login.toLowerCase() === env.GITHUB_OWNER_LOGIN.toLowerCase();
 
@@ -274,12 +353,16 @@ export async function handleAuthRequest(
         });
       }
 
-      const payload = base64UrlEncode(encoder.encode(JSON.stringify({
+      const sessionToken = await createSignedSession({
         userId: typeof user.id === "number" ? "github:" + user.id : "legacy-owner",
+        provider: "github",
         login: user.login,
+        name: typeof user.name === "string" ? user.name : null,
+        avatarUrl: typeof user.avatar_url === "string" ? user.avatar_url : null,
+        profileUrl: typeof user.html_url === "string" ? user.html_url : null,
+        email: typeof user.email === "string" ? user.email : null,
         expiresAt: Date.now() + SESSION_SECONDS * 1000
-      })));
-      const sessionToken = `${payload}.${await hmac(payload, env.SESSION_SECRET)}`;
+      }, env);
       const headers = new Headers({
         Location: "/",
         "Cache-Control": "no-store"
@@ -292,6 +375,133 @@ export async function handleAuthRequest(
       return new Response(null, { status: 302, headers });
     } catch {
       return new Response("GitHub sign-in could not be completed. Please try again.", {
+        status: 502,
+        headers: clearHeaders
+      });
+    }
+  }
+
+  if (url.pathname === "/auth/google" && request.method === "GET") {
+    if (!googleOAuthReady(env)) {
+      return Response.json({ error: "Google sign-in is not configured for the owner account." }, { status: 503 });
+    }
+
+    const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
+    const callback = new URL("/auth/google/callback", url.origin).toString();
+    const authorize = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authorize.searchParams.set("client_id", env.GOOGLE_OAUTH_CLIENT_ID!);
+    authorize.searchParams.set("redirect_uri", callback);
+    authorize.searchParams.set("response_type", "code");
+    authorize.searchParams.set("scope", "openid email profile");
+    authorize.searchParams.set("state", state);
+
+    const headers = new Headers({ Location: authorize.toString(), "Cache-Control": "no-store" });
+    headers.append("Set-Cookie", secureCookie(STATE_COOKIE, state, {
+      path: "/auth/google/callback",
+      maxAge: 10 * 60
+    }));
+    return new Response(null, { status: 302, headers });
+  }
+
+  if (url.pathname === "/auth/google/callback" && request.method === "GET") {
+    const clearState = secureCookie(STATE_COOKIE, "", {
+      path: "/auth/google/callback",
+      maxAge: 0
+    });
+    const clearHeaders = new Headers({ "Cache-Control": "no-store" });
+    clearHeaders.append("Set-Cookie", clearState);
+
+    if (!googleOAuthReady(env)) {
+      return new Response("Google sign-in is not configured.", { status: 503, headers: clearHeaders });
+    }
+
+    const returnedState = url.searchParams.get("state") ?? "";
+    const savedState = cookieValue(request, STATE_COOKIE) ?? "";
+    const code = url.searchParams.get("code") ?? "";
+    if (!code || !returnedState || !constantTimeEqual(returnedState, savedState)) {
+      return new Response("Google sign-in state is missing or invalid. Please try again.", {
+        status: 400,
+        headers: clearHeaders
+      });
+    }
+
+    const callback = new URL("/auth/google/callback", url.origin).toString();
+    try {
+      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json"
+        },
+        body: new URLSearchParams({
+          client_id: env.GOOGLE_OAUTH_CLIENT_ID!,
+          client_secret: env.GOOGLE_OAUTH_CLIENT_SECRET!,
+          code,
+          grant_type: "authorization_code",
+          redirect_uri: callback
+        })
+      });
+      if (!tokenResponse.ok) {
+        return new Response("Google token exchange failed. Please try again.", {
+          status: 502,
+          headers: clearHeaders
+        });
+      }
+
+      const tokenData = await tokenResponse.json() as { access_token?: string };
+      if (!tokenData.access_token) {
+        return new Response("Google did not authorize this sign-in.", {
+          status: 401,
+          headers: clearHeaders
+        });
+      }
+
+      const userResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+        headers: { Authorization: "Bearer " + tokenData.access_token, Accept: "application/json" }
+      });
+      if (!userResponse.ok) {
+        return new Response("Could not verify the Google account.", { status: 502, headers: clearHeaders });
+      }
+
+      const user = await userResponse.json() as {
+        sub?: string;
+        email?: string;
+        email_verified?: boolean;
+        name?: string;
+        picture?: string;
+      };
+      const allowed = typeof user.sub === "string" &&
+        typeof user.email === "string" &&
+        user.email_verified === true &&
+        user.email.toLowerCase() === env.GOOGLE_OWNER_EMAIL!.toLowerCase();
+
+      // This Google provider is intentionally owner-only; no public registration is enabled.
+      if (!allowed || !user.email || !user.sub) {
+        return new Response("This Google account is not configured as the owner of this private workspace.", {
+          status: 403,
+          headers: clearHeaders
+        });
+      }
+
+      const sessionToken = await createSignedSession({
+        userId: "google:" + user.sub,
+        provider: "google",
+        login: user.email,
+        name: typeof user.name === "string" ? user.name : null,
+        avatarUrl: typeof user.picture === "string" ? user.picture : null,
+        profileUrl: null,
+        email: user.email,
+        expiresAt: Date.now() + SESSION_SECONDS * 1000
+      }, env);
+      const headers = new Headers({ Location: "/", "Cache-Control": "no-store" });
+      headers.append("Set-Cookie", clearState);
+      headers.append("Set-Cookie", secureCookie(SESSION_COOKIE, sessionToken, {
+        path: "/",
+        maxAge: SESSION_SECONDS
+      }));
+      return new Response(null, { status: 302, headers });
+    } catch {
+      return new Response("Google sign-in could not be completed. Please try again.", {
         status: 502,
         headers: clearHeaders
       });
