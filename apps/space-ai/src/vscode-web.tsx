@@ -96,6 +96,36 @@ export default function VSCodeWebPage() {
         </div>
       </section>
 
+      <details className="surface-card vscode-shortcuts-card" open>
+        <summary>
+          <span><strong>Touch, pointer, and keyboard controls</strong><small>Quick controls for desktop, tablet, and mobile.</small></span>
+          <span className="vscode-shortcuts-summary">Show controls</span>
+        </summary>
+        <div className="vscode-mobile-guidance">
+          <article>
+            <strong>Touchscreen and zoom</strong>
+            <p>On the VS Code Web tab, use the browser's two-finger pinch gesture to zoom the page when the browser allows it. The Space launcher cannot override the viewport settings of the separate github.dev site.</p>
+          </article>
+          <article>
+            <strong>Pointer and clicking</strong>
+            <p>Tap an item to click it. For a visible cursor, connect a Bluetooth/USB mouse or trackpad; the operating system and browser draw that pointer. Space cannot inject a cursor into github.dev because it is a separate site.</p>
+          </article>
+        </div>
+        <div className="vscode-shortcuts-grid">
+          <div className="vscode-shortcut-row"><span>Command Palette</span><kbd>F1</kbd><small>Alternative to Ctrl/Cmd + Shift + P</small></div>
+          <div className="vscode-shortcut-row"><span>Open file</span><kbd>Ctrl/Cmd + P</kbd><small>Quick Open</small></div>
+          <div className="vscode-shortcut-row"><span>Zoom in</span><kbd>Ctrl/Cmd + =</kbd><small>Increase editor zoom</small></div>
+          <div className="vscode-shortcut-row"><span>Zoom out</span><kbd>Ctrl/Cmd + -</kbd><small>Decrease editor zoom</small></div>
+          <div className="vscode-shortcut-row"><span>Reset zoom</span><kbd>Ctrl/Cmd + Numpad 0</kbd><small>Reset editor zoom level</small></div>
+          <div className="vscode-shortcut-row"><span>Toggle sidebar</span><kbd>Ctrl/Cmd + B</kbd><small>Show or hide Explorer sidebar</small></div>
+          <div className="vscode-shortcut-row"><span>Show Explorer</span><kbd>Ctrl/Cmd + Shift + E</kbd><small>Focus the file explorer</small></div>
+          <div className="vscode-shortcut-row"><span>Search in files</span><kbd>Ctrl/Cmd + Shift + F</kbd><small>Search across the repository</small></div>
+          <div className="vscode-shortcut-row"><span>Save file</span><kbd>Ctrl/Cmd + S</kbd><small>Save current editor</small></div>
+        </div>
+        <p className="vscode-shortcuts-note">On Windows/Linux use Ctrl. On macOS use Command (⌘). Browser-reserved shortcuts can behave differently; F1 opens the Command Palette when Ctrl/Cmd + Shift + P is intercepted.</p>
+        <a href="https://code.visualstudio.com/docs/reference/default-keybindings" target="_blank" rel="noopener noreferrer">Official VS Code keyboard shortcut reference ↗</a>
+      </details>
+
       <section className="vscode-info-grid">
         <article className="surface-card vscode-info-card">
           <span className="vscode-info-number">01</span>
