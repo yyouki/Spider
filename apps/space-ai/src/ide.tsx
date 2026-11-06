@@ -147,6 +147,8 @@ export type Props = {
   onListFiles: () => Promise<WorkspaceFileMetadata[]>;
   onReadFile: (path: string) => Promise<WorkspaceFile | null>;
   onWriteFile: (path: string, content: string) => Promise<WorkspaceFileMetadata>;
+  onDeleteFile: (path: string) => Promise<{ deleted: boolean; path: string }>;
+  onDeleteFolder: (path: string) => Promise<{ deletedCount: number; path: string }>;
   onListHistory: (path: string) => Promise<{ id: string; createdAt: string; sizeBytes: number; preview: string }[]>;
   onRestoreFile: (path: string, revisionId: string) => Promise<WorkspaceFileMetadata>;
   onRunFile: (path: string) => Promise<{ accepted: boolean; taskId?: string; status?: string; note?: string }>;
@@ -387,7 +389,8 @@ function FileTree({
   selectedPath,
   onToggle,
   onSelect,
-  onDownloadFolder
+  onDownloadFolder,
+  onDeletePath
 }: {
   nodes: TreeNode[];
   depth: number;
@@ -396,6 +399,7 @@ function FileTree({
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
   onDownloadFolder: (path: string) => void;
+  onDeletePath: (path: string, folder: boolean) => void;
 }) {
   return (
     <>
@@ -412,15 +416,24 @@ function FileTree({
             <span className="ide-tree-icon">{node.folder ? "▰" : "◦"}</span>
             <span className="ide-tree-name">{node.name}</span>
           </button>
-          {node.folder && (
+          <div className="ide-tree-actions">
+            {node.folder && (
+              <button
+                type="button"
+                className="ide-folder-download"
+                title={"Download " + node.path + " as ZIP"}
+                aria-label={"Download folder " + node.path}
+                onClick={() => onDownloadFolder(node.path)}
+              >↓</button>
+            )}
             <button
               type="button"
-              className="ide-folder-download"
-              title={"Download " + node.path + " as ZIP"}
-              aria-label={"Download folder " + node.path}
-              onClick={() => onDownloadFolder(node.path)}
-            >↓</button>
-          )}
+              className="ide-delete-path"
+              title={"Delete " + (node.folder ? "folder " : "file ") + node.path}
+              aria-label={"Delete " + (node.folder ? "folder " : "file ") + node.path}
+              onClick={() => onDeletePath(node.path, node.folder)}
+            >×</button>
+          </div>
           {node.folder && expanded.has(node.path) && (
             <FileTree
               nodes={node.children}
@@ -430,6 +443,7 @@ function FileTree({
               onToggle={onToggle}
               onSelect={onSelect}
               onDownloadFolder={onDownloadFolder}
+              onDeletePath={onDeletePath}
             />
           )}
         </div>
@@ -438,7 +452,7 @@ function FileTree({
   );
 }
 
-export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile, onListHistory, onRestoreFile, onRunFile, onGetRunStatus, onSearchFiles }: Props) {
+export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWriteFile, onDeleteFile, onDeleteFolder, onListHistory, onRestoreFile, onRunFile, onGetRunStatus, onSearchFiles }: Props) {
   const [files, setFiles] = useState<WorkspaceFileMetadata[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
   const [content, setContent] = useState("");
@@ -599,6 +613,43 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
       setNotice("File created");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not create file.");
+    }
+  };
+
+  const deletePath = async (path: string, folder: boolean) => {
+    if (dirty && selectedPath && (selectedPath === path || selectedPath.startsWith(path + "/"))) {
+      if (!window.confirm("This path contains your unsaved editor changes. Discard them and continue?")) return;
+      autosaveValueRef.current = draft; // Prevent a pending autosave from recreating the deleted file.
+      setDirty(false);
+    }
+    const label = folder ? "folder and all its files" : "file and its saved revisions";
+    if (!window.confirm("Permanently delete this " + label + ": " + path + "?")) return;
+    try {
+      let noticeText: string;
+      if (folder) {
+        const result = await onDeleteFolder(path);
+        noticeText = result.deletedCount + " files deleted from " + path;
+      } else {
+        const result = await onDeleteFile(path);
+        noticeText = (result.deleted ? "File deleted: " : "File not found: ") + path;
+      }
+      const removedPaths = folder
+        ? files.filter((file) => file.path === path || file.path.startsWith(path + "/")).map((file) => file.path)
+        : [path];
+      setTabs((current) => current.filter((tab) => !removedPaths.includes(tab)));
+      if (folder) {
+        setExpanded((current) => new Set([...current].filter((item) => item !== path && !item.startsWith(path + "/"))));
+      }
+      if (removedPaths.includes(selectedPath)) {
+        setSelectedPath("");
+        setContent("");
+        setDraft("");
+        setDirty(false);
+      }
+      await refreshFiles();
+      setNotice(noticeText);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not delete workspace path.");
     }
   };
 
@@ -977,7 +1028,16 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
           )}
           <div className="ide-tree">
             {loading ? <p className="ide-empty-small">Loading files…</p> : tree.length ? (
-              <FileTree nodes={tree} depth={0} expanded={expanded} selectedPath={selectedPath} onToggle={toggleFolder} onSelect={(path) => void openFile(path)} onDownloadFolder={(path) => void downloadFolder(path)} />
+              <FileTree
+                nodes={tree}
+                depth={0}
+                expanded={expanded}
+                selectedPath={selectedPath}
+                onToggle={toggleFolder}
+                onSelect={(path) => void openFile(path)}
+                onDownloadFolder={(path) => void downloadFolder(path)}
+                onDeletePath={(path, folder) => void deletePath(path, folder)}
+              />
             ) : (
               <div className="ide-empty-tree">
                 <span>No files yet</span>
