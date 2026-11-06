@@ -90,3 +90,12 @@ Satu tahap belum boleh disebut selesai sebelum:
 - failure path diuji;
 - dokumentasi setup dan recovery tersedia;
 - status "verified" dibedakan dari "planned" dan "not tested".
+
+
+## Tahap 3A — GitHub project publishing and Android artifacts
+- GitHub App user authorization with least-privilege repository creation and contents permissions.
+- Per-user encrypted provider tokens, revocation, audit trail, and repository-scoped access.
+- Create a repository only after the user approves its name and public/private visibility.
+- Commit and push generated project files; use task branches and pull requests for risky changes.
+- Android Gradle project template and GitHub Actions APK artifact workflow.
+- Retrieve the completed APK artifact and attach it to the originating conversation.
