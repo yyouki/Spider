@@ -44,6 +44,9 @@ test("rejects organizations and malformed existing repository targets", () => {
   assert.equal(parsePersonalRepositoryTarget("youki/repo/name", "youki"), null);
   assert.equal(parsePersonalRepositoryTarget("youki/../space", "youki"), null);
   assert.equal(parsePersonalRepositoryTarget("youki/trailing.", "youki"), null);
+  assert.equal(parsePersonalRepositoryTarget("youki/.hidden", "youki"), null);
+  assert.equal(parsePersonalRepositoryTarget("youki/..", "youki"), null);
+  assert.equal(parsePersonalRepositoryTarget("youki/-invalid", "youki"), null);
 });
 
 
