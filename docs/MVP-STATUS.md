@@ -9,6 +9,8 @@ Last implementation pass: November 6, 2026.
 | Single user-facing AI identity | Implemented in MVP | `apps/space-ai/src/server.ts` exports one `SpaceAgent` |
 | Streaming chat UI | Implemented in source | `src/app.tsx`, `useAgentChat` |
 | Persistent chat history | Implemented in source | SQLite-backed Durable Object with no fixed message-count cap; older context is summarized for subsequent turns |
+| Multiple persistent conversations | Implemented in source | Separate SQLite conversation snapshots, active-conversation switching, automatic titles, and per-conversation context summaries |
+| Conversation management | Implemented in source | Search across conversation titles/content, rename, pin/unpin, delete, edit-and-resend user messages, and copy assistant messages |
 | Persistent task ledger | Implemented in source | `task_plans` SQLite table and task tools |
 | Exact calculator tool | Implemented in source | `calculate` tool |
 | Capability reporting | Implemented in source | `getCapabilities` tool |
@@ -68,3 +70,10 @@ Do not call the sandbox or production app live until a successful deployment and
 - A production self-update/deployment worker.
 - Scheduled 24/7 autonomous research.
 - Memory/task export and deletion UI.
+
+
+## Conversation history notes
+
+Conversations are stored in the SpaceAgent Durable Object SQLite database. Each conversation has a stable ID, title, pin state, message snapshot, timestamps, and its own context-summary row. The active chat is restored through the AIChatAgent message store so streaming, tool approvals, and message synchronization continue to use the existing chat API.
+
+The history search checks titles and saved message content. The current browser view returns up to 100 matching conversations. Each archived snapshot is bounded to 2 MB; oversized snapshots are rejected when switching or creating a new chat rather than silently truncating the transcript. Deleting a conversation removes its archived messages and its context summary. The existing single-owner authentication remains unchanged; this does not implement public multi-user registration or tenant isolation.
