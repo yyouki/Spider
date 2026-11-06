@@ -675,7 +675,22 @@ export class SpaceAgent extends AIChatAgent<Env> {
     const path = normalizeWorkspacePath(inputPath);
     const before = this.sql`SELECT path FROM workspace_files WHERE path = ${path} LIMIT 1`;
     this.sql`DELETE FROM workspace_files WHERE path = ${path}`;
+    // Remove revisions with the file so a user deletion also clears its retained contents.
+    this.sql`DELETE FROM workspace_file_revisions WHERE path = ${path}`;
     return { deleted: before.length > 0, path };
+  }
+
+  @callable()
+  deleteWorkspaceFolder(inputPath: string): { deletedCount: number; path: string } {
+    const path = normalizeWorkspacePath(inputPath);
+    const prefixLength = path.length + 1;
+    const matches = this.sql<{ path: string }>`SELECT path FROM workspace_files
+      WHERE path = ${path} OR substr(path, 1, ${prefixLength}) = ${path + "/"}`;
+    this.sql`DELETE FROM workspace_files
+      WHERE path = ${path} OR substr(path, 1, ${prefixLength}) = ${path + "/"}`;
+    this.sql`DELETE FROM workspace_file_revisions
+      WHERE path = ${path} OR substr(path, 1, ${prefixLength}) = ${path + "/"}`;
+    return { deletedCount: matches.length, path };
   }
 
   @callable()
