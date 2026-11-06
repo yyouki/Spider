@@ -121,7 +121,7 @@ The chat composer accepts validated HTTPS links from YouTube, TikTok, Vimeo, and
 
 ## GitHub project publishing and Android builds
 
-The current MVP stores source files in a private Space workspace and does not sync them to GitHub. The target integration is described in the root documentation. Android projects can use the reusable GitHub Actions workflow template in templates/android; APK artifact retrieval and attaching the APK directly to a Space chat are not yet wired into the app.
+The current feature branch adds a GitHub App publishing panel. After the owner installs and connects their own App, Space can create a new private repository and publish the current text-file workspace snapshot after a checkbox and confirmation. Tokens are stored in an account-keyed encrypted GitHubVault Durable Object and refreshed before expiry. Existing repository publishing, continuous synchronization, organizations, public repositories, and APK artifact retrieval/attachment are not implemented yet. See the GitHub App setup section in docs/CLOUDFLARE-DEPLOYMENT.md.
 
 
 ## Account profile and sign-in providers
