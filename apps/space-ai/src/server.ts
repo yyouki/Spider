@@ -896,6 +896,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
   }
 
   private async compactConversationContext() {
+    const activeId = this.getActiveConversationId();
     const rows = this.sql<ConversationContextRow>`
       SELECT summary_text, summarized_through_id, updated_at
       FROM conversation_context WHERE context_id = ${activeId} LIMIT 1`;
