@@ -361,6 +361,14 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     if (connected && currentPath === "/") void loadConversations();
   }, [connected, currentPath, loadConversations]);
 
+  useEffect(() => {
+    // Save a restored legacy chat after the initial Agent sync; completed turns are also archived server-side.
+    if (!connected || busy || messages.length === 0) return;
+    void agent.stub.saveActiveConversation(messages).then(() => loadConversations()).catch(() => {
+      setConversationNotice("This conversation could not be archived. Its active chat is still available.");
+    });
+  }, [connected, busy, messages.length, agent, loadConversations]);
+
   const createChat = async () => {
     if (!connected || busy) return;
     try {
@@ -370,6 +378,9 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
       setShareNotice("");
       setEditingMessageId(null);
       setDraft("");
+      setPendingImage(null);
+      setPendingVideoLinks([]);
+      setError("");
       await loadConversations();
     } catch (value) {
       setError(value instanceof Error ? value.message : "A new conversation could not be created.");
