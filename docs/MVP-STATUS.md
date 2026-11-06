@@ -23,7 +23,7 @@ Last implementation pass: November 6, 2026.
 | Image generation and editing | Implemented in source; model/quotas deployment-gated | FLUX.2 Klein 4B multipart generation/edit request, private asset storage, chat preview/download |
 | Long-history context management | Implemented in source; runtime not yet verified | AIChatAgent unlimited persisted message setting, background summary compaction, summary + recent context on model calls |
 | Self-update release policy | Implemented in source | Deterministic release gate + Node unit tests |
-| Private owner access | Implemented in source | GitHub OAuth identity check, signed session cookie |
+| Private owner access | Implemented in source | GitHub owner OAuth and optional Google owner OAuth, provider-backed profile, signed session cookie; public registration remains disabled |
 | Session-routed Agent access | Implemented in current branch | The Worker checks the signed owner session and same-origin Origin header, then routes to the server-selected Durable Object; the owner's existing `default` Agent remains unchanged |
 | Python/JavaScript sandbox | Implemented in source; deployment-gated | GitHub Actions runner dispatch, encrypted source/result, restricted Docker runner |
 | CI build and test workflow | Added | `.github/workflows/space-ai-check.yml` |
@@ -50,7 +50,7 @@ The default model remains `@cf/zai-org/glm-4.7-flash`. It supports reasoning and
 ## Not yet verified
 
 - Workspace attachments, image generation/editing, context compaction, conversation history, and the VS Code Web launcher passed CI before the latest unverified branch updates; production deployment and browser-level runtime tests have not yet been performed.
-- Cloudflare deployment and owner-only GitHub OAuth sign-in.
+- Cloudflare deployment and owner-only GitHub OAuth sign-in; Google owner sign-in is optional and requires explicit provider secrets.
 - Runtime sandbox dispatch, artifact decryption, and Python/JavaScript execution.
 - Sandbox timeout, cancellation, concurrency, and no-network behavior.
 - Workers AI model capacity, response quality, and actual daily quota consumption.
