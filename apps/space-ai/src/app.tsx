@@ -272,6 +272,29 @@ type AccountProfile = {
 
 type SessionProviders = { github: boolean; google: boolean };
 
+type GitHubConnectionStatus = {
+  configured: boolean;
+  canConnect: boolean;
+  appSlug: string | null;
+  installUrl: string | null;
+  connection: {
+    connected: boolean;
+    login: string | null;
+    userId: number | null;
+    avatarUrl: string | null;
+    connectedAt: number | null;
+    accessExpiresAt: number | null;
+  };
+};
+
+type PublishedRepository = {
+  url: string;
+  fullName: string;
+  branch: string;
+  filesPublished: number;
+  commit: string;
+};
+
 function Workspace({ onLogout, profile }: { onLogout: () => void; profile: AccountProfile }) {
   const [connected, setConnected] = useState(false);
   const [draft, setDraft] = useState("");
@@ -291,6 +314,14 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
   const [savedMemories, setSavedMemories] = useState<SavedMemory[]>([]);
   const [memoriesBusy, setMemoriesBusy] = useState(false);
   const [memoryNotice, setMemoryNotice] = useState("");
+  const [githubStatus, setGithubStatus] = useState<GitHubConnectionStatus | null>(null);
+  const [githubStatusBusy, setGithubStatusBusy] = useState(false);
+  const [githubActionBusy, setGithubActionBusy] = useState(false);
+  const [githubNotice, setGithubNotice] = useState("");
+  const [repositoryName, setRepositoryName] = useState("space-project");
+  const [repositoryDescription, setRepositoryDescription] = useState("Project published from Space AI");
+  const [publishConsent, setPublishConsent] = useState(false);
+  const [publishedRepository, setPublishedRepository] = useState<PublishedRepository | null>(null);
   const [pendingImage, setPendingImage] = useState<{ id: string; filename: string; mimeType: string; contentBase64: string } | null>(null);
   const [pendingVideoLinks, setPendingVideoLinks] = useState<SupportedVideoLink[]>([]);
   const [uploadBusy, setUploadBusy] = useState(false);
@@ -345,6 +376,78 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
       setSettingsNotice("Could not load saved autonomy preferences.");
     }
   }, [agent]);
+
+  const loadGitHubStatus = useCallback(async () => {
+    setGithubStatusBusy(true);
+    try {
+      const response = await fetch("/api/github/status", { credentials: "same-origin", cache: "no-store" });
+      const result = await response.json() as GitHubConnectionStatus & { error?: string };
+      if (!response.ok) throw new Error(result.error || "Could not load GitHub connection status.");
+      setGithubStatus(result);
+    } catch (error) {
+      setGithubNotice(error instanceof Error ? error.message : "Could not load GitHub status.");
+    } finally {
+      setGithubStatusBusy(false);
+    }
+  }, []);
+
+  const publishWorkspaceToGitHub = async () => {
+    if (!publishConsent || !githubStatus?.connection.connected || githubActionBusy) return;
+    const filesCount = workspaceFiles.length;
+    const confirmation = window.confirm(
+      "Create a PRIVATE GitHub repository named \"" + repositoryName +
+      "\" under @" + profile.login + " and publish " + filesCount +
+      " workspace files? This will create a new repository and commit the current workspace snapshot."
+    );
+    if (!confirmation) return;
+
+    setGithubActionBusy(true);
+    setGithubNotice("Creating a private repository and publishing workspace files…");
+    setPublishedRepository(null);
+    try {
+      const response = await fetch("/api/github/publish", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: repositoryName, description: repositoryDescription })
+      });
+      const result = await response.json() as {
+        error?: string;
+        repository?: PublishedRepository;
+      };
+      if (!response.ok || !result.repository) {
+        throw new Error(result.error || "GitHub publishing failed.");
+      }
+      setPublishedRepository(result.repository);
+      setGithubNotice("Published " + result.repository.filesPublished + " files to " + result.repository.fullName + ".");
+      setPublishConsent(false);
+    } catch (error) {
+      setGithubNotice(error instanceof Error ? error.message : "GitHub publishing failed.");
+    } finally {
+      setGithubActionBusy(false);
+      await loadGitHubStatus();
+    }
+  };
+
+  const disconnectGitHubApp = async () => {
+    if (!window.confirm("Disconnect the GitHub App and revoke its Space authorization? Existing repositories and commits will not be deleted.")) return;
+    setGithubActionBusy(true);
+    try {
+      const response = await fetch("/api/github/disconnect", {
+        method: "POST",
+        credentials: "same-origin"
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Could not disconnect GitHub.");
+      setGithubNotice("GitHub App disconnected. Existing GitHub repositories were not changed.");
+      setPublishedRepository(null);
+      await loadGitHubStatus();
+    } catch (error) {
+      setGithubNotice(error instanceof Error ? error.message : "Could not disconnect GitHub.");
+    } finally {
+      setGithubActionBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (connected) void loadSettings();
@@ -503,8 +606,14 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
   const readWorkspaceAsset = useCallback((id: string) => agent.stub.readWorkspaceAsset(id), [agent]);
 
   useEffect(() => {
-    if (connected && currentPath === "/analytics") void listWorkspaceFiles().catch(() => undefined);
+    if (connected && (currentPath === "/analytics" || currentPath === "/settings")) {
+      void listWorkspaceFiles().catch(() => undefined);
+    }
   }, [connected, currentPath, listWorkspaceFiles]);
+
+  useEffect(() => {
+    if (currentPath === "/settings") void loadGitHubStatus();
+  }, [currentPath, loadGitHubStatus]);
 
   useEffect(() => {
     if (currentPath === "/") endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -980,6 +1089,104 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Accou
           <span>Stable account ID: <code>{profile.userId}</code></span>
         </div>
         <p className="account-profile-note">Only the configured owner account is currently allowed to sign in. Public registration and cross-user access are not enabled.</p>
+      </section>
+
+      <section className="surface-card settings-card github-publishing-card">
+        <div className="section-title">
+          <div>
+            <h2>GitHub repository publishing</h2>
+            <p>Connect your own GitHub App to create private repositories and publish an approved workspace snapshot.</p>
+          </div>
+          <span className="meta-chip">User-owned access</span>
+        </div>
+        {githubNotice && <p className="github-publishing-notice" role="status">{githubNotice}</p>}
+        {githubStatusBusy && <p className="github-publishing-muted">Checking GitHub App connection…</p>}
+        {!githubStatusBusy && !githubStatus?.configured && (
+          <div className="github-publishing-empty">
+            <strong>GitHub App is not configured on this Worker.</strong>
+            <p>The app owner must set the GitHub App Client ID, Client Secret, and App slug as Worker secrets before this integration can be enabled.</p>
+          </div>
+        )}
+        {!githubStatusBusy && githubStatus?.configured && !githubStatus.canConnect && (
+          <div className="github-publishing-empty">
+            <strong>Sign in with your GitHub account to connect repositories.</strong>
+            <p>This Space session uses Google. Sign out and sign in with the GitHub account that owns the repositories you want to use.</p>
+          </div>
+        )}
+        {!githubStatusBusy && githubStatus?.configured && githubStatus.canConnect && !githubStatus.connection.connected && (
+          <div className="github-publishing-connect">
+            <p>Install the Space GitHub App on your personal account with <strong>Repository creation: write</strong> and <strong>Contents: write</strong>. Then authorize it below.</p>
+            <div className="github-publishing-actions">
+              {githubStatus.installUrl && <a className="button button-secondary" href={githubStatus.installUrl} target="_blank" rel="noopener noreferrer">Install GitHub App ↗</a>}
+              <a className="button button-primary" href="/auth/github-app">Connect GitHub App ↗</a>
+            </div>
+            <small>Space will only use your granted App permissions. It does not use the shared GitHub Actions token for your repositories.</small>
+          </div>
+        )}
+        {!githubStatusBusy && githubStatus?.connection.connected && (
+          <div className="github-connected-panel">
+            <div className="github-connected-account">
+              {githubStatus.connection.avatarUrl
+                ? <img src={githubStatus.connection.avatarUrl} alt="" referrerPolicy="no-referrer" />
+                : <span className="github-connected-avatar-fallback">{(githubStatus.connection.login || "G").slice(0, 1).toUpperCase()}</span>}
+              <div>
+                <strong>Connected as @{githubStatus.connection.login}</strong>
+                <small>GitHub App authorization · token refreshed automatically</small>
+              </div>
+              <button className="text-button" type="button" onClick={() => void disconnectGitHubApp()} disabled={githubActionBusy}>Disconnect</button>
+            </div>
+            <div className="github-publish-form">
+              <label>
+                <span>New private repository name</span>
+                <input
+                  value={repositoryName}
+                  onChange={(event) => setRepositoryName(event.target.value)}
+                  maxLength={100}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder="my-project"
+                />
+              </label>
+              <label>
+                <span>Description (optional)</span>
+                <input
+                  value={repositoryDescription}
+                  onChange={(event) => setRepositoryDescription(event.target.value)}
+                  maxLength={300}
+                  placeholder="Project published from Space AI"
+                />
+              </label>
+              <label className="github-publish-consent">
+                <input
+                  type="checkbox"
+                  checked={publishConsent}
+                  onChange={(event) => setPublishConsent(event.target.checked)}
+                />
+                <span>I approve creating a new private repository under my GitHub account and publishing the current Space workspace files.</span>
+              </label>
+              <div className="github-publishing-actions">
+                <span>{workspaceFiles.length} workspace files · private by default</span>
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={() => void publishWorkspaceToGitHub()}
+                  disabled={!publishConsent || !repositoryName.trim() || !workspaceFiles.length || githubActionBusy}
+                >
+                  {githubActionBusy ? "Publishing…" : "Create private repo & publish"}
+                </button>
+              </div>
+              {publishedRepository && (
+                <div className="github-published-result" role="status">
+                  <strong>Published successfully</strong>
+                  <a href={publishedRepository.url} target="_blank" rel="noopener noreferrer">{publishedRepository.fullName} ↗</a>
+                  <small>{publishedRepository.filesPublished} files · {publishedRepository.branch} · commit {publishedRepository.commit.slice(0, 8)}</small>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        <p className="github-publishing-footnote">Publishing creates a new private repository; it does not overwrite or delete any existing repository. Public repositories and publishing into an existing repository are not enabled in this first release.</p>
       </section>
 
       <section className="surface-card settings-card">
