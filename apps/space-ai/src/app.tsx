@@ -497,6 +497,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const readWorkspaceFile = useCallback((path: string) => agent.stub.readWorkspaceFile(path), [agent]);
   const readWorkspaceAsset = useCallback((id: string) => agent.stub.readWorkspaceAsset(id), [agent]);
   const writeWorkspaceFile = useCallback((path: string, content: string) => agent.stub.writeWorkspaceFile(path, content), [agent]);
+  const deleteWorkspaceFile = useCallback((path: string) => agent.stub.deleteWorkspaceFile(path), [agent]);
+  const deleteWorkspaceFolder = useCallback((path: string) => agent.stub.deleteWorkspaceFolder(path), [agent]);
   const listWorkspaceFileHistory = useCallback((path: string) => agent.stub.listWorkspaceFileHistory(path), [agent]);
   const restoreWorkspaceFile = useCallback((path: string, revisionId: string) => agent.stub.restoreWorkspaceFile(path, revisionId), [agent]);
   const runWorkspaceFile = useCallback(async (path: string) => {
@@ -963,6 +965,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           onListFiles={listWorkspaceFiles}
           onReadFile={readWorkspaceFile}
           onWriteFile={writeWorkspaceFile}
+          onDeleteFile={deleteWorkspaceFile}
+          onDeleteFolder={deleteWorkspaceFolder}
           onListHistory={listWorkspaceFileHistory}
           onRestoreFile={restoreWorkspaceFile}
           onRunFile={runWorkspaceFile}
