@@ -16,7 +16,7 @@ Last implementation pass: November 6, 2026.
 | Capability reporting | Implemented in source | `getCapabilities` tool |
 | Project memory | Implemented in source | SQLite table with approval-required writes |
 | Owner autonomy settings | Implemented in source | SQLite persistence and mobile settings UI |
-| Private workspace files | Implemented in current branch | SQLite-backed file records, validation, 200-file/2 MB limits, 20 revisions per file, chat download attachments |
+| Private workspace files | Implemented in current branch | SQLite-backed file records, validation, 200-file/2 MB limits, 20 revisions per file, chat download attachments, confirmed file/folder deletion with revision cleanup |
 | Monaco IDE | Implemented in current branch | Monaco ESM, broad language syntax highlighting, search, autosave, revisions, ZIP downloads, Python/JavaScript Run File |
 | Token analysis | Implemented in current branch | Provider-reported AI usage plus clearly labeled file/workspace estimates |
 | Read-only conversation sharing | Implemented in current branch | Random bearer URLs, seven-day expiry, revoke, no-store/noindex response |
@@ -77,3 +77,8 @@ Do not call the sandbox or production app live until a successful deployment and
 Conversations are stored in the SpaceAgent Durable Object SQLite database. Each conversation has a stable ID, title, pin state, message snapshot, timestamps, and its own context-summary row. The active chat is restored through the AIChatAgent message store so streaming, tool approvals, and message synchronization continue to use the existing chat API.
 
 The history search checks titles and saved message content. The current browser view returns up to 100 matching conversations. Each archived snapshot is bounded to 1.5 MB; oversized snapshots are rejected when switching or creating a new chat rather than silently truncating the transcript. Deleting a conversation removes its archived messages and its context summary. The existing single-owner authentication remains unchanged; this does not implement public multi-user registration or tenant isolation.
+
+
+## Workspace deletion
+
+The IDE Explorer can delete an individual file or a derived folder tree. Both actions require a confirmation; deleting a folder recursively removes its descendant files, and deleting a file/folder also clears the corresponding retained file revisions. Protected path segments and absolute/traversal paths remain rejected by the shared workspace path validator. Empty folders are not stored as separate records: a folder exists only while it contains at least one file.
