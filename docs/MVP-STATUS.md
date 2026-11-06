@@ -87,7 +87,7 @@ The server contains callable file/folder deletion operations that validate works
 
 ## VS Code Web transition
 
-The embedded Monaco IDE implementation and the `monaco-editor` runtime dependency have been removed. The `/ide` route now opens the official VS Code Web service at `github.dev` for a validated GitHub repository. VS Code Web is a separate browser application and is not embedded inside Space. The current Space OAuth flow does not provide GitHub repository access tokens, and private Space workspace files do not yet sync to GitHub. Keep the sync limitation visible until the GitHub App authorization and publishing integration is complete.
+The embedded Monaco IDE implementation and the `monaco-editor` runtime dependency have been removed. The `/ide` route now opens the official VS Code Web service at `github.dev` for a validated GitHub repository. VS Code Web is a separate browser application and is not embedded inside Space. The current Space sign-in session does not grant repository access. A separate GitHub App user authorization is implemented in the current feature branch to publish a confirmed workspace snapshot. There is no continuous two-way synchronization, and this integration is not released until its CI, Cloudflare Preview, and manual authorization checks pass.
 
 
 ## Agent routing security
