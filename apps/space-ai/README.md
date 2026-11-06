@@ -14,7 +14,7 @@ A first, deliberately small implementation of the single-core space AI workspace
 - A calculator tool for exact basic arithmetic.
 - A capability-status tool that reports what is really connected.
 - Project notes and user-approved personal memory stored in the Agent's SQLite database. Memory can be listed and deleted from Settings; saving requires an explicit request and approval.
-- Owner-only GitHub OAuth login. The temporary read:user token is used only for the identity lookup and is not stored; Space stores only a signed session cookie. Keep the OAuth App's expiring user-token setting enabled.
+- Owner-only GitHub OAuth login, with optional Google OAuth for the same configured owner. Provider tokens are used only for identity verification and are not stored; Space stores a signed session cookie with the provider-backed profile claims.
 - Workers AI model: `@cf/zai-org/glm-4.7-flash`.
 - Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
 - A dedicated VS Code Web launcher page. It validates a GitHub owner/repository path and opens the selected repository at github.dev in a separate tab.
@@ -81,7 +81,7 @@ A custom model does not remove inference cost or quotas. Training and serving a 
 - Node.js 22 or a Node.js version supported by the pinned Vite/Wrangler toolchain.
 - A Cloudflare account with Workers, Workers AI, and Durable Objects access.
 - A GitHub account with write access to `yyouki/space`.
-- A GitHub OAuth App for the owner-only sign-in.
+- A GitHub OAuth App for owner sign-in; an optional Google OAuth Web client can be configured for the same owner.
 - A fine-grained GitHub token limited to this repository with Actions read/write permission, stored as a Worker secret.
 - Cloudflare Workers Free supports SQLite-backed Durable Objects. It does not support Container objects; the sandbox therefore uses public-repository GitHub-hosted Actions runners.
 
