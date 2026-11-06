@@ -432,9 +432,17 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     setPendingImage(null);
   };
 
-  const clear = () => {
-    if (!window.confirm("Hapus riwayat percakapan? Catatan proyek, file workspace, dan rencana kerja yang tersimpan terpisah tidak ikut dihapus.")) return;
-    clearHistory();
+  const clear = async () => {
+    if (!window.confirm("Mulai chat baru dan hapus pesan serta ringkasan konteks percakapan saat ini? Memori tersimpan, catatan proyek, file workspace, dan rencana kerja tidak ikut dihapus.")) return;
+    try {
+      await agent.stub.clearConversationContext();
+      clearHistory();
+      setShareInfo(null);
+      setShareNotice("");
+      setError("");
+    } catch {
+      setError("Chat baru tidak dapat dimulai. Riwayat dan konteks lama tetap tersimpan.");
+    }
   };
 
   const uploadImage = async (file?: File) => {
