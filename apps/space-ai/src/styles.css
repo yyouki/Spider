@@ -542,6 +542,13 @@ a { color: inherit; }
 .pending-image-attachment img { width: 44px; height: 44px; object-fit: cover; border: 1px solid var(--line); border-radius: 7px; }
 .pending-image-attachment span { color: var(--muted-strong); font-size: 10px; overflow-wrap: anywhere; flex: 1; }
 .pending-image-attachment button { width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 50%; background: #fff; color: var(--muted); cursor: pointer; }
+.pending-video-links { display: grid; gap: 7px; padding: 9px 12px 0; }
+.pending-video-link { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+.video-link-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; border-radius: 7px; background: var(--accent-soft); color: var(--accent); font-size: 11px; }
+.video-link-copy { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.video-link-copy strong { color: var(--ink); font-size: 10px; }
+.video-link-copy a { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.pending-video-link button { width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 50%; background: #fff; color: var(--muted); cursor: pointer; }
 .composer-tools { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .attach-image-button {
   display: inline-flex; align-items: center; gap: 5px; color: var(--muted-strong);
@@ -549,6 +556,9 @@ a { color: inherit; }
 }
 .attach-image-button:hover { color: var(--accent); }
 .attach-image-button input { display: none; }
+.attach-link-button { border: 0; background: transparent; color: var(--muted-strong); font-size: 9px; font-weight: 650; cursor: pointer; }
+.attach-link-button:hover { color: var(--accent); }
+.attach-link-button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Explicit file write review: keep the before/after readable without a fake diff. */
 .file-approval-card { width: min(100%, 760px); margin: 8px 0 8px 38px; border-color: #d6e0d9; background: #fbfdfb; }
