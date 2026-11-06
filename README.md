@@ -2,16 +2,16 @@
 
 space is being built as **one primary AI with one identity and one orchestration core**. Browser research, coding, file management, multimodal perception, memory, sandbox execution, hosting, and self-improvement are capabilities of that core rather than separate user-facing bots.
 
-> **Current implementation direction:** Cloudflare Workers Free hosts the app. Durable Objects SQLite stores persistent chat, automatic context summaries, preferences, plans, project memory, private source files, file revisions, and image assets. The UI has dedicated Chat, IDE, Analytics, and Settings pages. Monaco provides syntax editing for a broad set of languages; the current runner executes bounded Python and JavaScript only. AI-created source files appear in chat with download actions and can be exported as ZIP folders or a workspace archive. FLUX.2 Klein powers image generation and editing. GitHub OAuth restricts the workspace to its owner. This uses Cloudflare Workers Free and temporary public-repository GitHub-hosted runners, but remains subject to provider quotas and storage limits.
+> **Current implementation direction:** Cloudflare Workers Free hosts the app. Durable Objects SQLite stores persistent chat, automatic context summaries, preferences, plans, project memory, private source files, file revisions, and image assets. The UI has dedicated Chat, IDE, Analytics, and Settings pages. The IDE route opens the official VS Code Web editor for a selected GitHub repository; bounded Python and JavaScript execution remains a separate Space sandbox capability. AI-created source files appear in chat with download actions and can be exported as ZIP folders or a workspace archive. FLUX.2 Klein powers image generation and editing. GitHub OAuth restricts the workspace to its owner. This uses Cloudflare Workers Free and temporary public-repository GitHub-hosted runners, but remains subject to provider quotas and storage limits.
 
 ## AI MVP
 
 Start with [apps/space-ai](apps/space-ai/README.md) for local development and deployment requirements.
 
-The app is organized into four separate areas: **Chat** for conversations, **IDE** for the private file workspace, **Analytics** for provider-reported token activity, and **Settings** for autonomy preferences. The IDE is no longer embedded in the chat page, and token analytics is not displayed inside the editor.\n\nThe **Settings** page stores the owner's preferred operating modes:
+The app is organized into four separate areas: **Chat** for conversations, **VS Code** for opening a GitHub repository in the official browser editor, **Analytics** for provider-reported token activity, and **Settings** for autonomy preferences. VS Code Web runs in a separate tab; the private Space workspace is not synced to GitHub yet.\n\nThe **Settings** page stores the owner's preferred operating modes:
 - bounded Python/JavaScript execution in a temporary offline container;
 - automatic read-only research once a browser tool exists;
-- file operations within the private Space workspace, shown in the dedicated IDE Explorer and Monaco editor;
+- file operations within the private Space workspace, managed through AI tools and chat downloads;
 - automatic promotion of eligible low-risk updates after every required release gate passes.
 
 The settings do not activate tools or grant third-party permissions that have not been connected.
@@ -57,7 +57,7 @@ The Windows VM experiment remains separate from the AI workspace. It requires a 
 ## Planned integrations and current boundaries
 
 - GitHub project publishing will use a GitHub App user authorization with least-privilege repository-creation and contents permissions. Creating a repository, changing visibility, or pushing to a protected/default branch requires explicit approval. The current MVP does not yet store per-user GitHub grants or push workspace files to repositories.
-- VS Code Web remains an external repository editor at https://github.dev/OWNER/REPOSITORY; Monaco remains the embedded Space IDE.
+- The `/ide` page now hands off to official VS Code Web at https://github.dev/OWNER/REPOSITORY. The embedded Monaco implementation has been removed. Space workspace files are not automatically synced to GitHub yet.
 - Video links can be attached as validated references, but actual video watching, transcription, and frame analysis remain unimplemented.
 - Public multi-user login stays disabled until tenant isolation, per-user token storage, abuse controls, and cross-user authorization tests are complete.
 - Android companion access must use visible, revocable Android permissions. Hidden background monitoring or unrestricted device control is not part of the design.
