@@ -260,7 +260,19 @@ function SettingSelect<T extends string>({
   );
 }
 
-function Workspace({ onLogout }: { onLogout: () => void }) {
+type AccountProfile = {
+  userId: string;
+  provider: "github" | "google";
+  login: string;
+  name: string | null;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+  email: string | null;
+};
+
+type SessionProviders = { github: boolean; google: boolean };
+
+function Workspace({ onLogout, profile }: { onLogout: () => void; profile: AccountProfile }) {
   const [connected, setConnected] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
@@ -748,6 +760,15 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
         <span className={`connection ${connected ? "online" : "offline"}`}>
           <i /> {connected ? "Connected" : "Connecting"}
         </span>
+        <div className="account-summary" title={profile.provider === "github" ? "Signed in with GitHub" : "Signed in with Google"}>
+          {profile.avatarUrl
+            ? <img src={profile.avatarUrl} alt="" referrerPolicy="no-referrer" />
+            : <span className="account-avatar-fallback">{(profile.name || profile.login).slice(0, 1).toUpperCase()}</span>}
+          <span className="account-summary-copy">
+            <strong>{profile.name || profile.login}</strong>
+            <small>{profile.provider === "github" ? "@" + profile.login : profile.login}</small>
+          </span>
+        </div>
         <button className="text-button" type="button" onClick={onLogout}>Sign out</button>
       </div>
     </header>
@@ -937,6 +958,30 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
         <span className="meta-chip">Owner controls</span>
       </div>
 
+      <section className="surface-card settings-card account-settings-card">
+        <div className="section-title">
+          <div><h2>Account profile</h2><p>Your profile is loaded from the identity provider used for this sign-in.</p></div>
+          <span className="meta-chip">{profile.provider === "github" ? "GitHub account" : "Google account"}</span>
+        </div>
+        <div className="account-profile-detail">
+          {profile.avatarUrl
+            ? <img className="account-profile-avatar" src={profile.avatarUrl} alt="" referrerPolicy="no-referrer" />
+            : <span className="account-profile-avatar account-avatar-fallback">{(profile.name || profile.login).slice(0, 1).toUpperCase()}</span>}
+          <div className="account-profile-identity">
+            <strong>{profile.name || profile.login}</strong>
+            <span>{profile.provider === "github" ? "@" + profile.login : profile.login}</span>
+            {profile.email && <small>{profile.email}</small>}
+            {!profile.email && profile.provider === "github" && <small>Email is not public on this GitHub profile.</small>}
+            {profile.profileUrl && <a href={profile.profileUrl} target="_blank" rel="noopener noreferrer">Open GitHub profile ↗</a>}
+          </div>
+        </div>
+        <div className="account-provider-status">
+          <span>Signed in with <strong>{profile.provider === "github" ? "GitHub" : "Google"}</strong></span>
+          <span>Stable account ID: <code>{profile.userId}</code></span>
+        </div>
+        <p className="account-profile-note">Only the configured owner account is currently allowed to sign in. Public registration and cross-user access are not enabled.</p>
+      </section>
+
       <section className="surface-card settings-card">
         <div className="section-title"><div><h2>Autonomy preferences</h2><p>These choices are saved to the private Space agent. They do not activate tools that have not been implemented.</p></div></div>
         <SettingSelect
@@ -1042,6 +1087,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 type SessionResponse = {
   authenticated: boolean;
   login: string | null;
+  profile: AccountProfile | null;
+  providers: SessionProviders;
 };
 
 export default function App() {
@@ -1076,7 +1123,12 @@ export default function App() {
       method: "POST",
       credentials: "same-origin"
     });
-    setSession({ authenticated: false, login: null });
+    setSession((current) => ({
+      authenticated: false,
+      login: null,
+      profile: null,
+      providers: current?.providers ?? { github: false, google: false }
+    }));
   };
 
   if (loading) {
@@ -1104,19 +1156,24 @@ export default function App() {
     );
   }
 
-  if (!session?.authenticated) {
+  if (!session?.authenticated || !session.profile) {
     return (
       <main className="auth-shell">
-        <section className="auth-card">
+        <section className="auth-card auth-provider-card">
           <div className="brand-mark">s</div>
           <p className="eyebrow">PRIVATE AI WORKSPACE</p>
           <h1>Sign in to Space</h1>
-          <p>Only the configured owner GitHub account can open this workspace.</p>
-          <a className="auth-button" href="/auth/github">Continue with GitHub <span>↗</span></a>
+          <p>Only the configured owner account can open this private workspace.</p>
+          {session?.providers.github && <a className="auth-button" href="/auth/github">Continue with GitHub <span>↗</span></a>}
+          {session?.providers.google && <a className="auth-button auth-google-button" href="/auth/google">Continue with Google <span>↗</span></a>}
+          {!session?.providers.github && !session?.providers.google && (
+            <p className="auth-provider-warning" role="status">No sign-in provider is configured. Set the owner OAuth credentials in Cloudflare Worker secrets.</p>
+          )}
+          <small className="auth-provider-footnote">Google sign-in appears only after its OAuth client, secret, and configured owner email are set. Public registration is disabled.</small>
         </section>
       </main>
     );
   }
 
-  return <Workspace onLogout={() => void logout()} />;
+  return <Workspace onLogout={() => void logout()} profile={session.profile} />;
 }
