@@ -111,3 +111,15 @@ Repository publik hanya berisi source code, contoh konfigurasi tanpa secret, sch
 - token/cookie/password/private key;
 - personal data atau biometric data;
 - file VM dan backup.
+
+
+## Public multi-user login release gate
+
+Public registration must remain disabled until all of the following are implemented and verified:
+- independent user identity and tenant-scoped Durable Object/database keys for chats, files, memory, projects, shares, analytics, and tasks;
+- authorization checks on every HTTP, WebSocket/Agent, callable, and artifact route (not only in the React UI);
+- per-user encrypted OAuth grants with provider-specific scopes, token rotation/revocation, and no cross-tenant token lookup;
+- CSRF/state validation, origin checks, session rotation, secure cookies, login throttling, abuse controls, and account recovery;
+- data export/deletion, retention policy, audit events, and automated cross-tenant isolation tests;
+- a separate owner/admin role that cannot be granted by a public user.
+A successful sign-in test is not sufficient evidence of tenant isolation. Do not switch public registration on until security tests and staging review pass.
