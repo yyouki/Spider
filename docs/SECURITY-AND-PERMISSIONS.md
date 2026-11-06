@@ -123,3 +123,10 @@ Public registration must remain disabled until all of the following are implemen
 - data export/deletion, retention policy, audit events, and automated cross-tenant isolation tests;
 - a separate owner/admin role that cannot be granted by a public user.
 A successful sign-in test is not sufficient evidence of tenant isolation. Do not switch public registration on until security tests and staging review pass.
+
+
+## Authenticated Agent routing foundation
+
+The browser connects to the fixed `/api/me` route. The Worker verifies the signed owner session and same-origin request, then selects the Durable Object name on the server. The browser never submits a Durable Object name. The legacy `/agents/*` endpoint is blocked so it cannot bypass the custom route.
+
+The current release still authenticates only the configured GitHub owner. That owner is deliberately routed to the existing `default` Agent instance so their existing SQLite chat, memory, and workspace data are not abandoned. The routing helper supports distinct member identities for the next authentication stage, but no public member sign-in is enabled in this change. Google/email/GitHub public registration, session revocation, rate limiting, recovery, and automated full cross-tenant Agent tests remain release gates.
