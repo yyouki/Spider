@@ -1286,3 +1286,466 @@ a { color: inherit; }
   .ide-tree-row { padding-right: 56px; }
   .ide-tree-actions { margin-right: 2px; }
 }
+
+
+/* Space's own AI-workspace design system: calm surfaces, clear hierarchy, and responsive controls. */
+:root {
+  --canvas: #f8f9fb;
+  --surface: #ffffff;
+  --surface-soft: #f4f6f8;
+  --ink: #171b22;
+  --muted: #737d8a;
+  --muted-strong: #4b5563;
+  --line: #e5e8ed;
+  --line-strong: #d7dce4;
+  --accent: #25634f;
+  --accent-hover: #1f5141;
+  --accent-soft: #e8f1ed;
+  --accent-pale: #f3f8f5;
+  --shadow: 0 10px 32px rgba(23, 35, 48, .055);
+}
+body { background: var(--canvas); color: var(--ink); }
+.app-shell { background: var(--canvas); }
+.topbar {
+  flex-basis: 270px;
+  width: 270px;
+  gap: 16px;
+  padding: 22px 13px 15px;
+  border-right-color: #e6e9ed;
+  background: #f7f8fa;
+}
+.brand { padding: 0 9px; }
+.brand-mark {
+  width: 35px;
+  height: 35px;
+  border-radius: 11px;
+  background: #202b35;
+  font-size: 22px;
+}
+.brand-copy strong { font-size: 15px; }
+.brand-copy small { font-size: 9px; }
+.sidebar-new-chat {
+  min-height: 42px;
+  border-color: #dfe4e8;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 11px;
+  box-shadow: 0 1px 1px rgba(20,30,40,.02);
+}
+.primary-nav { gap: 3px; }
+.primary-nav a {
+  height: 38px;
+  font-size: 11px;
+  border-radius: 8px;
+}
+.primary-nav a.active {
+  background: #e9edf2;
+  color: #233345;
+}
+.conversation-history {
+  margin-top: -4px;
+  padding: 0 2px;
+}
+.conversation-history > summary {
+  color: #596575;
+  font-size: 10px;
+}
+.conversation-search input {
+  border-color: #e3e7eb;
+  background: #fff;
+}
+.conversation-item {
+  padding: 6px;
+  border-radius: 8px;
+}
+.conversation-item.active {
+  border-color: #dfe6e3;
+  background: #edf3f0;
+}
+.conversation-item-actions button {
+  border-color: transparent;
+  background: transparent;
+}
+.conversation-item-actions button:hover:not(:disabled) {
+  background: #fff;
+}
+.page-container {
+  padding-top: 34px;
+  padding-bottom: 48px;
+}
+.chat-page {
+  width: min(100%, 1050px);
+  padding: 32px clamp(22px, 5vw, 72px) 30px;
+}
+.chat-page-heading {
+  min-height: 56px;
+  margin-bottom: 16px;
+}
+.chat-page-heading h1 {
+  font-size: clamp(24px, 3vw, 31px);
+  font-weight: 650;
+  letter-spacing: -.045em;
+}
+.chat-page-heading p:not(.eyebrow) {
+  font-size: 11px;
+}
+.chat-heading-actions .button {
+  min-height: 33px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+.chat-card {
+  min-height: min(760px, calc(100dvh - 174px));
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.chat-card-header {
+  min-height: 37px;
+  padding: 0 2px 10px;
+  border-bottom: 1px solid #e9edf1;
+  background: transparent;
+}
+.chat-card-header strong { font-size: 10px; }
+.chat-card-header span:not(.chat-status-dot) { font-size: 9px; }
+.chat-card-header small { font-size: 8px; }
+.messages {
+  gap: 20px;
+  padding: 24px clamp(3px, 2vw, 18px) 24px;
+}
+.empty-state {
+  max-width: 620px;
+  padding: 80px 12px 52px;
+}
+.empty-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+.empty-state h2 {
+  font-size: 25px;
+  font-weight: 620;
+  letter-spacing: -.045em;
+}
+.empty-state p { font-size: 12px; }
+.prompt-suggestions { gap: 8px; }
+.prompt-suggestions button {
+  padding: 9px 12px;
+  border-color: #e1e6eb;
+  border-radius: 9px;
+  font-size: 10px;
+}
+.message-group { gap: 7px; }
+.message-row { gap: 10px; }
+.message-avatar {
+  width: 25px;
+  height: 25px;
+  flex-basis: 25px;
+  border-radius: 8px;
+}
+.message-content { max-width: min(90%, 760px); }
+.message-bubble {
+  padding: 12px 14px;
+  border-color: #e6e9ee;
+  border-radius: 11px;
+  background: #fff;
+  color: #27313c;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.message-row.user .message-bubble {
+  border-color: #e5e9ee;
+  border-radius: 13px;
+  background: #eef1f5;
+  color: #202b37;
+}
+.message-actions { padding-left: 36px; }
+.composer {
+  margin: 2px 0 0;
+  padding: 11px 12px 9px;
+  border: 1px solid #dce2e8;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(28, 39, 51, .055);
+}
+.composer:focus-within {
+  border-color: #c4d2ca;
+  box-shadow: 0 0 0 3px rgba(52, 112, 88, .07), 0 5px 22px rgba(28, 39, 51, .06);
+}
+.composer textarea {
+  min-height: 58px;
+  padding: 4px 5px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.composer-footer {
+  padding: 8px 1px 1px;
+}
+.composer-tools { gap: 7px; }
+.attach-image-button, .attach-link-button {
+  min-height: 29px;
+  padding: 0 10px;
+  border: 1px solid #e5e9ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #566272;
+  font-size: 9px;
+}
+.attach-image-button:hover, .attach-link-button:hover:not(:disabled) {
+  border-color: #cbd8d0;
+  background: #f5f8f6;
+  color: var(--accent);
+}
+.composer-footer .button-primary {
+  min-height: 32px;
+  border-radius: 9px;
+  font-size: 10px;
+}
+.error-banner { border-radius: 10px; }
+.share-panel {
+  border-color: #e5e9ee;
+  border-radius: 11px;
+  background: #fff;
+}
+.page-footnote { margin-top: 10px; }
+
+/* VS Code Web handoff page. */
+.vscode-page {
+  width: min(1120px, calc(100% - 48px));
+  margin-inline: auto;
+  padding-top: clamp(35px, 6vh, 70px);
+}
+.vscode-heading { align-items: center; margin-bottom: 28px; }
+.vscode-heading h1 {
+  margin-top: 8px;
+  font-size: clamp(29px, 4vw, 40px);
+  letter-spacing: -.055em;
+  font-weight: 660;
+}
+.vscode-heading p:not(.eyebrow) { font-size: 12px; }
+.vscode-status { gap: 8px; background: #fff; }
+.vscode-status span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4a9272;
+}
+.vscode-launch-card {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: clamp(22px, 4vw, 34px);
+  border: 1px solid #e1e6eb;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 12px 38px rgba(31, 43, 57, .045);
+}
+.vscode-launch-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 17px;
+  margin-bottom: 27px;
+}
+.vscode-symbol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 14px;
+  background: #e9f1fa;
+  color: #23659a;
+  font: 700 18px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.vscode-symbol span:nth-child(2) { color: #4d8ac0; }
+.vscode-launch-top h2 {
+  margin: 5px 0 7px;
+  color: var(--ink);
+  font-size: clamp(17px, 2vw, 21px);
+  font-weight: 640;
+  letter-spacing: -.035em;
+}
+.vscode-launch-top p:not(.eyebrow) {
+  max-width: 610px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.vscode-repository-field {
+  display: grid;
+  gap: 7px;
+}
+.vscode-repository-field > span {
+  color: #3f4a58;
+  font-size: 10px;
+  font-weight: 650;
+}
+.vscode-repository-field input {
+  min-height: 46px;
+  width: 100%;
+  padding: 0 13px;
+  border: 1px solid #dce2e8;
+  border-radius: 9px;
+  background: #fbfcfd;
+  color: var(--ink);
+  font: 12px ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.vscode-repository-field input:focus {
+  border-color: #91b5a2;
+  outline: 3px solid rgba(58, 128, 94, .08);
+}
+.vscode-repository-field small {
+  color: #87909d;
+  font-size: 9px;
+}
+.vscode-validation {
+  margin: 9px 0 0;
+  color: #a33f43;
+  font-size: 10px;
+}
+.vscode-launch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 19px;
+}
+.vscode-launch-actions .button {
+  min-height: 39px;
+  padding: 0 15px;
+  border-radius: 9px;
+  font-size: 10px;
+}
+.vscode-launch-actions a[aria-disabled="true"] {
+  pointer-events: none;
+  opacity: .45;
+}
+.vscode-repository-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  padding-top: 15px;
+  border-top: 1px solid #edf0f3;
+  color: #526071;
+  font: 9px ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.vscode-repository-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4b9474;
+}
+.vscode-repository-provider {
+  margin-left: auto;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: #f0f4f8;
+  color: #637387;
+}
+.vscode-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 880px;
+  margin: 14px auto 0;
+}
+.vscode-info-card {
+  min-height: 154px;
+  padding: 17px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+.vscode-info-number {
+  display: inline-flex;
+  color: #7c8997;
+  font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.vscode-info-card h3 {
+  margin: 13px 0 7px;
+  color: #293442;
+  font-size: 11px;
+  font-weight: 670;
+}
+.vscode-info-card p {
+  margin: 0;
+  color: #75808d;
+  font-size: 9px;
+  line-height: 1.65;
+}
+.vscode-sync-notice {
+  display: flex;
+  gap: 12px;
+  max-width: 880px;
+  margin: 14px auto 0;
+  padding: 16px 18px;
+  border: 1px solid #e2e8e5;
+  border-radius: 12px;
+  background: #f5f8f6;
+}
+.vscode-sync-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 8px;
+  background: #e4eee8;
+  color: #3a6c54;
+  font-size: 14px;
+}
+.vscode-sync-notice strong {
+  color: #365343;
+  font-size: 10px;
+}
+.vscode-sync-notice p {
+  margin: 5px 0 0;
+  color: #6e7f75;
+  font-size: 9px;
+  line-height: 1.65;
+}
+.vscode-footnote {
+  max-width: 880px;
+  margin: 13px auto 0;
+  color: #929ba6;
+  font-size: 9px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .topbar { flex-basis: 236px; width: 236px; }
+  .chat-page { padding-right: 24px; padding-left: 24px; }
+}
+@media (max-width: 700px) {
+  .topbar {
+    width: 100%;
+    min-height: 62px;
+    flex-basis: auto;
+    padding: 9px 12px 7px;
+  }
+  .chat-page {
+    height: calc(100dvh - 112px);
+    min-height: 490px;
+    padding: 13px 12px 10px;
+  }
+  .chat-page-heading { margin-bottom: 10px; }
+  .chat-page-heading h1 { font-size: 23px; }
+  .chat-card { min-height: 0; }
+  .messages { padding: 14px 1px 16px; }
+  .empty-state { padding-top: 54px; }
+  .message-content { max-width: 95%; }
+  .composer { border-radius: 15px; }
+  .vscode-page { width: 100%; padding: 24px 13px 34px; }
+  .vscode-heading { align-items: flex-start; flex-direction: column; gap: 13px; }
+  .vscode-launch-card { padding: 19px 15px; border-radius: 13px; }
+  .vscode-launch-top { gap: 12px; }
+  .vscode-symbol { width: 41px; height: 41px; flex-basis: 41px; border-radius: 11px; }
+  .vscode-info-grid { grid-template-columns: 1fr; gap: 8px; }
+  .vscode-info-card { min-height: 0; }
+  .vscode-info-card h3 { margin-top: 7px; }
+  .vscode-sync-notice { padding: 13px; }
+}
