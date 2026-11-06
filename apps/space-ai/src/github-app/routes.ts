@@ -565,7 +565,7 @@ export async function handleGitHubAppRequest(request: Request, env: Env): Promis
     const stored = await vault.getConnection();
     if (!stored) return Response.json({ disconnected: true });
 
-    let record = stored;
+    let record: GitHubAppTokenRecord = stored;
     try {
       record = await getFreshRecord(env, session.userId);
     } catch {
