@@ -75,14 +75,15 @@ type MemoryRow = { key: string; value: string; updated_at: number };
 
 function assertSafeUserMemory(key: string, value: string): void {
   const candidate = key + " " + value;
-  const credentialPattern = /\\b(?:password|passphrase|api[\\s_-]?key|access[\\s_-]?token|refresh[\\s_-]?token|private[\\s_-]?key|session[\\s_-]?cookie|one[\\s-]?time code|otp|recovery code|secret)\\b/i;
-  const paymentPattern = /\\b(?:credit card|debit card|bank account|rekening|cvv|pin)\\b/i;
-  const emailPattern = /\\b[\\w.+-]+@[\\w.-]+\\.[A-Za-z]{2,}\\b/;
-  const longNumberPattern = /\\b\\d{13,19}\\b/;
+  const credentialPattern = /\b(?:password|passphrase|api[\s_-]?key|access[\s_-]?token|refresh[\s_-]?token|private[\s_-]?key|session[\s_-]?cookie|one[\s-]?time code|otp|recovery code|secret)\b/i;
+  const paymentPattern = /\b(?:credit card|debit card|bank account|rekening|cvv|pin)\b/i;
+  const emailPattern = /\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/;
+  const longNumberPattern = /\b\d{13,19}\b/;
   if (credentialPattern.test(candidate) || paymentPattern.test(candidate) || emailPattern.test(value) || longNumberPattern.test(value)) {
     throw new Error("This looks like sensitive account or contact information and cannot be saved as memory.");
   }
-};
+}
+
 type WorkspaceFileRow = { path: string; content: string; language: string; size_bytes: number; updated_at: number };
 type WorkspaceRevisionRow = { id: string; path: string; content: string; size_bytes: number; created_at: number };
 type WorkspaceAssetRow = { id: string; filename: string; mime_type: string; content_base64: string; size_bytes: number; prompt: string; created_at: number };
