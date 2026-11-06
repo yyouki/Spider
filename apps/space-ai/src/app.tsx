@@ -723,9 +723,9 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
         ))}
       </nav>
       {currentPath === "/" && (
-        <section className="conversation-history" aria-label="Conversation history">
+        <details className="conversation-history">
+          <summary>History <span>{conversations.length}</span></summary>
           <label className="conversation-search">
-            <span>History</span>
             <input
               type="search"
               value={conversationQuery}
@@ -746,19 +746,19 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
                   aria-current={conversation.id === activeConversationId ? "page" : undefined}
                   title={conversation.title}
                 >
-                  <span className="conversation-item-title">{conversation.pinned ? "📌 " : ""}{conversation.title}</span>
+                  <span className="conversation-item-title">{conversation.pinned ? "Pinned · " : ""}{conversation.title}</span>
                   <small>{conversation.messageCount} messages</small>
                 </button>
                 <div className="conversation-item-actions">
-                  <button type="button" onClick={() => void toggleChatPin(conversation)} aria-label={conversation.pinned ? "Unpin conversation" : "Pin conversation"} title={conversation.pinned ? "Unpin" : "Pin"}>{conversation.pinned ? "Unpin" : "Pin"}</button>
-                  <button type="button" onClick={() => void renameChat(conversation)} aria-label="Rename conversation">Rename</button>
-                  <button type="button" onClick={() => void deleteChat(conversation)} aria-label="Delete conversation">Delete</button>
+                  <button type="button" onClick={() => void toggleChatPin(conversation)} disabled={busy} aria-label={conversation.pinned ? "Unpin conversation" : "Pin conversation"} title={conversation.pinned ? "Unpin" : "Pin"}>{conversation.pinned ? "Unpin" : "Pin"}</button>
+                  <button type="button" onClick={() => void renameChat(conversation)} disabled={busy} aria-label="Rename conversation">Rename</button>
+                  <button type="button" onClick={() => void deleteChat(conversation)} disabled={busy} aria-label="Delete conversation">Delete</button>
                 </div>
               </div>
             ))}
             {conversations.length === 0 && <p className="conversation-empty">No saved conversations found.</p>}
           </div>
-        </section>
+        </details>
       )}
       <div className="topbar-actions">
         <span className={`connection ${connected ? "online" : "offline"}`}>
