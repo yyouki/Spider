@@ -35,7 +35,7 @@ Cloud Storage bukan otomatis gratis. Google Cloud mencantumkan kuota Always Free
 
 ## VS Code Web recommendation
 
-Keep Monaco as the built-in editor for the Space workspace. Offer an "Open in VS Code Web" action after a project has been pushed to GitHub, opening the repository at https://github.dev/OWNER/REPOSITORY. This is an external editor, not an embedded VS Code instance, and it still depends on GitHub access and browser limitations. It does not provide the same machine environment as Codespaces.
+Space uses the official VS Code Web service as an external editor. The `/ide` page accepts a GitHub `owner/repository` and opens https://github.dev/OWNER/REPOSITORY in a new tab. There is no embedded Monaco editor. VS Code Web depends on GitHub sign-in and browser support, and it is designed for source browsing and lightweight edits rather than a full build environment. It does not provide a terminal or VM; Codespaces or another remote compute target is needed for builds and debugging. Private Space workspace files are not automatically synced to the selected GitHub repository.
 
 ## Android companion and background access
 
