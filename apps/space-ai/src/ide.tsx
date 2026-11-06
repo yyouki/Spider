@@ -138,7 +138,7 @@ function resolveTerminalPath(input: string, cwd: string): string {
 }
 
 function tokenizeTerminalInput(input: string): string[] {
-  return (input.match(/"[^"]*"|'[^']*'|\\S+/g) ?? [])
+  return (input.match(/"[^"]*"|'[^']*'|\S+/g) ?? [])
     .map((part) => part.replace(/^["']|["']$/g, ""));
 }
 
