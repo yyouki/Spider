@@ -16,7 +16,7 @@ Last implementation pass: November 6, 2026.
 | Capability reporting | Implemented in source | `getCapabilities` tool |
 | Project memory | Implemented in source | SQLite table with approval-required writes |
 | Owner autonomy settings | Implemented in source | SQLite persistence and mobile settings UI |
-| Private workspace files | Implemented in current branch | SQLite-backed file records, validation, 200-file/2 MB limits, 20 revisions per file, chat download attachments, confirmed file/folder deletion with revision cleanup |
+| Private workspace files | Implemented in source | SQLite-backed file records, validation, 200-file/2 MB limits, 20 revisions per file, and chat download attachments; there is no longer a visual file Explorer after the VS Code Web transition |
 | VS Code Web launcher | Implemented in source | Validated GitHub repository input and external handoff to github.dev; no embedded Monaco editor |
 | Token analysis | Implemented in current branch | Provider-reported AI usage plus clearly labeled file/workspace estimates |
 | Read-only conversation sharing | Implemented in current branch | Random bearer URLs, seven-day expiry, revoke, no-store/noindex response |
@@ -48,7 +48,7 @@ The default model remains `@cf/zai-org/glm-4.7-flash`. It supports reasoning and
 
 ## Not yet verified
 
-- Workspace attachments, image generation/editing, context compaction, conversation history, and the VS Code Web launcher passed CI on the current PR head; production deployment and browser-level runtime tests have not yet been performed.
+- Workspace attachments, image generation/editing, context compaction, conversation history, and the VS Code Web launcher passed CI before the latest unverified branch updates; production deployment and browser-level runtime tests have not yet been performed.
 - Cloudflare deployment and owner-only GitHub OAuth sign-in.
 - Runtime sandbox dispatch, artifact decryption, and Python/JavaScript execution.
 - Sandbox timeout, cancellation, concurrency, and no-network behavior.
@@ -81,7 +81,7 @@ The history search checks titles and saved message content. The current browser 
 
 ## Workspace deletion
 
-The IDE Explorer can delete an individual file or a derived folder tree. Both actions require a confirmation; deleting a folder recursively removes its descendant files, and deleting a file/folder also clears the corresponding retained file revisions. Protected path segments and absolute/traversal paths remain rejected by the shared workspace path validator. Empty folders are not stored as separate records: a folder exists only while it contains at least one file.
+The server contains callable file/folder deletion operations that validate workspace paths and clear revisions. The old IDE Explorer that surfaced these actions has been removed with Monaco. Until a workspace file manager or GitHub repository integration is added, users do not have a visual file/folder deletion interface in Space.
 
 
 ## VS Code Web transition
