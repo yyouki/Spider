@@ -5,7 +5,7 @@ A first, deliberately small implementation of the single-core space AI workspace
 ## Included now
 
 - One user-facing AI identity: `SpaceAgent`.
-- Streaming text chat from a mobile-first React interface.
+- Streaming text chat in a responsive AI-chat layout with a navigation rail, focused message area, and composer.
 - Persistent chat history through Cloudflare Agents / Durable Objects SQLite, with no fixed message-count cap and an automatically maintained summary for older context. Storage and inference still obey Cloudflare's quotas and per-row limits.
 - Owner-triggered read-only conversation share links. Links contain a random bearer token, expose the currently loaded conversation and tool events, expire after seven days, and can be revoked. Anyone with the link can read the snapshot.
 - A task ledger for saving, listing, and cancelling plans. A saved plan is not executed automatically.
@@ -13,24 +13,29 @@ A first, deliberately small implementation of the single-core space AI workspace
 - A deterministic self-update release gate with unit tests.
 - A calculator tool for exact basic arithmetic.
 - A capability-status tool that reports what is really connected.
-- Project memory stored in the Agent's SQLite database. Saving a memory requires explicit user approval in the UI.
+- Project notes and user-approved personal memory stored in the Agent's SQLite database. Memory can be listed and deleted from Settings; saving requires an explicit request and approval.
 - Owner-only GitHub OAuth login. The temporary read:user token is used only for the identity lookup and is not stored; Space stores only a signed session cookie. Keep the OAuth App's expiring user-token setting enabled.
 - Workers AI model: `@cf/zai-org/glm-4.7-flash`.
 - Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
-- A dedicated IDE page using Monaco Editor, with Explorer, folder ZIP downloads, project ZIP download, multi-file tabs, automatic saving, file history/restore, full-text search, Run File output, and mobile Explorer/Editor tabs. Monaco provides syntax highlighting for many languages; the sandbox executes Python and JavaScript only.
+- A dedicated VS Code/Codespaces-inspired IDE page using Monaco Editor, with Explorer, folder ZIP downloads, project ZIP download, multi-file tabs, automatic saving, file history/restore, full-text search, selectable VS Code Dark/Light, GitHub Dark, Monokai and custom background themes, and mobile Explorer/Editor tabs. Monaco provides syntax highlighting for many languages; the sandbox executes Python and JavaScript only.
+- An interactive, keyboard-focusable workspace terminal with command input/history, scrollable output, and commands for `help`, `pwd`, `ls`, `cd`, `tree`, `cat`, `touch`, `open`, `run`, `python`, `node`, `echo`, and `clear`. It operates on the private workspace and can launch Python/JavaScript files through the existing restricted runner.
 - Persistent private workspace files created or updated by AI tools or the editor. Folder structure is inferred from file paths. Successful AI file writes show a downloadable file attachment in the conversation.
 - A separate Analytics page with provider-reported token usage, daily activity and workspace storage estimates.
 - Private image assets, FLUX.2 Klein image generation/editing, and chat image previews with download actions.
 
 ## Not included yet
 
-Autonomous browser, GitHub repository sync, image understanding/OCR, audio/video understanding, Android/Windows/macOS device runners, Gmail or other account integrations, multi-language compilers beyond Python/JavaScript, binary disassembly, live market-data feeds, brokerage/exchange connectors, and a production updater are not connected. The workspace is an isolated app-level file store, not the user device filesystem or repository checkout. The sandbox is for small snippets, not a persistent coding VM or full shell. It does not mount the workspace, repository, or host filesystem and provides no internet access.
+Autonomous browser, GitHub repository sync, image understanding/OCR, audio/video understanding, Android/Windows/macOS device runners, Gmail or other account integrations, multi-language compilers beyond Python/JavaScript, binary disassembly, live market-data feeds, brokerage/exchange connectors, and a production updater are not connected. The workspace is an isolated app-level file store, not the user device filesystem or repository checkout. The sandbox is for small snippets, not a persistent coding VM or full shell. The interactive terminal is a workspace command console, not a general Linux shell: arbitrary OS commands, package installs, arbitrary processes, and network access are not available. Its Python/JavaScript runner currently executes saved file contents in the restricted offline runner and does not mount the full workspace, repository, or host filesystem.
 
 ## Private workspace and IDE
 
-The IDE uses Monaco Editor with Vite-bundled language workers; it does not load editor code from a third-party CDN. The Explorer derives folders from saved relative file paths. Selecting a file opens it in a syntax-aware editor tab; use **Save** or Ctrl/Cmd+S to persist edits.
+The IDE uses Monaco Editor with Vite-bundled language workers; it does not load editor code from a third-party CDN and is not a full VS Code Web/Codespaces instance. The workbench is styled after VS Code/Codespaces. The theme selector includes VS Code Dark, VS Code Light, GitHub Dark, Monokai, and a custom dark background. Theme choice is saved locally in the current browser. The Explorer derives folders from saved relative file paths. Selecting a file opens it in a syntax-aware editor tab; use **Save** or Ctrl/Cmd+S to persist edits.
 
 Workspace files are stored in the owning SpaceAgent Durable Object SQLite database. Limits are 200 files, 128 KB per file, and 2 MB total. The last 20 prior versions per file are retained when saved content changes. Hidden paths and sensitive config filenames such as `.env` and `.dev.vars` are rejected. AI-created files appear in the Explorer after the write tool completes and show a direct Download action in chat. The IDE supports search inside file contents, automatic saving, version restore, ZIP download of a folder/project, and a bounded Run File action for Python/JavaScript. Files do not automatically sync to GitHub or the device.
+
+The workspace terminal is keyboard-operated and retains a short command history in the current page session. Its command parser is intentionally allowlisted; it is not a host shell and does not support arbitrary bash/zsh commands, `npm install`, package managers, piping, or internet commands. The `run` / `python` / `node` commands are submitted to the same single-active-task, restricted offline runner described below.
+
+User memory is separate from chat history and project notes. Space adds memory to future model context only when the owner explicitly asks to save it and approves the tool action. Settings displays saved memory entries and offers per-entry deletion or clearing all entries. The model is instructed to keep only low-sensitivity preferences and useful facts; do not use memory for credentials, private keys, authentication codes, or sensitive medical/financial information.
 
 The separate **Analytics** page shows provider-reported input/output usage for at most the 200 most recent responses, a 14-day daily activity chart, and the latest 12 responses. The workspace section shows file count and storage size plus a clearly labeled rough token estimate using UTF-8 bytes divided by four. It is not an exact GLM tokenizer count or model usage. The dashboard does not estimate monetary cost or expose account-wide Cloudflare Neurons.
 
