@@ -6,7 +6,6 @@ import { z } from "zod";
 import { getOwnerSession, googleOAuthReady, handleAuthRequest, requireOwnerAccess } from "./security/access";
 import { getSpaceAgentName, isSameOriginAgentRequest } from "./security/tenant-routing.js";
 import { ChatShares, type SharedChatSnapshot } from "./chat-shares";
-import { GitHubVault } from "./github-app/vault";
 import { handleGitHubAppRequest } from "./github-app/routes";
 
 export { GitHubVault } from "./github-app/vault";
@@ -106,6 +105,12 @@ type ConversationListRow = {
 };
 
 type ActiveConversationRow = { conversation_id: string };
+
+type GitHubWorkspaceSnapshot = {
+  files: Array<{ path: string; content: string; sizeBytes: number }>;
+  fileCount: number;
+  totalBytes: number;
+};
 
 const WORKSPACE_FILE_LIMIT = 200;
 const WORKSPACE_FILE_MAX_BYTES = 128 * 1024;
