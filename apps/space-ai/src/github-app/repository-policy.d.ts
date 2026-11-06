@@ -4,3 +4,5 @@ export function parsePersonalRepositoryTarget(
   value: unknown,
   expectedLogin: string
 ): { owner: string; name: string } | null;
+
+export function findPotentialSecretPaths(files: unknown): string[];
