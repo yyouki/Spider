@@ -300,8 +300,8 @@ export class SpaceAgent extends AIChatAgent<Env> {
     const serialized = JSON.stringify(messages);
     const size = new TextEncoder().encode(serialized).byteLength;
     // Keep each archived snapshot bounded; active chat storage remains managed by AIChatAgent.
-    if (size > 2 * 1024 * 1024) {
-      throw new Error("This conversation snapshot is larger than the 2 MB archive limit.");
+    if (size > 1536 * 1024) {
+      throw new Error("This conversation snapshot is larger than the 1.5 MB archive limit.");
     }
     const rows = this.sql<Pick<ConversationListRow, "title">>`SELECT title FROM conversations
       WHERE id = ${conversationId} LIMIT 1`;
@@ -891,10 +891,14 @@ export class SpaceAgent extends AIChatAgent<Env> {
   protected async onChatResponse(result: ChatResponseResult) {
     if (result.status === "completed") {
       try {
-        this.saveConversationSnapshot(this.messages);
         await this.compactConversationContext();
       } catch {
-        // A failed archive or summary must never invalidate a successful chat response.
+        // Context compaction is best-effort and must never invalidate a successful chat response.
+      }
+      try {
+        this.saveConversationSnapshot(this.messages);
+      } catch {
+        // An oversized archive must not prevent the existing active chat from continuing.
       }
     }
   }
