@@ -619,6 +619,8 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
   const deletePath = async (path: string, folder: boolean) => {
     if (dirty && selectedPath && (selectedPath === path || selectedPath.startsWith(path + "/"))) {
       if (!window.confirm("This path contains your unsaved editor changes. Discard them and continue?")) return;
+      autosaveValueRef.current = draft; // Prevent a pending autosave from recreating the deleted file.
+      setDirty(false);
     }
     const label = folder ? "folder and all its files" : "file and its saved revisions";
     if (!window.confirm("Permanently delete this " + label + ": " + path + "?")) return;
@@ -635,6 +637,9 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
         ? files.filter((file) => file.path === path || file.path.startsWith(path + "/")).map((file) => file.path)
         : [path];
       setTabs((current) => current.filter((tab) => !removedPaths.includes(tab)));
+      if (folder) {
+        setExpanded((current) => new Set([...current].filter((item) => item !== path && !item.startsWith(path + "/"))));
+      }
       if (removedPaths.includes(selectedPath)) {
         setSelectedPath("");
         setContent("");
@@ -1023,7 +1028,16 @@ export default function WorkspaceIDE({ refreshKey, onListFiles, onReadFile, onWr
           )}
           <div className="ide-tree">
             {loading ? <p className="ide-empty-small">Loading files…</p> : tree.length ? (
-              <FileTree nodes={tree} depth={0} expanded={expanded} selectedPath={selectedPath} onToggle={toggleFolder} onSelect={(path) => void openFile(path)} onDownloadFolder={(path) => void downloadFolder(path)} />
+              <FileTree
+                nodes={tree}
+                depth={0}
+                expanded={expanded}
+                selectedPath={selectedPath}
+                onToggle={toggleFolder}
+                onSelect={(path) => void openFile(path)}
+                onDownloadFolder={(path) => void downloadFolder(path)}
+                onDeletePath={(path, folder) => void deletePath(path, folder)}
+              />
             ) : (
               <div className="ide-empty-tree">
                 <span>No files yet</span>
