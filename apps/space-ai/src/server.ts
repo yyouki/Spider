@@ -6,6 +6,9 @@ import { z } from "zod";
 import { getOwnerSession, googleOAuthReady, handleAuthRequest, requireOwnerAccess } from "./security/access";
 import { getSpaceAgentName, isSameOriginAgentRequest } from "./security/tenant-routing.js";
 import { ChatShares, type SharedChatSnapshot } from "./chat-shares";
+import { GitHubVault, type GitHubAppTokenRecord } from "./github-app/vault";
+
+export { GitHubVault } from "./github-app/vault";
 import { languageForPath, normalizeWorkspacePath, type WorkspaceFile, type WorkspaceFileMetadata } from "./workspace";
 
 // Expose the GitHub Actions-backed sandbox task ledger Durable Object.
@@ -106,135 +109,302 @@ type ActiveConversationRow = { conversation_id: string };
 type GitHubAppEnvironment = Env & {
   GITHUB_APP_CLIENT_ID?: string;
   GITHUB_APP_CLIENT_SECRET?: string;
+  GITHUB_APP_SLUG?: string;
 };
 
-type GitHubAppTokenRecord = {
-  accessToken: string;
-  refreshToken: string;
-  accessExpiresAt: number;
-  refreshExpiresAt: number;
-  login: string;
-  userId: number;
-  avatarUrl: string | null;
-  connectedAt: number;
-  linkedRepository: string | null;
+type GitHubAppTokenResponse = {
+  access_token?: string;
+  expires_in?: number;
+  refresh_token?: string;
+  refresh_token_expires_in?: number;
+  error?: string;
 };
 
-type GitHubAppConnectionRow = { encrypted_json: string; updated_at: number };
+type GitHubInstallation = {
+  id: number;
+  account?: { id?: number; login?: string };
+  permissions?: Record<string, string>;
+  suspended_at?: string | null;
+};
 
-function encodeBase64Url(bytes: Uint8Array): string {
-  return encodeBase64(bytes).replace(/=/g, "").replace(/\\+/g, "-").replace(/\\//g, "_");
+type GitHubWorkspaceSnapshot = {
+  files: Array<{ path: string; content: string; sizeBytes: number }>;
+  fileCount: number;
+  totalBytes: number;
+};
+
+const GITHUB_APP_STATE_COOKIE = "space_github_app_state";
+const GITHUB_APP_VERIFIER_COOKIE = "space_github_app_verifier";
+const GITHUB_API_VERSION = "2026-03-10";
+
+function githubAppConfig(env: Env): GitHubAppEnvironment {
+  return env as GitHubAppEnvironment;
 }
 
-function decodeBase64Url(value: string): Uint8Array {
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  return decodeBase64(normalized + "=".repeat((4 - normalized.length % 4) % 4));
+function githubAppReady(env: Env): boolean {
+  const config = githubAppConfig(env);
+  return Boolean(config.GITHUB_APP_CLIENT_ID && config.GITHUB_APP_CLIENT_SECRET && config.GITHUB_APP_SLUG);
 }
 
-function secureOAuthCookie(name: string, value: string, maxAge: number): string {
-  return [`${name}=${value}`, "Path=/", `Max-Age=${maxAge}`, "HttpOnly", "Secure", "SameSite=Lax"].join("; ");
+function githubAppCookie(name: string, value: string, maxAge: number): string {
+  return [
+    name + "=" + value,
+    "Path=/",
+    "Max-Age=" + maxAge,
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax"
+  ].join("; ");
 }
 
-function getRequestCookie(request: Request, name: string): string | null {
+function githubAppCookieValue(request: Request, name: string): string | null {
   const cookies = request.headers.get("cookie") ?? "";
-  for (const entry of cookies.split(";")) {
-    const separator = entry.indexOf("=");
-    if (separator >= 0 && entry.slice(0, separator).trim() === name) {
-      return entry.slice(separator + 1).trim();
+  for (const item of cookies.split(";")) {
+    const separator = item.indexOf("=");
+    if (separator >= 0 && item.slice(0, separator).trim() === name) {
+      return item.slice(separator + 1).trim();
     }
   }
   return null;
 }
 
-function constantTimeStringEqual(left: string, right: string): boolean {
+function githubAppBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/=/g, "").replace(/\\+/g, "-").replace(/\\//g, "_");
+}
+
+function githubAppConstantTimeEqual(left: string, right: string): boolean {
   if (left.length !== right.length) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return difference === 0;
+  let diff = 0;
+  for (let i = 0; i < left.length; i += 1) diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return diff === 0;
 }
 
-async function signServerPayload(payload: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-  );
-  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
-  return encodeBase64Url(new Uint8Array(signature));
+async function githubAppCodeChallenge(verifier: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return githubAppBase64Url(new Uint8Array(digest));
 }
 
-async function deriveGitHubTokenEncryptionKey(secret: string): Promise<CryptoKey> {
-  const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), "HKDF", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey(
-    {
-      name: "HKDF",
-      hash: "SHA-256",
-      salt: new TextEncoder().encode("space-github-app-token-storage-v1"),
-      info: new TextEncoder().encode("space-ai/owner-github-app")
-    },
-    material,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"]
-  );
-}
-
-async function encryptGitHubTokenRecord(record: GitHubAppTokenRecord, secret: string): Promise<string> {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await deriveGitHubTokenEncryptionKey(secret);
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    key,
-    new TextEncoder().encode(JSON.stringify(record))
-  );
-  const combined = new Uint8Array(iv.length + ciphertext.byteLength);
-  combined.set(iv, 0);
-  combined.set(new Uint8Array(ciphertext), iv.length);
-  return encodeBase64(combined);
-}
-
-async function decryptGitHubTokenRecord(value: string, secret: string): Promise<GitHubAppTokenRecord> {
-  const combined = decodeBase64(value);
-  if (combined.byteLength <= 12) throw new Error("Stored GitHub App credentials are invalid.");
-  const iv = combined.slice(0, 12);
-  const ciphertext = combined.slice(12);
-  const key = await deriveGitHubTokenEncryptionKey(secret);
-  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
-  const record = JSON.parse(new TextDecoder().decode(plaintext)) as GitHubAppTokenRecord;
-  if (
-    typeof record.accessToken !== "string" ||
-    typeof record.refreshToken !== "string" ||
-    typeof record.login !== "string" ||
-    typeof record.userId !== "number" ||
-    typeof record.accessExpiresAt !== "number" ||
-    typeof record.refreshExpiresAt !== "number"
-  ) throw new Error("Stored GitHub App credentials are incomplete.");
-  return record;
-}
-
-function githubAppApiHeaders(accessToken: string): HeadersInit {
+function githubHeaders(accessToken: string): HeadersInit {
   return {
     Authorization: "Bearer " + accessToken,
     Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
+    "X-GitHub-Api-Version": GITHUB_API_VERSION,
     "User-Agent": "space-ai"
   };
 }
 
-async function readGitHubApiResponse<T>(response: Response): Promise<T> {
+async function githubApi<T>(
+  accessToken: string,
+  path: string,
+  init: RequestInit = {}
+): Promise<T> {
+  const headers = new Headers(githubHeaders(accessToken));
+  new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+  if (init.body) headers.set("Content-Type", "application/json");
+
+  const response = await fetch("https://api.github.com" + path, {
+    ...init,
+    headers
+  });
   const text = await response.text();
   let parsed: unknown = null;
-  try { parsed = text ? JSON.parse(text) : null; } catch { /* Keep API errors generic below. */ }
+  try { parsed = text ? JSON.parse(text) : null; } catch { /* API error body may not be JSON. */ }
   if (!response.ok) {
-    const message = parsed && typeof parsed === "object" && "message" in parsed
-      ? String((parsed as { message: unknown }).message).slice(0, 180)
+    const apiMessage = parsed && typeof parsed === "object" && "message" in parsed
+      ? String((parsed as { message: unknown }).message).slice(0, 160)
       : "GitHub API request failed.";
-    if (response.status === 422) throw new Error("GitHub menolak permintaan ini. Nama repository mungkin sudah digunakan atau tidak valid.");
-    if (response.status === 401) throw new Error("Otorisasi GitHub App kedaluwarsa atau dicabut. Hubungkan ulang GitHub App.");
-    if (response.status === 403) throw new Error("GitHub App belum memiliki izin repository creation/contents write atau terkena rate limit.");
-    throw new Error(`GitHub API (${response.status}): ${message}`);
+    if (response.status === 401) throw new Error("GitHub App token expired or was revoked. Reconnect GitHub.");
+    if (response.status === 403) throw new Error("GitHub App is missing Repository creation: write or Contents: write, or GitHub rate limit was reached.");
+    if (response.status === 422) throw new Error("GitHub rejected the request. The repository name may already exist or the request is invalid.");
+    throw new Error("GitHub API (" + response.status + "): " + apiMessage);
   }
   return parsed as T;
+}
+
+function githubVault(env: Env, userId: string) {
+  const id = env.GitHubVault.idFromName(userId);
+  return env.GitHubVault.get(id);
+}
+
+async function saveGitHubAppRecord(env: Env, userId: string, record: GitHubAppTokenRecord) {
+  return githubVault(env, userId).saveConnection(record);
+}
+
+async function readGitHubAppRecord(env: Env, userId: string) {
+  return githubVault(env, userId).getConnection();
+}
+
+async function getFreshGitHubAppRecord(env: Env, userId: string): Promise<GitHubAppTokenRecord> {
+  const record = await readGitHubAppRecord(env, userId);
+  if (!record) throw new Error("Connect your GitHub App account before publishing.");
+
+  const config = githubAppConfig(env);
+  if (!config.GITHUB_APP_CLIENT_ID || !config.GITHUB_APP_CLIENT_SECRET) {
+    throw new Error("GitHub App integration is not configured on this Worker.");
+  }
+  if (record.userId.toString() !== userId.replace(/^github:/, "")) {
+    throw new Error("The stored GitHub connection does not match the signed-in account.");
+  }
+  if (record.accessExpiresAt > Date.now() + 60_000) return record;
+  if (record.refreshExpiresAt <= Date.now()) {
+    throw new Error("GitHub App refresh token expired. Disconnect and connect GitHub again.");
+  }
+
+  const response = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: config.GITHUB_APP_CLIENT_ID,
+      client_secret: config.GITHUB_APP_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: record.refreshToken
+    })
+  });
+  const refreshed = await response.json() as GitHubAppTokenResponse;
+  if (!response.ok || !refreshed.access_token || !refreshed.refresh_token) {
+    throw new Error("Could not refresh GitHub App authorization. Reconnect GitHub.");
+  }
+
+  const updated: GitHubAppTokenRecord = {
+    ...record,
+    accessToken: refreshed.access_token,
+    refreshToken: refreshed.refresh_token,
+    accessExpiresAt: Date.now() + (refreshed.expires_in ?? 28_800) * 1000,
+    refreshExpiresAt: Date.now() + (refreshed.refresh_token_expires_in ?? 15_897_600) * 1000
+  };
+  await saveGitHubAppRecord(env, userId, updated);
+  return updated;
+}
+
+async function verifyGitHubAppPermissions(
+  accessToken: string,
+  expectedUserId: number
+): Promise<GitHubInstallation> {
+  const result = await githubApi<{ installations?: GitHubInstallation[] }>(
+    accessToken,
+    "/user/installations?per_page=100"
+  );
+  const installation = (result.installations ?? []).find((item) =>
+    item.account?.id === expectedUserId && !item.suspended_at
+  );
+  if (!installation) {
+    throw new Error("Install this GitHub App on your personal GitHub account, then reconnect it.");
+  }
+  if (
+    installation.permissions?.repository_creation !== "write" ||
+    installation.permissions?.contents !== "write"
+  ) {
+    throw new Error("The GitHub App installation must grant Repository creation: write and Contents: write.");
+  }
+  return installation;
+}
+
+function htmlAuthMessage(title: string, message: string, actionUrl?: string, actionLabel?: string): Response {
+  const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  const action = actionUrl && actionLabel
+    ? "<p><a href=\"" + escape(actionUrl) + "\">" + escape(actionLabel) + "</a></p>"
+    : "";
+  return new Response(
+    "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
+    "<title>" + escape(title) + "</title><style>body{font:15px/1.6 system-ui;background:#f7f8fa;color:#202a35;margin:0;padding:8vh 20px}" +
+    "main{max-width:580px;margin:auto;background:white;border:1px solid #e4e8ec;border-radius:16px;padding:28px}" +
+    "a{color:#28654e}</style><main><h1>" + escape(title) + "</h1><p>" + escape(message) + "</p>" +
+    action + "<p><a href=\"/settings\">Return to Space settings</a></p></main></html>",
+    { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } }
+  );
+}
+
+async function createPrivateGitHubRepository(
+  accessToken: string,
+  login: string,
+  name: string,
+  description: string,
+  snapshot: GitHubWorkspaceSnapshot
+): Promise<{ url: string; fullName: string; branch: string; filesPublished: number; commit: string }> {
+  const repository = await githubApi<{
+    name: string;
+    full_name: string;
+    html_url: string;
+    default_branch: string;
+    owner: { login: string };
+  }>(accessToken, "/user/repos", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      description,
+      private: true,
+      auto_init: true,
+      has_issues: true,
+      has_wiki: false
+    })
+  });
+
+  if (repository.owner.login.toLowerCase() !== login.toLowerCase()) {
+    throw new Error("GitHub returned a repository under an unexpected owner. Publishing was stopped.");
+  }
+
+  const branch = repository.default_branch || "main";
+  const branchRef = await githubApi<{ object: { sha: string } }>(
+    accessToken,
+    "/repos/" + encodeURIComponent(login) + "/" + encodeURIComponent(name) +
+      "/git/ref/heads/" + encodeURIComponent(branch)
+  );
+  const parentCommit = await githubApi<{ tree: { sha: string } }>(
+    accessToken,
+    "/repos/" + encodeURIComponent(login) + "/" + encodeURIComponent(name) +
+      "/git/commits/" + branchRef.object.sha
+  );
+
+  const treeEntries: Array<{ path: string; mode: "100644"; type: "blob"; sha: string }> = [];
+  for (const file of snapshot.files) {
+    const blob = await githubApi<{ sha: string }>(
+      accessToken,
+      "/repos/" + encodeURIComponent(login) + "/" + encodeURIComponent(name) + "/git/blobs",
+      {
+        method: "POST",
+        body: JSON.stringify({ content: file.content, encoding: "utf-8" })
+      }
+    );
+    treeEntries.push({ path: file.path, mode: "100644", type: "blob", sha: blob.sha });
+  }
+
+  const tree = await githubApi<{ sha: string }>(
+    accessToken,
+    "/repos/" + encodeURIComponent(login) + "/" + encodeURIComponent(name) + "/git/trees",
+    { method: "POST", body: JSON.stringify({ base_tree: parentCommit.tree.sha, tree: treeEntries }) }
+  );
+  const commit = await githubApi<{ sha: string }>(
+    accessToken,
+    "/repos/" + encodeURIComponent(login) + "/" + encodeURIComponent(name) + "/git/commits",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        message: "Publish Space workspace",
+        tree: tree.sha,
+        parents: [branchRef.object.sha]
+      })
+    }
+  );
+  await githubApi(
+    accessToken,
+    "/repos/" + encodeURIComponent(login) + "/" + encodeURIComponent(name) +
+      "/git/refs/heads/" + encodeURIComponent(branch),
+    {
+      method: "PATCH",
+      body: JSON.stringify({ sha: commit.sha, force: false })
+    }
+  );
+
+  return {
+    url: repository.html_url,
+    fullName: repository.full_name,
+    branch,
+    filesPublished: snapshot.files.length,
+    commit: commit.sha
+  };
 }
 
 const WORKSPACE_FILE_LIMIT = 200;
