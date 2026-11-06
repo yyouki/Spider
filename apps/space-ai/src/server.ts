@@ -320,12 +320,16 @@ export class SpaceAgent extends AIChatAgent<Env> {
   @callable()
   listConversations(inputQuery = "") {
     const query = typeof inputQuery === "string" ? inputQuery.trim().slice(0, 100).toLowerCase() : "";
-    const rows = this.sql<ConversationListRow>`SELECT id, title, pinned, messages_json, message_count, created_at, updated_at
-      FROM conversations ORDER BY pinned DESC, updated_at DESC LIMIT 100`;
+    const pattern = "%" + query + "%";
+    const rows = query
+      ? this.sql<Pick<ConversationListRow, "id" | "title" | "pinned" | "message_count" | "created_at" | "updated_at">>`SELECT id, title, pinned, message_count, created_at, updated_at
+          FROM conversations
+          WHERE lower(title) LIKE ${pattern} OR lower(messages_json) LIKE ${pattern}
+          ORDER BY pinned DESC, updated_at DESC LIMIT 100`
+      : this.sql<Pick<ConversationListRow, "id" | "title" | "pinned" | "message_count" | "created_at" | "updated_at">>`SELECT id, title, pinned, message_count, created_at, updated_at
+          FROM conversations ORDER BY pinned DESC, updated_at DESC LIMIT 100`;
     const activeId = this.getActiveConversationId();
-    return rows
-      .filter((row) => !query || row.title.toLowerCase().includes(query) || row.messages_json.toLowerCase().includes(query))
-      .map((row) => ({
+    return rows.map((row) => ({
         id: row.id,
         title: row.title,
         pinned: row.pinned === 1,
@@ -388,7 +392,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
   @callable()
   pinConversation(input: { id: string; pinned: boolean }) {
     const id = typeof input?.id === "string" ? input.id.trim() : "";
-    if (!id || id.length > 80 || typeof input.pinned !== "boolean") {
+    if (!id || id.length > 80 || typeof input?.pinned !== "boolean") {
       throw new Error("Provide a valid conversation and pin state.");
     }
     this.sql`UPDATE conversations SET pinned = ${input.pinned ? 1 : 0}, updated_at = ${Date.now()} WHERE id = ${id}`;
