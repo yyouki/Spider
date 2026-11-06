@@ -49,6 +49,16 @@ type SavedMemory = {
   updatedAt: string;
 };
 
+type ConversationSummary = {
+  id: string;
+  title: string;
+  pinned: boolean;
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+  active: boolean;
+};
+
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -267,6 +277,11 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const [settingsNotice, setSettingsNotice] = useState("");
   const [shareInfo, setShareInfo] = useState<{ url: string; jsonUrl: string; token: string; expiresAt: string; messageCount: number } | null>(null);
   const [shareNotice, setShareNotice] = useState("");
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState("default");
+  const [conversationQuery, setConversationQuery] = useState("");
+  const [conversationNotice, setConversationNotice] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [tokenUsage, setTokenUsage] = useState<TokenUsageSummary | null>(null);
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileMetadata[]>([]);
   const [savedMemories, setSavedMemories] = useState<SavedMemory[]>([]);
@@ -294,7 +309,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const {
     messages,
     sendMessage,
-    clearHistory,
+    setMessages,
     addToolApprovalResponse,
     stop,
     status
@@ -329,6 +344,87 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     if (connected) void loadSettings();
   }, [connected, loadSettings]);
+
+  const loadConversations = useCallback(async (query = conversationQuery) => {
+    try {
+      const result = await agent.stub.listConversations(query);
+      setConversations(result);
+      const active = result.find((item: ConversationSummary) => item.active);
+      if (active) setActiveConversationId(active.id);
+      setConversationNotice("");
+    } catch {
+      setConversationNotice("Conversation history could not be loaded. Check the connection and retry.");
+    }
+  }, [agent, conversationQuery]);
+
+  useEffect(() => {
+    if (connected && currentPath === "/") void loadConversations();
+  }, [connected, currentPath, loadConversations]);
+
+  const createChat = async () => {
+    if (!connected || busy) return;
+    try {
+      const result = await agent.stub.createConversation();
+      setActiveConversationId(result.id);
+      setShareInfo(null);
+      setShareNotice("");
+      setEditingMessageId(null);
+      setDraft("");
+      await loadConversations();
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "A new conversation could not be created.");
+    }
+  };
+
+  const openChat = async (id: string) => {
+    if (!connected || busy || id === activeConversationId) return;
+    try {
+      await agent.stub.saveActiveConversation(messages);
+      await agent.stub.activateConversation(id);
+      setActiveConversationId(id);
+      setShareInfo(null);
+      setShareNotice("");
+      setEditingMessageId(null);
+      setDraft("");
+      await loadConversations();
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "The selected conversation could not be opened.");
+    }
+  };
+
+  const renameChat = async (conversation: ConversationSummary) => {
+    const title = window.prompt("Rename conversation (up to 80 characters):", conversation.title);
+    if (title === null || title.trim() === conversation.title) return;
+    try {
+      await agent.stub.renameConversation({ id: conversation.id, title });
+      await loadConversations();
+    } catch (value) {
+      setConversationNotice(value instanceof Error ? value.message : "Conversation could not be renamed.");
+    }
+  };
+
+  const toggleChatPin = async (conversation: ConversationSummary) => {
+    try {
+      await agent.stub.pinConversation({ id: conversation.id, pinned: !conversation.pinned });
+      await loadConversations();
+    } catch {
+      setConversationNotice("Pin status could not be updated.");
+    }
+  };
+
+  const deleteChat = async (conversation: ConversationSummary) => {
+    if (!window.confirm("Delete \"" + conversation.title + "\" and its saved conversation history? This cannot be undone.")) return;
+    try {
+      const result = await agent.stub.deleteConversation(conversation.id);
+      setActiveConversationId(result.activeConversationId);
+      setShareInfo(null);
+      setShareNotice("");
+      setEditingMessageId(null);
+      await loadConversations();
+    } catch (value) {
+      setConversationNotice(value instanceof Error ? value.message : "Conversation could not be deleted.");
+    }
+  };
 
   const loadTokenUsage = useCallback(async () => {
     try {
@@ -436,6 +532,15 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     const text = draft.trim();
     if ((!text && !pendingImage && pendingVideoLinks.length === 0) || !connected || busy) return;
 
+    if (editingMessageId) {
+      const editIndex = messages.findIndex((message) => message.id === editingMessageId);
+      if (editIndex >= 0) {
+        // Rewind after the selected user message so the new answer replaces its old branch.
+        setMessages(messages.slice(0, editIndex));
+      }
+      setEditingMessageId(null);
+    }
+
     setDraft("");
     setError("");
     const imageNote = pendingImage
@@ -454,16 +559,31 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
     setPendingVideoLinks([]);
   };
 
-  const clear = async () => {
-    if (!window.confirm("Mulai chat baru dan hapus pesan serta ringkasan konteks percakapan saat ini? Memori tersimpan, catatan proyek, file workspace, dan rencana kerja tidak ikut dihapus.")) return;
+  const editUserMessage = (message: UIMessage) => {
+    if (busy || message.role !== "user") return;
+    const text = message.parts
+      .filter((part) => part.type === "text" && "text" in part)
+      .map((part) => String(part.text))
+      .join("\n")
+      .trim();
+    setDraft(text);
+    setEditingMessageId(message.id);
+    setError("");
+    window.setTimeout(() => document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus(), 0);
+  };
+
+  const copyMessage = async (message: UIMessage) => {
+    const text = message.parts
+      .filter((part) => part.type === "text" && "text" in part)
+      .map((part) => String(part.text))
+      .join("\n")
+      .trim();
+    if (!text) return;
     try {
-      await agent.stub.clearConversationContext();
-      clearHistory();
-      setShareInfo(null);
-      setShareNotice("");
-      setError("");
+      await navigator.clipboard.writeText(text);
+      setConversationNotice("Message copied.");
     } catch {
-      setError("Chat baru tidak dapat dimulai. Riwayat dan konteks lama tetap tersimpan.");
+      setError("Clipboard access is unavailable in this browser.");
     }
   };
 
@@ -584,8 +704,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
       <button
         type="button"
         className="sidebar-new-chat"
-        onClick={clear}
-        disabled={!messages.length || busy}
+        onClick={() => void createChat()}
+        disabled={!connected || busy}
       >
         <span aria-hidden="true">＋</span> New chat
       </button>
@@ -602,6 +722,44 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           </a>
         ))}
       </nav>
+      {currentPath === "/" && (
+        <section className="conversation-history" aria-label="Conversation history">
+          <label className="conversation-search">
+            <span>History</span>
+            <input
+              type="search"
+              value={conversationQuery}
+              onChange={(event) => setConversationQuery(event.target.value)}
+              placeholder="Search conversations…"
+              aria-label="Search conversations"
+            />
+          </label>
+          {conversationNotice && <p className="conversation-notice" role="status">{conversationNotice}</p>}
+          <div className="conversation-list">
+            {conversations.map((conversation) => (
+              <div className={"conversation-item" + (conversation.id === activeConversationId ? " active" : "")} key={conversation.id}>
+                <button
+                  className="conversation-open"
+                  type="button"
+                  onClick={() => void openChat(conversation.id)}
+                  disabled={busy}
+                  aria-current={conversation.id === activeConversationId ? "page" : undefined}
+                  title={conversation.title}
+                >
+                  <span className="conversation-item-title">{conversation.pinned ? "📌 " : ""}{conversation.title}</span>
+                  <small>{conversation.messageCount} messages</small>
+                </button>
+                <div className="conversation-item-actions">
+                  <button type="button" onClick={() => void toggleChatPin(conversation)} aria-label={conversation.pinned ? "Unpin conversation" : "Pin conversation"} title={conversation.pinned ? "Unpin" : "Pin"}>{conversation.pinned ? "Unpin" : "Pin"}</button>
+                  <button type="button" onClick={() => void renameChat(conversation)} aria-label="Rename conversation">Rename</button>
+                  <button type="button" onClick={() => void deleteChat(conversation)} aria-label="Delete conversation">Delete</button>
+                </div>
+              </div>
+            ))}
+            {conversations.length === 0 && <p className="conversation-empty">No saved conversations found.</p>}
+          </div>
+        </section>
+      )}
       <div className="topbar-actions">
         <span className={`connection ${connected ? "online" : "offline"}`}>
           <i /> {connected ? "Connected" : "Connecting"}
@@ -621,7 +779,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
         </div>
         <div className="chat-heading-actions">
           <button className="button button-secondary" type="button" onClick={() => void shareChat()} disabled={!messages.length || busy}>Share chat</button>
-          <button className="button button-quiet" type="button" onClick={clear} disabled={!messages.length || busy}>Clear</button>
+          <button className="button button-quiet" type="button" onClick={() => void createChat()} disabled={!connected || busy}>New chat</button>
         </div>
       </div>
 
@@ -643,7 +801,7 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 
       <section className="chat-card">
         <div className="chat-card-header">
-          <div><span className="chat-status-dot" /> <strong>Space</strong><span>Persistent conversation</span></div>
+          <div><span className="chat-status-dot" /> <strong>{conversations.find((item) => item.id === activeConversationId)?.title ?? "Space"}</strong><span>Saved conversation</span></div>
           <small>Persistent history · automatic context summaries</small>
         </div>
         <div className="messages" aria-live="polite">
@@ -663,6 +821,14 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
           {messages.map((message) => (
             <div className="message-group" key={message.id}>
               <MessageParts message={message} onReadFile={readWorkspaceFile} onReadAsset={readWorkspaceAsset} />
+              <div className="message-actions">
+                {message.role === "user" && (
+                  <button type="button" onClick={() => editUserMessage(message)} disabled={busy}>Edit & resend</button>
+                )}
+                {message.role === "assistant" && (
+                  <button type="button" onClick={() => void copyMessage(message)}>Copy</button>
+                )}
+              </div>
               {message.parts.map((part, index) => {
                 if (!isToolUIPart(part) || part.state !== "approval-requested") return null;
                 const approvalId =
@@ -707,6 +873,12 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 
         {error && <div className="error-banner" role="status">{error}</div>}
 
+        {editingMessageId && (
+          <div className="editing-message-banner">
+            <span>Editing a previous message. Sending will replace that message and remove later replies in this conversation.</span>
+            <button type="button" onClick={() => { setEditingMessageId(null); setDraft(""); }}>Cancel edit</button>
+          </div>
+        )}
         <form className="composer" onSubmit={(event) => { event.preventDefault(); send(); }}>
           <textarea
             value={draft}
