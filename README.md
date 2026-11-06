@@ -62,3 +62,6 @@ The Windows VM experiment remains separate from the AI workspace. It requires a 
 - Public multi-user login stays disabled until tenant isolation, per-user token storage, abuse controls, and cross-user authorization tests are complete.
 - Android companion access must use visible, revocable Android permissions. Hidden background monitoring or unrestricted device control is not part of the design.
 - Android APK builds will run in GitHub Actions and produce downloadable artifacts. Directly attaching those artifacts to a Space conversation requires the future repository/Actions integration.
+
+
+The Settings page displays the current provider-backed account profile (GitHub or Google), including name, avatar, and provider identity. Optional Google owner sign-in requires a separately configured Google OAuth Web client and verified owner email; it does not enable public registration. See [Google owner sign-in setup](docs/CLOUDFLARE-DEPLOYMENT.md#optional-google-owner-sign-in-and-profile).
