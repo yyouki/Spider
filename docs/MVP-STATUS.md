@@ -17,7 +17,7 @@ Last implementation pass: November 6, 2026.
 | Project memory | Implemented in source | SQLite table with approval-required writes |
 | Owner autonomy settings | Implemented in source | SQLite persistence and mobile settings UI |
 | Private workspace files | Implemented in current branch | SQLite-backed file records, validation, 200-file/2 MB limits, 20 revisions per file, chat download attachments, confirmed file/folder deletion with revision cleanup |
-| Monaco IDE | Implemented in current branch | Monaco ESM, broad language syntax highlighting, search, autosave, revisions, ZIP downloads, Python/JavaScript Run File |
+| VS Code Web launcher | Implemented in source | Validated GitHub repository input and external handoff to github.dev; no embedded Monaco editor |
 | Token analysis | Implemented in current branch | Provider-reported AI usage plus clearly labeled file/workspace estimates |
 | Read-only conversation sharing | Implemented in current branch | Random bearer URLs, seven-day expiry, revoke, no-store/noindex response |
 | Image generation and editing | Implemented in source; model/quotas deployment-gated | FLUX.2 Klein 4B multipart generation/edit request, private asset storage, chat preview/download |
@@ -48,7 +48,7 @@ The default model remains `@cf/zai-org/glm-4.7-flash`. It supports reasoning and
 
 ## Not yet verified
 
-- Workspace attachments, image generation/editing, context compaction, search, IDE Run File, and IDE language-feature bundling passed CI on the current PR head; production deployment and browser-level runtime tests have not yet been performed.
+- Workspace attachments, image generation/editing, context compaction, conversation history, and the VS Code Web launcher passed CI on the current PR head; production deployment and browser-level runtime tests have not yet been performed.
 - Cloudflare deployment and owner-only GitHub OAuth sign-in.
 - Runtime sandbox dispatch, artifact decryption, and Python/JavaScript execution.
 - Sandbox timeout, cancellation, concurrency, and no-network behavior.
@@ -82,3 +82,8 @@ The history search checks titles and saved message content. The current browser 
 ## Workspace deletion
 
 The IDE Explorer can delete an individual file or a derived folder tree. Both actions require a confirmation; deleting a folder recursively removes its descendant files, and deleting a file/folder also clears the corresponding retained file revisions. Protected path segments and absolute/traversal paths remain rejected by the shared workspace path validator. Empty folders are not stored as separate records: a folder exists only while it contains at least one file.
+
+
+## VS Code Web transition
+
+The embedded Monaco IDE implementation and the `monaco-editor` runtime dependency have been removed. The `/ide` route now opens the official VS Code Web service at `github.dev` for a validated GitHub repository. VS Code Web is a separate browser application and is not embedded inside Space. The current Space OAuth flow does not provide GitHub repository access tokens, and private Space workspace files do not yet sync to GitHub. Keep the sync limitation visible until the GitHub App authorization and publishing integration is complete.
