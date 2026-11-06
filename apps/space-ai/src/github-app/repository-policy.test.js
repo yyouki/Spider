@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   isValidNewRepositoryName,
   isWritablePersonalRepository,
-  parsePersonalRepositoryTarget
+  parsePersonalRepositoryTarget,
+  findPotentialSecretPaths
 } from "./repository-policy.js";
 
 test("validates safe new repository names", () => {
@@ -43,4 +44,27 @@ test("rejects organizations and malformed existing repository targets", () => {
   assert.equal(parsePersonalRepositoryTarget("youki/repo/name", "youki"), null);
   assert.equal(parsePersonalRepositoryTarget("youki/../space", "youki"), null);
   assert.equal(parsePersonalRepositoryTarget("youki/trailing.", "youki"), null);
+});
+
+
+test("blocks files containing recognizable credentials without exposing values", () => {
+  const flagged = findPotentialSecretPaths([
+    { path: "src/config.ts", content: 'const token = "ghp_123456789012345678901234567890123456";' },
+    { path: "src/private.ts", content: "-----BEGIN PRIVATE KEY-----\\nplaceholder\\n-----END PRIVATE KEY-----" },
+    { path: "src/safe.ts", content: "const token = process.env.API_TOKEN;" },
+    { path: "README.md", content: "Set API_KEY to your_example_value before running." }
+  ]);
+  assert.deepEqual(flagged, ["src/config.ts", "src/private.ts"]);
+});
+
+test("does not return credential contents and safely ignores malformed entries", () => {
+  const content = 'const api_key = "0123456789abcdefghijklmnopqrstuv";';
+  const result = findPotentialSecretPaths([
+    { path: "config.js", content },
+    null,
+    { path: "missing-content.js" },
+    { path: 42, content }
+  ]);
+  assert.deepEqual(result, ["config.js"]);
+  assert.equal(JSON.stringify(result).includes(content), false);
 });
