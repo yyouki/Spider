@@ -1,9 +1,10 @@
 import { AIChatAgent, type ChatResponseResult, type OnChatMessageOptions } from "@cloudflare/ai-chat";
-import { callable, routeAgentRequest } from "agents";
+import { callable } from "agents";
 import { createAI } from "agents/models/ai-sdk";
 import { convertToModelMessages, generateText, pruneMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
 import { getOwnerSession, handleAuthRequest, requireOwnerAccess } from "./security/access";
+import { getSpaceAgentName, isSameOriginAgentRequest } from "./security/tenant-routing.js";
 import { ChatShares, type SharedChatSnapshot } from "./chat-shares";
 import { languageForPath, normalizeWorkspacePath, type WorkspaceFile, type WorkspaceFileMetadata } from "./workspace";
 
@@ -1446,11 +1447,24 @@ export default {
       });
     }
 
-    if (url.pathname.startsWith("/agents/")) {
+    // The Worker chooses the Agent instance from the signed session; the browser cannot select a tenant name.
+    if (url.pathname === "/api/me" || url.pathname.startsWith("/api/me/")) {
       const access = await requireOwnerAccess(request, env);
       if (!access.ok) return access.response;
-      return (await routeAgentRequest(request, env)) ??
-        new Response("Agent route not found.", { status: 404 });
+      if (!isSameOriginAgentRequest(request)) {
+        return Response.json({ error: "Invalid Agent request origin." }, { status: 403 });
+      }
+      const agentName = getSpaceAgentName({
+        userId: access.session.userId,
+        role: access.session.role
+      });
+      const agentId = env.SpaceAgent.idFromName(agentName);
+      return env.SpaceAgent.get(agentId).fetch(request);
+    }
+
+    // Block client-selected legacy Agent names. All Agent traffic uses the session-routed endpoint above.
+    if (url.pathname.startsWith("/agents/")) {
+      return new Response("Not found.", { status: 404 });
     }
 
     if (url.pathname.startsWith("/api/")) {
