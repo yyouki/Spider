@@ -4,7 +4,8 @@ import { getSpaceAgentName } from "../security/tenant-routing.js";
 import {
   isValidNewRepositoryName,
   isWritablePersonalRepository,
-  parsePersonalRepositoryTarget
+  parsePersonalRepositoryTarget,
+  findPotentialSecretPaths
 } from "./repository-policy.js";
 
 type GitHubAppEnvironment = Env & {
@@ -640,6 +641,16 @@ export async function handleGitHubAppRequest(request: Request, env: Env): Promis
       }
       if (snapshot.fileCount > WORKSPACE_FILE_LIMIT || snapshot.totalBytes > WORKSPACE_TOTAL_MAX_BYTES) {
         return Response.json({ error: "Workspace export exceeds its file or storage limit." }, { status: 400 });
+      }
+
+      const unsafePaths = findPotentialSecretPaths(snapshot.files);
+      if (unsafePaths.length) {
+        const shownPaths = unsafePaths.slice(0, 5).join(", ");
+        const remaining = unsafePaths.length > 5 ? " and " + (unsafePaths.length - 5) + " more" : "";
+        return Response.json({
+          error: "Publishing was blocked because these workspace files may contain hard-coded credentials: " +
+            shownPaths + remaining + ". Remove credentials or move them into Cloudflare/GitHub secrets, then retry."
+        }, { status: 400 });
       }
 
       const result = existingRepository
