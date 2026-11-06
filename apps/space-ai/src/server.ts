@@ -103,6 +103,140 @@ type ConversationListRow = {
 
 type ActiveConversationRow = { conversation_id: string };
 
+type GitHubAppEnvironment = Env & {
+  GITHUB_APP_CLIENT_ID?: string;
+  GITHUB_APP_CLIENT_SECRET?: string;
+};
+
+type GitHubAppTokenRecord = {
+  accessToken: string;
+  refreshToken: string;
+  accessExpiresAt: number;
+  refreshExpiresAt: number;
+  login: string;
+  userId: number;
+  avatarUrl: string | null;
+  connectedAt: number;
+  linkedRepository: string | null;
+};
+
+type GitHubAppConnectionRow = { encrypted_json: string; updated_at: number };
+
+function encodeBase64Url(bytes: Uint8Array): string {
+  return encodeBase64(bytes).replace(/=/g, "").replace(/\\+/g, "-").replace(/\\//g, "_");
+}
+
+function decodeBase64Url(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  return decodeBase64(normalized + "=".repeat((4 - normalized.length % 4) % 4));
+}
+
+function secureOAuthCookie(name: string, value: string, maxAge: number): string {
+  return [`${name}=${value}`, "Path=/", `Max-Age=${maxAge}`, "HttpOnly", "Secure", "SameSite=Lax"].join("; ");
+}
+
+function getRequestCookie(request: Request, name: string): string | null {
+  const cookies = request.headers.get("cookie") ?? "";
+  for (const entry of cookies.split(";")) {
+    const separator = entry.indexOf("=");
+    if (separator >= 0 && entry.slice(0, separator).trim() === name) {
+      return entry.slice(separator + 1).trim();
+    }
+  }
+  return null;
+}
+
+function constantTimeStringEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
+}
+
+async function signServerPayload(payload: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+  return encodeBase64Url(new Uint8Array(signature));
+}
+
+async function deriveGitHubTokenEncryptionKey(secret: string): Promise<CryptoKey> {
+  const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), "HKDF", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: new TextEncoder().encode("space-github-app-token-storage-v1"),
+      info: new TextEncoder().encode("space-ai/owner-github-app")
+    },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function encryptGitHubTokenRecord(record: GitHubAppTokenRecord, secret: string): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveGitHubTokenEncryptionKey(secret);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    new TextEncoder().encode(JSON.stringify(record))
+  );
+  const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(ciphertext), iv.length);
+  return encodeBase64(combined);
+}
+
+async function decryptGitHubTokenRecord(value: string, secret: string): Promise<GitHubAppTokenRecord> {
+  const combined = decodeBase64(value);
+  if (combined.byteLength <= 12) throw new Error("Stored GitHub App credentials are invalid.");
+  const iv = combined.slice(0, 12);
+  const ciphertext = combined.slice(12);
+  const key = await deriveGitHubTokenEncryptionKey(secret);
+  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+  const record = JSON.parse(new TextDecoder().decode(plaintext)) as GitHubAppTokenRecord;
+  if (
+    typeof record.accessToken !== "string" ||
+    typeof record.refreshToken !== "string" ||
+    typeof record.login !== "string" ||
+    typeof record.userId !== "number" ||
+    typeof record.accessExpiresAt !== "number" ||
+    typeof record.refreshExpiresAt !== "number"
+  ) throw new Error("Stored GitHub App credentials are incomplete.");
+  return record;
+}
+
+function githubAppApiHeaders(accessToken: string): HeadersInit {
+  return {
+    Authorization: "Bearer " + accessToken,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "space-ai"
+  };
+}
+
+async function readGitHubApiResponse<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  let parsed: unknown = null;
+  try { parsed = text ? JSON.parse(text) : null; } catch { /* Keep API errors generic below. */ }
+  if (!response.ok) {
+    const message = parsed && typeof parsed === "object" && "message" in parsed
+      ? String((parsed as { message: unknown }).message).slice(0, 180)
+      : "GitHub API request failed.";
+    if (response.status === 422) throw new Error("GitHub menolak permintaan ini. Nama repository mungkin sudah digunakan atau tidak valid.");
+    if (response.status === 401) throw new Error("Otorisasi GitHub App kedaluwarsa atau dicabut. Hubungkan ulang GitHub App.");
+    if (response.status === 403) throw new Error("GitHub App belum memiliki izin repository creation/contents write atau terkena rate limit.");
+    throw new Error(`GitHub API (${response.status}): ${message}`);
+  }
+  return parsed as T;
+}
+
 const WORKSPACE_FILE_LIMIT = 200;
 const WORKSPACE_FILE_MAX_BYTES = 128 * 1024;
 const WORKSPACE_TOTAL_MAX_BYTES = 2 * 1024 * 1024;
@@ -195,6 +329,13 @@ export class SpaceAgent extends AIChatAgent<Env> {
     this.sql`CREATE TABLE IF NOT EXISTS autonomy_settings_audit (
       id TEXT PRIMARY KEY,
       settings_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`;
+
+    // GitHub App user access and refresh tokens are encrypted with a key derived from SESSION_SECRET.
+    this.sql`CREATE TABLE IF NOT EXISTS github_app_credentials (
+      credential_id TEXT PRIMARY KEY,
+      encrypted_json TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     )`;
 
