@@ -105,4 +105,4 @@ Satu tahap belum boleh disebut selesai sebelum:
 ## VS Code Web migration
 - [x] Remove the embedded Monaco editor and dependency.
 - [x] Replace the IDE route with a validated handoff to official VS Code Web at `github.dev`.
-- [x] Implement owner-approved GitHub App authorization and publishing of private Space workspace files to a new private repository (release gated by CI and Cloudflare Preview verification).
+- [x] Implement owner-approved GitHub App authorization and publishing of private Space workspace files to new private or existing personal repositories (release gated by CI, Cloudflare Preview, and a manual authorization/publish/disconnect test).
