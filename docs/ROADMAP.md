@@ -16,6 +16,7 @@ Roadmap ini sengaja mengutamakan fondasi yang bisa diuji sebelum menambahkan OS 
 - Tool registry dengan schema dan permission manifest.
 - Task ledger, checkpoint, cancel/pause.
 - File upload terbatas dan workspace file browser.
+- [x] Persistent multi-conversation chat history with rename, pin, search, delete, and edit/resend.
 - Audit log dan user approval UI.
 - Test suite dan CI.
 
