@@ -1129,9 +1129,9 @@ export default function App() {
           <div className="brand-mark">s</div>
           <p className="eyebrow">PRIVATE AI WORKSPACE</p>
           <h1>Sign in to Space</h1>
-          <p>Only the configured owner GitHub account can open this workspace.</p>
+          <p>Only the configured owner account can open this workspace.</p>
           <a className="auth-button" href="/auth/github">Continue with GitHub <span>↗</span></a>
-          {session.googleAvailable ? (
+          {session?.googleAvailable ? (
             <a className="auth-button auth-button-google" href="/auth/google">Continue with Google <span>↗</span></a>
           ) : (
             <p className="auth-provider-note">Google sign-in is available after its OAuth credentials and owner email are configured.</p>
