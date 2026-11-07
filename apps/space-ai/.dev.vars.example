@@ -7,5 +7,10 @@ GITHUB_OAUTH_CLIENT_SECRET=
 GITHUB_OWNER_LOGIN=yyouki
 SESSION_SECRET=
 
+# Optional Google owner sign-in; configure all three values to enable it.
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OWNER_EMAIL=
+
 # Fine-grained PAT restricted to yyouki/space with Actions read/write.
 GITHUB_ACTIONS_TOKEN=

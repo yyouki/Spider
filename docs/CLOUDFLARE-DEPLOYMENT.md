@@ -10,7 +10,7 @@ This deployment keeps the existing Cloudflare Agents / Durable Objects architect
 | Chat history, task ledger, preferences, memory, private workspace files, token usage | SpaceAgent Durable Objects SQLite |
 | Expiring read-only chat share snapshots | One ChatShares Durable Object per random share token |
 | Text model | Cloudflare Workers AI `@cf/zai-org/glm-4.7-flash` |
-| Owner login | GitHub OAuth App |
+| Owner login | GitHub OAuth App; optional owner-only Google OAuth App |
 | Python/JavaScript execution | Temporary GitHub-hosted Actions runner + restricted Docker container |
 
 This avoids Cloudflare Zero Trust organization setup and Cloudflare Workers Paid Containers. It does not provide unlimited AI inference or unlimited runner capacity. The `/ide` route hands off to the official VS Code Web editor at `github.dev`; the editor is a separate GitHub service, not embedded in Space.
@@ -42,6 +42,19 @@ The OAuth callback must match the Worker hostname exactly. The Worker also uses 
 7. Register the app, then copy its Client ID and generate a Client Secret.
 
 Space requests only `read:user`, checks that the login matches the configured owner, and does not persist the OAuth access token. With GitHub's expiring user-token setting enabled, the access token expires after its short lifetime. The Worker stores a seven-day signed session cookie, not the OAuth token or a refresh token.
+
+## Optional: Configure owner-only Google sign-in
+
+Google sign-in is optional and does not enable public registration. It accepts only the email configured in `GOOGLE_OWNER_EMAIL`.
+
+1. Create an OAuth client in Google Cloud Console for a Web application.
+2. Add the exact authorized redirect URI `https://space-ai.YOUR-SUBDOMAIN.workers.dev/auth/google/callback`.
+3. Configure the Worker variables/secrets `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OWNER_EMAIL`.
+4. Use the exact verified Google email for the authorized owner account.
+5. Keep `SESSION_SECRET` at least 32 characters. Never commit OAuth secrets or paste them into chat.
+
+The Worker requests OpenID Connect `openid email profile`, requires Google's verified-email claim, and compares it with `GOOGLE_OWNER_EMAIL`. Google access tokens are used only for the identity lookup and are not persisted. Profile name and avatar are stored as signed session claims. Google sign-in stays unavailable until all three Google settings are configured.
+
 
 ## 2. Create a limited GitHub Actions token
 
@@ -85,6 +98,24 @@ GitHub reserves secret names beginning with `GITHUB_`, so use the `SPACE_` names
 6. Open the Worker URL and sign in with the owner GitHub account.
 
 The workflow no longer builds or deploys a Cloudflare Container. It still uses your existing Cloudflare API token and Account ID. The API token must be permitted to deploy the existing or first Worker; if the first creation is denied, adjust the Cloudflare token's Worker scope as documented by Cloudflare.
+
+## Workers Builds settings for this monorepo
+
+The Worker source and Wrangler configuration live in `apps/space-ai`, not the repository root. Configure the `space-ai` Workers Builds project with:
+
+| Setting | Value |
+|---|---|
+| Root directory | `/apps/space-ai` |
+| Build command | `npm install --no-audit --no-fund && npm run check && npm run build` |
+| Preview command | `npx wrangler preview` |
+
+The root directory is required so Workers Builds runs the command from the directory containing `package.json` and `wrangler.jsonc`. This package does not keep a separate `package-lock.json`, so use `npm install`, not `npm ci`. Workers Builds settings are separate from the Wrangler file; a `previews` block alone does not change the dashboard's root directory or build command.
+
+Keep branch builds on the Preview command. Do not use `npx wrangler deploy` for a feature-branch build; reserve production deployment for an explicitly approved production release. The currently connected Cloudflare build trigger is configured for this feature branch and should run `npx wrangler preview` after the package build.
+
+Preview secrets are separate from production secrets and are not stored in Git. From `apps/space-ai`, configure dedicated test-only values with `npx wrangler preview base-config secret put SECRET_NAME`. Use a dedicated GitHub OAuth app with the Preview callback, a new random `SESSION_SECRET`, and a dedicated least-privilege GitHub Actions token restricted to a test repository. Do not reuse production OAuth credentials or the production Actions token. Base secrets are copied only to newly created Previews; update an existing Preview separately when needed.
+
+Preview URLs are public unless Cloudflare Access is configured. Protect the Preview before using sensitive data or enabling workflows with external side effects.
 
 ## 5. Verify the app and sandbox
 

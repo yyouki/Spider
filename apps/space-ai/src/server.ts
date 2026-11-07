@@ -3,7 +3,7 @@ import { callable } from "agents";
 import { createAI } from "agents/models/ai-sdk";
 import { convertToModelMessages, generateText, pruneMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
-import { getOwnerSession, handleAuthRequest, requireOwnerAccess } from "./security/access";
+import { getOwnerSession, handleAuthRequest, isGoogleOAuthReady, requireOwnerAccess } from "./security/access";
 import { getSpaceAgentName, isSameOriginAgentRequest } from "./security/tenant-routing.js";
 import { ChatShares, type SharedChatSnapshot } from "./chat-shares";
 import { languageForPath, normalizeWorkspacePath, type WorkspaceFile, type WorkspaceFileMetadata } from "./workspace";
@@ -1422,7 +1422,17 @@ export default {
     if (url.pathname === "/api/session") {
       const session = await getOwnerSession(request, env);
       return Response.json(
-        { authenticated: Boolean(session), login: session?.login ?? null },
+        {
+          authenticated: Boolean(session),
+          login: session?.login ?? null,
+          profile: session ? {
+            provider: session.provider,
+            login: session.login,
+            displayName: session.displayName,
+            avatarUrl: session.avatarUrl
+          } : null,
+          googleAvailable: isGoogleOAuthReady(env)
+        },
         { headers: { "Cache-Control": "no-store" } }
       );
     }

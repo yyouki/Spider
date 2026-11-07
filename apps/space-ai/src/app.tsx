@@ -260,7 +260,14 @@ function SettingSelect<T extends string>({
   );
 }
 
-function Workspace({ onLogout }: { onLogout: () => void }) {
+type SessionProfile = {
+  provider: "github" | "google";
+  login: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+function Workspace({ onLogout, profile }: { onLogout: () => void; profile: SessionProfile | null }) {
   const [connected, setConnected] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
@@ -682,7 +689,6 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   const header = (
     <header className="topbar">
       <a className="brand" href="/" onClick={(event) => navigate(event, "/")} aria-label="Space home">
-        <span className="brand-mark">s</span>
         <span className="brand-copy"><strong>space</strong><small>AI workspace</small></span>
       </a>
       <button
@@ -748,6 +754,15 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
         <span className={`connection ${connected ? "online" : "offline"}`}>
           <i /> {connected ? "Connected" : "Connecting"}
         </span>
+        <div className="account-profile" title={profile ? profile.login : "Account profile"}>
+          {profile?.avatarUrl
+            ? <img className="account-avatar" src={profile.avatarUrl} alt="" referrerPolicy="no-referrer" />
+            : <span className="account-avatar account-avatar-fallback">{(profile?.displayName || profile?.login || "U").slice(0, 1).toUpperCase()}</span>}
+          <span className="account-profile-copy">
+            <strong>{profile?.displayName || profile?.login || "Account"}</strong>
+            <small>{profile?.provider === "google" ? "Google account" : "GitHub account"}</small>
+          </span>
+        </div>
         <button className="text-button" type="button" onClick={onLogout}>Sign out</button>
       </div>
     </header>
@@ -1042,6 +1057,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 type SessionResponse = {
   authenticated: boolean;
   login: string | null;
+  profile: SessionProfile | null;
+  googleAvailable: boolean;
 };
 
 export default function App() {
@@ -1076,14 +1093,13 @@ export default function App() {
       method: "POST",
       credentials: "same-origin"
     });
-    setSession({ authenticated: false, login: null });
+    setSession({ authenticated: false, login: null, profile: null, googleAvailable: session?.googleAvailable ?? false });
   };
 
   if (loading) {
     return (
       <main className="auth-shell">
         <section className="auth-card" aria-live="polite">
-          <div className="brand-mark">s</div>
           <h1>space</h1>
           <p>Checking your private workspace session…</p>
         </section>
@@ -1095,7 +1111,6 @@ export default function App() {
     return (
       <main className="auth-shell">
         <section className="auth-card">
-          <div className="brand-mark">s</div>
           <h1>space</h1>
           <p role="alert">{sessionError}</p>
           <button type="button" className="button button-primary" onClick={() => window.location.reload()}>Retry</button>
@@ -1108,15 +1123,19 @@ export default function App() {
     return (
       <main className="auth-shell">
         <section className="auth-card">
-          <div className="brand-mark">s</div>
           <p className="eyebrow">PRIVATE AI WORKSPACE</p>
           <h1>Sign in to Space</h1>
-          <p>Only the configured owner GitHub account can open this workspace.</p>
+          <p>Only the configured owner account can open this workspace.</p>
           <a className="auth-button" href="/auth/github">Continue with GitHub <span>↗</span></a>
+          {session?.googleAvailable ? (
+            <a className="auth-button auth-button-google" href="/auth/google">Continue with Google <span>↗</span></a>
+          ) : (
+            <p className="auth-provider-note">Google sign-in is available after its OAuth credentials and owner email are configured.</p>
+          )}
         </section>
       </main>
     );
   }
 
-  return <Workspace onLogout={() => void logout()} />;
+  return <Workspace onLogout={() => void logout()} profile={session.profile} />;
 }
