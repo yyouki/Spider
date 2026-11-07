@@ -10,10 +10,10 @@ This deployment keeps the existing Cloudflare Agents / Durable Objects architect
 | Chat history, task ledger, preferences, memory, private workspace files, token usage | SpaceAgent Durable Objects SQLite |
 | Expiring read-only chat share snapshots | One ChatShares Durable Object per random share token |
 | Text model | Cloudflare Workers AI `@cf/zai-org/glm-4.7-flash` |
-| Owner login | GitHub OAuth App; optional Google OAuth App |
+| Owner login | GitHub OAuth App; optional owner-only Google OAuth App |
 | Python/JavaScript execution | Temporary GitHub-hosted Actions runner + restricted Docker container |
 
-This avoids Cloudflare Zero Trust organization setup and Cloudflare Workers Paid Containers. It does not provide unlimited AI inference or unlimited runner capacity. The /ide page opens the official VS Code Web editor at github.dev in a separate browser tab.
+This avoids Cloudflare Zero Trust organization setup and Cloudflare Workers Paid Containers. It does not provide unlimited AI inference or unlimited runner capacity. The `/ide` route hands off to the official VS Code Web editor at `github.dev`; the editor is a separate GitHub service, not embedded in Space.
 
 ## Cloudflare requirements
 
@@ -43,7 +43,6 @@ The OAuth callback must match the Worker hostname exactly. The Worker also uses 
 
 Space requests only `read:user`, checks that the login matches the configured owner, and does not persist the OAuth access token. With GitHub's expiring user-token setting enabled, the access token expires after its short lifetime. The Worker stores a seven-day signed session cookie, not the OAuth token or a refresh token.
 
-
 ## Optional: Configure owner-only Google sign-in
 
 Google sign-in is optional and does not enable public registration. It accepts only the email configured in `GOOGLE_OWNER_EMAIL`.
@@ -51,10 +50,11 @@ Google sign-in is optional and does not enable public registration. It accepts o
 1. Create an OAuth client in Google Cloud Console for a Web application.
 2. Add the exact authorized redirect URI `https://space-ai.YOUR-SUBDOMAIN.workers.dev/auth/google/callback`.
 3. Configure the Worker variables/secrets `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OWNER_EMAIL`.
-4. Use the exact verified Google email for the currently authorized owner account.
-5. Keep `SESSION_SECRET` at least 32 characters. Never paste OAuth secrets into chat or commit them to Git.
+4. Use the exact verified Google email for the authorized owner account.
+5. Keep `SESSION_SECRET` at least 32 characters. Never commit OAuth secrets or paste them into chat.
 
-The Worker requests OpenID Connect `openid email profile`, verifies the email with Google's userinfo endpoint, requires `email_verified=true`, and compares it with the configured owner email. Google access tokens are used only for that lookup and are not persisted. The profile name and avatar are stored as signed session claims. Until all three Google settings are configured, the Google sign-in option stays unavailable.
+The Worker requests OpenID Connect `openid email profile`, requires Google's verified-email claim, and compares it with `GOOGLE_OWNER_EMAIL`. Google access tokens are used only for the identity lookup and are not persisted. Profile name and avatar are stored as signed session claims. Google sign-in stays unavailable until all three Google settings are configured.
+
 
 ## 2. Create a limited GitHub Actions token
 
@@ -99,30 +99,23 @@ GitHub reserves secret names beginning with `GITHUB_`, so use the `SPACE_` names
 
 The workflow no longer builds or deploys a Cloudflare Container. It still uses your existing Cloudflare API token and Account ID. The API token must be permitted to deploy the existing or first Worker; if the first creation is denied, adjust the Cloudflare token's Worker scope as documented by Cloudflare.
 
+## Workers Builds settings for this monorepo
 
-
-## Workers Builds dashboard settings
-
-The Worker package is in `apps/space-ai`. In Cloudflare Dashboard → Workers & Pages → `space-ai` → Settings → Build, configure the Git build settings as follows:
+The Worker source and Wrangler configuration live in `apps/space-ai`, not the repository root. Configure the `space-ai` Workers Builds project with:
 
 | Setting | Value |
 |---|---|
-| Root directory | `apps/space-ai` |
+| Root directory | `/apps/space-ai` |
 | Build command | `npm install --no-audit --no-fund && npm run check && npm run build` |
-| Deploy command | `npx wrangler deploy` |
 | Preview command | `npx wrangler preview` |
 
-The Build command installs the npm packages declared in `apps/space-ai/package.json`, runs type checks and tests, and builds the dashboard before Wrangler deploys or creates a Preview. This project does not currently keep a separate `package-lock.json` inside `apps/space-ai`, so use `npm install`, not `npm ci`, for this setting.
+The root directory is required so Workers Builds runs the command from the directory containing `package.json` and `wrangler.jsonc`. This package does not keep a separate `package-lock.json`, so use `npm install`, not `npm ci`. Workers Builds settings are separate from the Wrangler file; a `previews` block alone does not change the dashboard's root directory or build command.
 
-Workers Builds dashboard settings are separate from `wrangler.jsonc`. Cloudflare's Workers Builds pipeline does not honor Wrangler Custom Builds settings, so adding a `build.command` to the Wrangler file is not a substitute for setting the dashboard Build command. Saving changes applies them to the next build; retrying an old build uses the settings that existed when it ran.
+Keep branch builds on the Preview command. Do not use `npx wrangler deploy` for a feature-branch build; reserve production deployment for an explicitly approved production release. The currently connected Cloudflare build trigger is configured for this feature branch and should run `npx wrangler preview` after the package build.
 
-## Workers Builds Preview command
+Preview secrets are separate from production secrets and are not stored in Git. From `apps/space-ai`, configure dedicated test-only values with `npx wrangler preview base-config secret put SECRET_NAME`. Use a dedicated GitHub OAuth app with the Preview callback, a new random `SESSION_SECRET`, and a dedicated least-privilege GitHub Actions token restricted to a test repository. Do not reuse production OAuth credentials or the production Actions token. Base secrets are copied only to newly created Previews; update an existing Preview separately when needed.
 
-The repository Wrangler configuration includes a top-level `previews` block so the Cloudflare Workers Builds default preview command `npx wrangler preview` can create a preview deployment. This addresses the initial missing-`previews` error. The block also declares the Preview `AI` binding, the three Durable Object bindings used through `env`, and preview-specific runtime variables. Cloudflare provisions separate Preview Durable Object storage for these classes.
-
-Preview settings do not inherit production secrets. In Cloudflare Workers → Settings → Variables and Secrets, configure the four required Worker secrets in **Previews Base** as well as Production: `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, `SESSION_SECRET`, and `GITHUB_ACTIONS_TOKEN`. Re-enter secrets manually; do not put values in Wrangler JSON or Git. Google login is optional and needs its three Google settings configured separately if it is to be tested.
-
-Preview URLs are public by default. Protect them with Cloudflare Access before using any sensitive test data. A successful GitHub Actions build is not proof that Cloudflare Workers Builds or a live Preview succeeded. Check the complete Workers Builds log for the specific build ID before treating a preview as available. Keep Preview storage separate from production data and do not use a Preview to make production mutations.
+Preview URLs are public unless Cloudflare Access is configured. Protect the Preview before using sensitive data or enabling workflows with external side effects.
 
 ## 5. Verify the app and sandbox
 
@@ -142,7 +135,7 @@ The SpaceAgent SQLite database stores a private, app-level workspace. It is not 
 - Up to 128 KB per file and 2 MB total.
 - Relative paths only; hidden paths and sensitive config paths are rejected.
 - AI file tools can list, read, and create/update workspace files. File deletion always requires owner approval.
-- Files remain in Space's private Durable Object workspace. They are not synchronized to the GitHub repository opened by github.dev; these are separate storage locations. There is no automatic sync to GitHub or the user's device.
+- Files appear in the Monaco IDE Explorer after the tool write completes. Manual edits can be saved with **Save** or Ctrl/Cmd+S.
 - There is no automatic sync to GitHub or the user's device.
 
 The separate `/analytics` page shows provider-reported input/output token totals when the model provider includes usage metadata, retaining at most 200 recent responses. It also shows a 14-day daily aggregation and the latest 12 token-usage records. Workspace storage and rough file-token estimates appear in a separate section, never inside the `/ide` editor. Estimates use UTF-8 bytes divided by four and are not exact GLM tokenizer counts. This view does not calculate monetary cost or account-wide Cloudflare Neurons.
@@ -160,5 +153,16 @@ Adding the `ChatShares` Durable Object requires migration tag `v3`; Wrangler app
 - Cloudflare Worker authorization: https://developers.cloudflare.com/workers/authorization/
 - GitHub OAuth App creation: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app
 - GitHub Actions billing: https://docs.github.com/en/actions/concepts/billing-and-usage
-- VS Code for the Web: https://code.visualstudio.com/docs/remote/vscode-web
+- Monaco Editor ESM/Vite integration: https://github.com/microsoft/monaco-editor/blob/main/docs/integrate-esm.md
 - AI SDK streamText usage: https://ai-sdk.dev/docs/reference/ai-sdk-core/stream-text
+
+
+## Worker Previews for pull requests
+
+Workers Builds runs the configured Preview command for branches that are not the production branch. The default command is `npx wrangler preview`; Wrangler requires a top-level `previews` block for this command. The repository's `apps/space-ai/wrangler.jsonc` now includes Preview-specific variables, the Workers AI binding, and all three Durable Object bindings.
+
+Preview settings do not inherit production variables or bindings. Assets, compatibility settings, and migrations remain top-level. Each Preview automatically receives isolated Durable Object namespaces and SQLite storage, while the Preview AI binding is explicitly declared. This keeps preview chat, memory, files, and share records separate from production.
+
+Preview secrets are not inherited from production and must be configured separately in Cloudflare **Workers & Pages → space-ai → Settings → Builds / Previews Base → Variables and secrets**. Use a dedicated preview GitHub OAuth App (with the Preview callback URL), a new random `SESSION_SECRET`, and a dedicated least-privilege GitHub Actions token restricted to a test repository. Do not copy the production Actions token into Preview. The Worker declares required secret names; configure Preview-specific values before expecting the Preview login and sandbox flows to work.
+
+If the Preview base is configured after a Preview has already been created, update that Preview's secrets too; changing the base applies to new Previews, not existing ones. Use the Cloudflare dashboard's Preview settings to confirm the Preview-specific secret configuration. The current GitHub connection does not expose Cloudflare account settings or secret values.
