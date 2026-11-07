@@ -14,7 +14,8 @@ A first, deliberately small implementation of the single-core space AI workspace
 - A calculator tool for exact basic arithmetic.
 - A capability-status tool that reports what is really connected.
 - Project notes and user-approved personal memory stored in the Agent's SQLite database. Memory can be listed and deleted from Settings; saving requires an explicit request and approval.
-- Owner-only GitHub OAuth login. The temporary read:user token is used only for the identity lookup and is not stored; Space stores only a signed session cookie. Keep the OAuth App's expiring user-token setting enabled.
+- Owner-only GitHub OAuth login with provider-backed display name and avatar. The temporary read:user token is used only for the identity lookup and is not stored; Space stores only a signed session cookie. Keep the OAuth App's expiring user-token setting enabled.
+- Optional owner-only Google OAuth login. It is exposed only when `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OWNER_EMAIL` are configured. The verified Google email must match the configured owner email; access tokens are not persisted.
 - Workers AI model: `@cf/zai-org/glm-4.7-flash`.
 - Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
 - A dedicated VS Code Web launcher page. It validates a GitHub owner/repository path and opens the selected repository at github.dev in a separate tab.
@@ -29,7 +30,7 @@ Autonomous browser, GitHub repository sync, image understanding/OCR, audio/video
 
 ## VS Code Web and private workspace
 
-The `/ide` route is now a launcher for the official Visual Studio Code Web service at `https://github.dev/OWNER/REPOSITORY`. It validates the repository path and opens the editor in a new tab; Space does not embed or repackage Microsoft's editor. GitHub sign-in is handled by GitHub in that separate tab. VS Code Web is intended for repository browsing and lightweight edits, with browser sandbox limits. It does not include its own terminal, build VM, or full desktop extension runtime; use a separately configured Codespaces or remote compute environment when a project needs a terminal or runtime.
+The `/ide` route is a launcher for the official Visual Studio Code Web service at `https://github.dev/OWNER/REPOSITORY`. It validates the repository path and opens the editor in a new tab; Space does not embed or repackage Microsoft's editor. GitHub sign-in is handled by GitHub in that separate tab. The launcher includes touch-use guidance and common keyboard shortcuts. Pinch zoom depends on the mobile browser; a visible pointer can be provided by connecting a Bluetooth/USB mouse. Because github.dev is a separate origin and tab, Space cannot inject a virtual cursor or modifier-key events into it. VS Code Web is intended for repository browsing and lightweight edits, with browser sandbox limits. It does not include its own terminal, build VM, or full desktop extension runtime; use a separately configured Codespaces or remote compute environment when a project needs a terminal or runtime.
 
 The private Space workspace remains stored in the owning SpaceAgent Durable Object SQLite database. Limits are 200 files, 128 KB per file, and 2 MB total. The last 20 prior versions per file are retained when saved content changes. Hidden paths and sensitive config filenames such as `.env` and `.dev.vars` are rejected. AI-created files appear in chat with a direct Download action. Confirmed file and recursive folder deletion also clear the associated revisions. These files do not yet synchronize to GitHub, so edits made in VS Code Web affect the selected GitHub repository, not the private Space workspace, until the GitHub App publishing integration is implemented.
 
@@ -81,7 +82,8 @@ A custom model does not remove inference cost or quotas. Training and serving a 
 - Node.js 22 or a Node.js version supported by the pinned Vite/Wrangler toolchain.
 - A Cloudflare account with Workers, Workers AI, and Durable Objects access.
 - A GitHub account with write access to `yyouki/space`.
-- A GitHub OAuth App for the owner-only sign-in.
+- A GitHub OAuth App for owner-only sign-in.
+- Optional Google OAuth Web client. Register `https://YOUR_SPACE_HOST/auth/google/callback` as an authorized redirect URI, then set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OWNER_EMAIL` as Worker variables/secrets. Google sign-in remains unavailable until all three are present.
 - A fine-grained GitHub token limited to this repository with Actions read/write permission, stored as a Worker secret.
 - Cloudflare Workers Free supports SQLite-backed Durable Objects. It does not support Container objects; the sandbox therefore uses public-repository GitHub-hosted Actions runners.
 
@@ -122,3 +124,8 @@ The chat composer accepts validated HTTPS links from YouTube, TikTok, Vimeo, and
 ## GitHub project publishing and Android builds
 
 The current MVP stores source files in a private Space workspace and does not sync them to GitHub. The target integration is described in the root documentation. Android projects can use the reusable GitHub Actions workflow template in templates/android; APK artifact retrieval and attaching the APK directly to a Space chat are not yet wired into the app.
+
+
+## Cloudflare Worker Previews
+
+The Wrangler configuration contains a top-level empty `previews` block so the Workers Builds default command `npx wrangler preview` can create branch previews. Configure preview-specific secrets and resources in Cloudflare Workers → Settings → Previews Base when needed. Keep production and preview resources separate for data-writing services.
