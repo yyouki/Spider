@@ -149,3 +149,52 @@ The Worker requests `openid email profile`, obtains the user identity from Googl
 Both provider identities are mapped to the existing owner Durable Object `default`, so the same owner sees the same Space data regardless of which provider they use. This is not public registration or multi-user onboarding. The owner-only access gate remains enabled.
 
 For a Cloudflare Worker Preview, secrets are not inherited from production. Add the three Google secrets to the Preview separately, using a test Google OAuth client and the Preview callback URL if Google sign-in is being tested there. Do not copy production client secrets into an untrusted Preview.
+
+
+## GitHub App connection and private repository publishing
+
+The Space Settings page can connect a GitHub App user authorization and publish the current private workspace to either a **new private repository** or a selected **existing personal repository** owned by the signed-in GitHub account. It does not publish on behalf of the shared Space owner token.
+
+### Register the GitHub App
+
+Create a GitHub App in **Settings → Developer settings → GitHub Apps → New GitHub App**. Use the Space Worker origin as the homepage and configure this callback URL:
+
+`https://space-ai.YOUR-SUBDOMAIN.workers.dev/auth/github-app/callback`
+
+Configure only these repository permissions:
+
+| Permission | Access |
+|---|---|
+| Repository creation | Read and write |
+| Contents | Read and write |
+
+Do not grant Administration, Workflows, organization permissions, or webhook subscriptions for this workflow. Keep user-to-server token expiration enabled. Space requests the `offline_access` scope so GitHub returns an expiring user access token and refresh token. The callback also uses PKCE and a one-time state cookie.
+
+Install the GitHub App on the same personal GitHub account used to sign in to Space. The Settings page includes a separate installation link and connection action. Space checks the installed account ID and the two required permission values before it saves the connection.
+
+### Configure deployment secrets
+
+Add all three optional secrets to the GitHub Actions `production` environment:
+
+| Secret | Purpose |
+|---|---|
+| `SPACE_GITHUB_APP_CLIENT_ID` | GitHub App Client ID (not the numeric App ID) |
+| `SPACE_GITHUB_APP_CLIENT_SECRET` | GitHub App Client Secret |
+| `SPACE_GITHUB_APP_SLUG` | URL slug from the GitHub App page |
+
+The deploy workflow maps these to Worker secrets named `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, and `GITHUB_APP_SLUG`. Configure all three or leave all three empty. Partial configuration stops the deployment before publishing secrets. Never commit them or paste them into chat or workflow logs.
+
+For a Workers Builds Preview, add the three GitHub App values separately in the Preview's secret settings, and use a test GitHub App with a Preview callback URL. Preview secrets do not inherit from production. Do not copy production App credentials into an untrusted Preview.
+
+### What publishing does
+
+1. The owner explicitly connects their GitHub App account from Space Settings.
+2. Space stores the access and refresh tokens encrypted in a dedicated GitHubVault Durable Object keyed to the signed-in GitHub numeric account ID. The encryption key is derived from `SESSION_SECRET` with HKDF; token data is encrypted with AES-GCM.
+3. Access tokens are refreshed before expiry. The browser never receives an access token or refresh token.
+4. The owner selects either a new private repository or an existing personal repository from the list of repositories where the connected account has push access. Organization repositories, archived repositories, disabled repositories, and repositories without push access are excluded.
+5. The owner checks the consent box and confirms the target and file count. New repositories are always private. Existing repositories retain their current visibility.
+6. Space publishes the current validated workspace file snapshot in one Git commit to the default branch. Existing repository files at matching paths are replaced; other paths are preserved. Space does not upload the chat history, settings, memory, image attachments, secrets, or hidden paths.
+
+The integration currently supports new private repositories and existing personal repositories with push access. It does not support organization repositories, changing visibility, creating new public repositories, selecting another branch, or continuous synchronization. A branch-protection rule may reject a direct default-branch commit; a task-branch and pull-request workflow remains a future improvement.
+
+Disconnecting from Space first attempts to refresh an expiring token, then revokes the GitHub App authorization and removes the encrypted local token record. If both the access and refresh tokens are expired, Space keeps the encrypted record and shows instructions to revoke the App from GitHub Settings → Applications. Existing repositories and commits are never deleted by disconnecting.

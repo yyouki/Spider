@@ -94,10 +94,10 @@ Satu tahap belum boleh disebut selesai sebelum:
 
 
 ## Tahap 3A — GitHub project publishing and Android artifacts
-- GitHub App user authorization with least-privilege repository creation and contents permissions.
-- Per-user encrypted provider tokens, revocation, audit trail, and repository-scoped access.
-- Create a repository only after the user approves its name and public/private visibility.
-- Commit and push generated project files; use task branches and pull requests for risky changes.
+- [x] GitHub App user authorization with least-privilege repository creation and contents permissions (implementation added; verification and release pending).
+- [x] Per-account encrypted GitHub App tokens, refresh, revocation, and user-scoped App access (implementation added; verification pending).
+- [x] Create a new private personal repository only after explicit owner approval; existing/organization/public repository targets remain planned.
+- [x] Commit the current validated Space workspace snapshot in one commit to a newly created private repository; existing repositories and branch/PR publishing remain planned.
 - Android Gradle project template and GitHub Actions APK artifact workflow.
 - Retrieve the completed APK artifact and attach it to the originating conversation.
 
@@ -105,4 +105,4 @@ Satu tahap belum boleh disebut selesai sebelum:
 ## VS Code Web migration
 - [x] Remove the embedded Monaco editor and dependency.
 - [x] Replace the IDE route with a validated handoff to official VS Code Web at `github.dev`.
-- [ ] Implement GitHub App authorization and project repository publishing so private Space workspace files can be synchronized through an explicit user-approved workflow.
+- [x] Implement owner-approved GitHub App authorization and publishing of private Space workspace files to new private or existing personal repositories (release gated by CI, Cloudflare Preview, and a manual authorization/publish/disconnect test).

@@ -16,7 +16,7 @@ Last implementation pass: November 6, 2026.
 | Capability reporting | Implemented in source | `getCapabilities` tool |
 | Project memory | Implemented in source | SQLite table with approval-required writes |
 | Owner autonomy settings | Implemented in source | SQLite persistence and mobile settings UI |
-| Private workspace files | Implemented in source | SQLite-backed file records, validation, 200-file/2 MB limits, 20 revisions per file, and chat download attachments; there is no longer a visual file Explorer after the VS Code Web transition |
+| Private workspace files | Implemented in source | SQLite-backed files, validation, 200-file/2 MB limits, 20 revisions per file, and chat download attachments; VS Code Web operates on GitHub repositories, not this private file store |
 | VS Code Web launcher | Implemented in source | Validated GitHub repository input and external handoff to github.dev; no embedded Monaco editor |
 | Token analysis | Implemented in current branch | Provider-reported AI usage plus clearly labeled file/workspace estimates |
 | Read-only conversation sharing | Implemented in current branch | Random bearer URLs, seven-day expiry, revoke, no-store/noindex response |
@@ -87,7 +87,7 @@ The server contains callable file/folder deletion operations that validate works
 
 ## VS Code Web transition
 
-The embedded Monaco IDE implementation and the `monaco-editor` runtime dependency have been removed. The `/ide` route now opens the official VS Code Web service at `github.dev` for a validated GitHub repository. VS Code Web is a separate browser application and is not embedded inside Space. The current Space OAuth flow does not provide GitHub repository access tokens, and private Space workspace files do not yet sync to GitHub. Keep the sync limitation visible until the GitHub App authorization and publishing integration is complete.
+The embedded Monaco IDE implementation and the `monaco-editor` runtime dependency have been removed. The `/ide` route now opens the official VS Code Web service at `github.dev` for a validated GitHub repository. VS Code Web is a separate browser application and is not embedded inside Space. The current Space sign-in session does not grant repository access. A separate GitHub App user authorization is implemented in the current feature branch to publish a confirmed workspace snapshot. There is no continuous two-way synchronization, and this integration is not released until its CI, Cloudflare Preview, and manual authorization checks pass.
 
 
 ## Agent routing security
@@ -95,3 +95,12 @@ The embedded Monaco IDE implementation and the `monaco-editor` runtime dependenc
 The React client uses the fixed `/api/me` base path. The Worker validates the owner session and exact same-origin Origin header, then routes the request to the Agent instance selected by server-side session identity. The browser cannot choose the Durable Object name, and the previous client-addressable `/agents/*` routes return 404. The owner remains mapped to the existing `default` Agent instance to preserve current chat and SQLite data.
 
 This is a routing foundation, not public multi-user login. The OAuth callback still permits only the configured owner. Google/email/provider onboarding, revocable sessions, login throttling, recovery, user lifecycle, and complete cross-tenant access tests must pass before public registration is enabled.
+
+
+## GitHub App publishing (current branch, not yet released)
+
+The current branch adds a dedicated GitHubVault Durable Object, encrypted GitHub App user access/refresh tokens, PKCE authorization, account and permission verification, refresh-token rotation, a disconnect/revoke path, and an owner-confirmed create-private-repository-and-publish flow. Repository creation uses the account's GitHub App user access token and requires Repository creation: write plus Contents: write.
+
+Publishing targets the signed-in user's personal GitHub account. It can create a new private repository or publish to an existing personal repository where the user has push access. Existing repository publishing commits to the default branch, preserves other paths, and replaces files at matching paths. Organization repositories, public repository creation/visibility changes, alternate branches, image/chat export, and per-user public onboarding are not included. The Google-only login cannot connect a GitHub App until a GitHub identity is explicitly linked.
+
+This feature is not considered released until GitHub Actions, Cloudflare Workers Builds, auth-flow tests, token refresh/revocation tests, workspace export tests, and a manual GitHub App setup/publish/disconnect test pass. It requires the optional `SPACE_GITHUB_APP_CLIENT_ID`, `SPACE_GITHUB_APP_CLIENT_SECRET`, and `SPACE_GITHUB_APP_SLUG` deployment secrets.

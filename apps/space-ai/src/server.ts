@@ -6,6 +6,9 @@ import { z } from "zod";
 import { getOwnerSession, googleOAuthReady, handleAuthRequest, requireOwnerAccess } from "./security/access";
 import { getSpaceAgentName, isSameOriginAgentRequest } from "./security/tenant-routing.js";
 import { ChatShares, type SharedChatSnapshot } from "./chat-shares";
+import { handleGitHubAppRequest } from "./github-app/routes";
+
+export { GitHubVault } from "./github-app/vault";
 import { languageForPath, normalizeWorkspacePath, type WorkspaceFile, type WorkspaceFileMetadata } from "./workspace";
 
 // Expose the GitHub Actions-backed sandbox task ledger Durable Object.
@@ -102,6 +105,12 @@ type ConversationListRow = {
 };
 
 type ActiveConversationRow = { conversation_id: string };
+
+type GitHubWorkspaceSnapshot = {
+  files: Array<{ path: string; content: string; sizeBytes: number }>;
+  fileCount: number;
+  totalBytes: number;
+};
 
 const WORKSPACE_FILE_LIMIT = 200;
 const WORKSPACE_FILE_MAX_BYTES = 128 * 1024;
@@ -460,6 +469,21 @@ export class SpaceAgent extends AIChatAgent<Env> {
     const rows = this.sql<{ count: number }>`SELECT COUNT(*) AS count FROM user_memory`;
     this.sql`DELETE FROM user_memory`;
     return { deleted: rows[0]?.count ?? 0 };
+  }
+
+  @callable()
+  exportWorkspaceSnapshot(): GitHubWorkspaceSnapshot {
+    const rows = this.sql<{ path: string; content: string; size_bytes: number }>`SELECT path, content, size_bytes
+      FROM workspace_files ORDER BY path ASC LIMIT ${WORKSPACE_FILE_LIMIT}`;
+    const totalBytes = rows.reduce((total, row) => total + row.size_bytes, 0);
+    if (totalBytes > WORKSPACE_TOTAL_MAX_BYTES) {
+      throw new Error("The workspace exceeds its export size limit.");
+    }
+    return {
+      files: rows.map((row) => ({ path: row.path, content: row.content, sizeBytes: row.size_bytes })),
+      fileCount: rows.length,
+      totalBytes
+    };
   }
 
   @callable()
@@ -1415,9 +1439,11 @@ export default {
       });
     }
 
-    // Handle GitHub OAuth before protected API and agent routes.
+    // Handle account OAuth providers, then GitHub App repository authorization.
     const authResponse = await handleAuthRequest(request, env);
     if (authResponse) return authResponse;
+    const githubAppResponse = await handleGitHubAppRequest(request, env);
+    if (githubAppResponse) return githubAppResponse;
 
     if (url.pathname === "/api/session") {
       const session = await getOwnerSession(request, env);

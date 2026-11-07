@@ -130,3 +130,12 @@ A successful sign-in test is not sufficient evidence of tenant isolation. Do not
 The browser connects to the fixed `/api/me` route. The Worker verifies the signed owner session and same-origin request, then selects the Durable Object name on the server. The browser never submits a Durable Object name. The legacy `/agents/*` endpoint is blocked so it cannot bypass the custom route.
 
 The current release still authenticates only the configured GitHub owner. That owner is deliberately routed to the existing `default` Agent instance so their existing SQLite chat, memory, and workspace data are not abandoned. The routing helper supports distinct member identities for the next authentication stage, but no public member sign-in is enabled in this change. Google/email/GitHub public registration, session revocation, rate limiting, recovery, and automated full cross-tenant Agent tests remain release gates.
+
+
+## GitHub App repository publishing
+
+The repository publisher uses a separate GitHub App user-to-server grant, not the owner sign-in token or the shared GitHub Actions token. The Worker verifies the connected GitHub numeric ID against the signed GitHub session, checks the personal-account installation and its `repository_creation: write` and `contents: write` permissions, and stores the rotating access/refresh tokens encrypted with AES-GCM in a dedicated `GitHubVault` Durable Object.
+
+The `GitHubVault` encryption key is derived from `SESSION_SECRET`. Keep this secret stable when deploying. Rotating it makes previously stored GitHub App token records undecryptable; reconnect the App after an intentional rotation. Never place the token or secret in the client, workspace files, GitHub commits, or logs.
+
+Publishing is an owner-initiated action that requires both a consent checkbox and a final confirmation. New repositories are always private. Existing targets must be personal repositories owned by the connected GitHub account and writable by that account. A scan blocks common hard-coded token/private-key patterns before any repository is created or modified. The scan returns filenames only and never logs matched secret values. No organization publishing, continuous sync, deletion of remote files, or public repository creation is included.
