@@ -1455,7 +1455,7 @@ export default {
           userId: access.session.userId,
           role: access.session.role
         });
-        const agent = getAgentByName(env.SpaceAgent, agentName);
+        const agent = await getAgentByName(env.SpaceAgent, agentName);
         const agentHealth = await agent.getConnectionHealth();
 
         return Response.json({
@@ -1502,7 +1502,7 @@ export default {
         role: access.session.role
       });
       // Use the SDK helper so lifecycle startup and request forwarding stay aligned.
-      const agent = getAgentByName(env.SpaceAgent, agentName);
+      const agent = await getAgentByName(env.SpaceAgent, agentName);
       return agent.fetch(request);
     }
 

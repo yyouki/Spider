@@ -47,7 +47,8 @@ export function useSpaceAgentConnection() {
         kind: "reconnecting",
         message: "Koneksi realtime terputus. Space sedang mencoba menyambung kembali."
       });
-    }, []),
+      void diagnose();
+    }, [diagnose]),
     onError: useCallback((_event: Event) => {
       setConnected(false);
       void diagnose();
