@@ -69,14 +69,12 @@
   ],
   "vars": {
     "DEPLOYMENT_ENV": "production",
-    "GITHUB_OWNER_LOGIN": "yyouki",
-    "APP_ORIGIN": "https://space-ai.yyouki.workers.dev"
+    "GITHUB_OWNER_LOGIN": "yyouki"
   },
   "previews": {
     "vars": {
       "DEPLOYMENT_ENV": "preview",
-      "GITHUB_OWNER_LOGIN": "yyouki",
-      "APP_ORIGIN": "https://space-ai.yyouki.workers.dev"
+      "GITHUB_OWNER_LOGIN": "yyouki"
     },
     "ai": {
       "binding": "AI"

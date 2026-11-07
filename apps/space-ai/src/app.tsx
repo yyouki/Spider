@@ -6,6 +6,7 @@ import type { AutonomySettings } from "./server";
 import type { MouseEvent } from "react";
 import type { TokenUsageSummary, WorkspaceFileMetadata } from "./analytics";
 import { useSpaceAgentConnection } from "./connection";
+import { resolveShareLinks } from "./security/share-links";
 
 const AnalyticsPage = lazy(() => import("./analytics"));
 
@@ -620,10 +621,12 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
     setShareNotice("Membuat tautan…");
     try {
       const result = await agent.stub.createChatShare();
-      setShareInfo(result);
+      // Resolve the relative share route against the active host, including Preview deployments.
+      const shareInfo = resolveShareLinks(result, window.location.origin);
+      setShareInfo(shareInfo);
       setShareNotice("Tautan dibuat. Siapa pun yang memiliki tautan dapat membaca snapshot ini selama 7 hari.");
       try {
-        await navigator.clipboard.writeText(result.url);
+        await navigator.clipboard.writeText(shareInfo.url);
         setShareNotice("Tautan disalin ke clipboard.");
       } catch {
         // Keep the URL visible so it can be copied manually.

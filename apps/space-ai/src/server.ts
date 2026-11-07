@@ -762,8 +762,8 @@ export class SpaceAgent extends AIChatAgent<Env> {
     const share = namespace.get(namespace.idFromName(token));
     await share.saveShare(token, JSON.stringify(snapshot), expiresAt);
 
-    const origin = this.env.APP_ORIGIN.replace(/\/$/, "");
-    const url = origin + "/share/" + token;
+    // Return a same-host route; the client resolves its current origin (Production or Preview).
+    const url = "/share/" + token;
     return {
       url,
       jsonUrl: url + ".json",
