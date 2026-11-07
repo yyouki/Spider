@@ -1,5 +1,5 @@
 import { AIChatAgent, type ChatResponseResult, type OnChatMessageOptions } from "@cloudflare/ai-chat";
-import { callable } from "agents";
+import { callable, getAgentByName } from "agents";
 import { createAI } from "agents/models/ai-sdk";
 import { convertToModelMessages, generateText, pruneMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
@@ -272,6 +272,15 @@ export class SpaceAgent extends AIChatAgent<Env> {
       (context_id, summary_text, summarized_through_id, updated_at)
       SELECT 'default', summary_text, summarized_through_id, updated_at
       FROM conversation_context WHERE context_id = 'primary'`;
+  }
+
+  @callable()
+  getConnectionHealth(): { status: "ok"; storage: "available" } {
+    const result = this.sql<{ ok: number }>`SELECT 1 AS ok`;
+    if (result[0]?.ok !== 1) {
+      throw new Error("Workspace storage health check failed.");
+    }
+    return { status: "ok", storage: "available" };
   }
 
   private getActiveConversationId(): string {
@@ -1437,24 +1446,48 @@ export default {
       );
     }
 
-    if (url.pathname === "/api/health") {
+    if (url.pathname === "/api/health" && request.method === "GET") {
       const access = await requireOwnerAccess(request, env);
       if (!access.ok) return access.response;
-      return Response.json({
-        status: "ok",
-        app: "space-ai",
-        version: "0.5.0",
-        agent: "SpaceAgent",
-        model: "@cf/zai-org/glm-4.7-flash",
-        capabilities: [
-          "persistent-chat",
-          "persistent-task-plans",
-          "owner-configurable-autonomy-preferences",
-          "github-actions-offline-sandbox-runner",
-          "calculator",
-          "approved-project-memory"
-        ]
-      });
+
+      try {
+        const agentName = getSpaceAgentName({
+          userId: access.session.userId,
+          role: access.session.role
+        });
+        const agent = getAgentByName(env.SpaceAgent, agentName);
+        const agentHealth = await agent.getConnectionHealth();
+
+        return Response.json({
+          status: "ok",
+          app: "space-ai",
+          version: "0.5.0",
+          agent: "SpaceAgent",
+          workspace: agentHealth.storage,
+          model: "@cf/zai-org/glm-4.7-flash"
+        }, {
+          headers: {
+            "Cache-Control": "no-store, private",
+            "X-Content-Type-Options": "nosniff"
+          }
+        });
+      } catch (error) {
+        // Do not log request bodies, cookies, prompts, or private workspace contents.
+        console.error({
+          event: "space_agent_health_failed",
+          errorType: error instanceof Error ? error.name : "UnknownError"
+        });
+        return Response.json({
+          status: "degraded",
+          code: "SPACE_AGENT_UNAVAILABLE"
+        }, {
+          status: 503,
+          headers: {
+            "Cache-Control": "no-store, private",
+            "X-Content-Type-Options": "nosniff"
+          }
+        });
+      }
     }
 
     // The Worker chooses the Agent instance from the signed session; the browser cannot select a tenant name.
@@ -1468,8 +1501,9 @@ export default {
         userId: access.session.userId,
         role: access.session.role
       });
-      const agentId = env.SpaceAgent.idFromName(agentName);
-      return env.SpaceAgent.get(agentId).fetch(request);
+      // Use the SDK helper so lifecycle startup and request forwarding stay aligned.
+      const agent = getAgentByName(env.SpaceAgent, agentName);
+      return agent.fetch(request);
     }
 
     // Block client-selected legacy Agent names. All Agent traffic uses the session-routed endpoint above.

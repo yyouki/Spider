@@ -1,10 +1,9 @@
-import { useAgent } from "agents/react";
 import { basicSetup, EditorView } from "codemirror";
 import { LanguageDescription, defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 import { languages } from "@codemirror/language-data";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type FormEvent } from "react";
-import type { SpaceAgent } from "./server";
+import type { SpaceAgentClient, SpaceConnectionIssue } from "./connection";
 import "./ide.css";
 
 type WorkspaceEntry = { path: string; language: string; sizeBytes: number; updatedAt: number };
@@ -135,8 +134,14 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-export default function SpaceIDEPage() {
-  const [connected, setConnected] = useState(false);
+type SpaceIDEPageProps = {
+  agent: SpaceAgentClient;
+  connected: boolean;
+  connectionIssue: SpaceConnectionIssue | null;
+  onReconnect: () => void;
+};
+
+export default function SpaceIDEPage({ agent, connected, connectionIssue, onReconnect }: SpaceIDEPageProps) {
   const [files, setFiles] = useState<WorkspaceEntry[]>([]);
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activePath, setActivePath] = useState("");
@@ -172,14 +177,6 @@ export default function SpaceIDEPage() {
   });
   const [cursor, setCursor] = useState<CursorPosition>({ line: 1, column: 1 });
   const terminalRef = useRef<HTMLInputElement>(null);
-
-  const agent = useAgent<SpaceAgent>({
-    agent: "SpaceAgent",
-    basePath: "/api/me",
-    onOpen: useCallback(() => { setConnected(true); setError(""); }, []),
-    onClose: useCallback(() => setConnected(false), []),
-    onError: useCallback(() => { setConnected(false); setError("The connection to your private workspace was interrupted."); }, [])
-  });
 
   const activeFile = openFiles.find((file) => file.path === activePath) ?? null;
   const appendTerminal = useCallback((line: string) => {
@@ -486,11 +483,12 @@ export default function SpaceIDEPage() {
     <main className="space-ide" data-theme={theme}>
       <header className="ide-topbar">
         <div className="ide-topbar-brand"><span className="ide-brand-mark">S</span><strong>Space</strong><span className="ide-brand-divider">/</span><span>IDE</span></div>
-        <div className="ide-topbar-center"><span className="ide-workspace-chip">Private workspace</span><span className="ide-connection-state"><i className={connected ? "online" : ""} />{connected ? "Connected" : "Connecting"}</span></div>
+        <div className="ide-topbar-center"><span className="ide-workspace-chip">Private workspace</span><span className="ide-connection-state"><i className={connected ? "online" : ""} />{connected ? "Connected" : connectionIssue?.kind === "reconnecting" ? "Reconnecting" : "Offline"}</span></div>
         <div className="ide-topbar-actions">
           <button type="button" onClick={() => { setQuickOpen(true); setQuickQuery(""); }} title={"Quick open · " + shortcuts.quickOpen}>⌕ <span>Open file</span></button>
           <button type="button" onClick={() => setShortcutsOpen(true)} title="Keyboard shortcuts">⌨</button>
           <button type="button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title="Toggle theme">{theme === "dark" ? "☼" : "◐"}</button>
+          {!connected && <button type="button" onClick={onReconnect} title="Reconnect workspace">↻ <span>Reconnect</span></button>}
         </div>
       </header>
 
@@ -577,7 +575,7 @@ export default function SpaceIDEPage() {
       </div>
 
       {(notice || error) && <div className={"ide-toast" + (error ? " error" : "")} role="status"><span>{error || notice}</span><button type="button" onClick={() => { setNotice(""); setError(""); }}>×</button></div>}
-      {!connected && !error && <div className="ide-connection-note">Connecting to your private workspace…</div>}
+      {!connected && !error && <div className="ide-connection-note">{connectionIssue?.message ?? "Connecting to your private workspace…"}</div>}
 
       {paletteOpen && <Modal title="Command palette" onClose={() => setPaletteOpen(false)}>
         <input className="ide-modal-search" autoFocus value={paletteQuery} onChange={(event) => setPaletteQuery(event.target.value)} placeholder="Search commands…" />

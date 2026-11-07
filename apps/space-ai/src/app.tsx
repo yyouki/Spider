@@ -1,11 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useAgent } from "agents/react";
 import { parseSupportedVideoLink, type SupportedVideoLink } from "./video-links";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, type UIMessage } from "ai";
 import type { AutonomySettings, SpaceAgent } from "./server";
 import type { MouseEvent } from "react";
 import type { TokenUsageSummary, WorkspaceFileMetadata } from "./analytics";
+import { useSpaceAgentConnection } from "./connection";
 
 const AnalyticsPage = lazy(() => import("./analytics"));
 
@@ -268,7 +268,6 @@ type SessionProfile = {
 };
 
 function Workspace({ onLogout, profile }: { onLogout: () => void; profile: SessionProfile | null }) {
-  const [connected, setConnected] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [settings, setSettings] = useState<AutonomySettings>(DEFAULT_SETTINGS);
@@ -292,19 +291,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "/" : window.location.pathname);
   const endRef = useRef<HTMLDivElement>(null);
 
-  const agent = useAgent<SpaceAgent>({
-    agent: "SpaceAgent",
-    basePath: "/api/me",
-    onOpen: useCallback(() => {
-      setConnected(true);
-      setError("");
-    }, []),
-    onClose: useCallback(() => setConnected(false), []),
-    onError: useCallback(() => {
-      setConnected(false);
-      setError("Koneksi ke Space terputus. Periksa jaringan dan status deployment.");
-    }, [])
-  });
+  const { agent, connected, connectionIssue, reconnect } = useSpaceAgentConnection();
 
   const {
     messages,
@@ -713,7 +700,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
         ))}
       </nav>
       {currentPath === "/" && (
-        <details className="conversation-history">
+        <details className="conversation-history" open>
           <summary>History <span>{conversations.length}</span></summary>
           <label className="conversation-search">
             <input
@@ -752,7 +739,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
       )}
       <div className="topbar-actions">
         <span className={`connection ${connected ? "online" : "offline"}`}>
-          <i /> {connected ? "Connected" : "Connecting"}
+          <i /> {connected ? "Connected" : connectionIssue?.kind === "reconnecting" ? "Reconnecting" : "Offline"}
         </span>
         <div className="account-profile" title={profile ? profile.login : "Account profile"}>
           {profile?.avatarUrl
@@ -937,7 +924,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
 
   const vscodePage = (
     <Suspense fallback={<main className="page-container"><p>Opening Space IDE…</p></main>}>
-      <VSCodeWebPage />
+      <VSCodeWebPage agent={agent} connected={connected} connectionIssue={connectionIssue} onReconnect={reconnect} />
     </Suspense>
   );
 
@@ -1043,6 +1030,17 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   return (
     <div className="app-shell">
       {header}
+      {!connected && connectionIssue && (
+        <aside className={"connection-banner " + connectionIssue.kind} role="status">
+          <div className="connection-banner-copy">
+            <strong>{connectionIssue.kind === "unauthenticated" ? "Sign-in required" : connectionIssue.kind === "workspace-unavailable" ? "Private workspace unavailable" : connectionIssue.kind === "websocket-unavailable" ? "Live connection interrupted" : connectionIssue.kind === "network" ? "Cannot reach Space" : "Reconnecting to Space"}</strong>
+            <p>{connectionIssue.message}</p>
+          </div>
+          <button type="button" onClick={() => connectionIssue.kind === "unauthenticated" ? window.location.reload() : reconnect()}>
+            {connectionIssue.kind === "unauthenticated" ? "Reload sign-in" : "Reconnect"}
+          </button>
+        </aside>
+      )}
       {currentPath === "/ide" ? vscodePage :
         currentPath === "/analytics" ? (
           <Suspense fallback={<main className="page-container"><p>Loading analytics…</p></main>}>
