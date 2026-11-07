@@ -37,5 +37,6 @@
     "DEPLOYMENT_ENV": "production",
     "GITHUB_OWNER_LOGIN": "yyouki",
     "APP_ORIGIN": "https://space-ai.yyouki.workers.dev"
-  }
+  },
+  "previews": {}
 }
