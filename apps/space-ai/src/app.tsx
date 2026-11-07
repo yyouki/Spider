@@ -689,7 +689,6 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   const header = (
     <header className="topbar">
       <a className="brand" href="/" onClick={(event) => navigate(event, "/")} aria-label="Space home">
-        <span className="brand-mark">s</span>
         <span className="brand-copy"><strong>space</strong><small>AI workspace</small></span>
       </a>
       <button
@@ -1101,7 +1100,6 @@ export default function App() {
     return (
       <main className="auth-shell">
         <section className="auth-card" aria-live="polite">
-          <div className="brand-mark">s</div>
           <h1>space</h1>
           <p>Checking your private workspace session…</p>
         </section>
@@ -1113,7 +1111,6 @@ export default function App() {
     return (
       <main className="auth-shell">
         <section className="auth-card">
-          <div className="brand-mark">s</div>
           <h1>space</h1>
           <p role="alert">{sessionError}</p>
           <button type="button" className="button button-primary" onClick={() => window.location.reload()}>Retry</button>
@@ -1126,7 +1123,6 @@ export default function App() {
     return (
       <main className="auth-shell">
         <section className="auth-card">
-          <div className="brand-mark">s</div>
           <p className="eyebrow">PRIVATE AI WORKSPACE</p>
           <h1>Sign in to Space</h1>
           <p>Only the configured owner account can open this workspace.</p>
