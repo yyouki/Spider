@@ -196,7 +196,7 @@ export default function SpaceIDEPage() {
     if (!connected) return;
     let active = true;
     setLoading(true);
-    void agent.stub.listWorkspaceFiles().then((result) => {
+    void agent.stub.listWorkspaceFiles().then((result: WorkspaceEntry[]) => {
       if (!active) return;
       setFiles(result);
       if (!result.length) setNotice("Workspace is empty. Create a file to begin.");
