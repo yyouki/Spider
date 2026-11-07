@@ -100,6 +100,22 @@ GitHub reserves secret names beginning with `GITHUB_`, so use the `SPACE_` names
 The workflow no longer builds or deploys a Cloudflare Container. It still uses your existing Cloudflare API token and Account ID. The API token must be permitted to deploy the existing or first Worker; if the first creation is denied, adjust the Cloudflare token's Worker scope as documented by Cloudflare.
 
 
+
+## Workers Builds dashboard settings
+
+The Worker package is in `apps/space-ai`. In Cloudflare Dashboard → Workers & Pages → `space-ai` → Settings → Build, configure the Git build settings as follows:
+
+| Setting | Value |
+|---|---|
+| Root directory | `apps/space-ai` |
+| Build command | `npm install --no-audit --no-fund && npm run check && npm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Preview command | `npx wrangler preview` |
+
+The Build command installs the npm packages declared in `apps/space-ai/package.json`, runs type checks and tests, and builds the dashboard before Wrangler deploys or creates a Preview. This project does not currently keep a separate `package-lock.json` inside `apps/space-ai`, so use `npm install`, not `npm ci`, for this setting.
+
+Workers Builds dashboard settings are separate from `wrangler.jsonc`. Cloudflare's Workers Builds pipeline does not honor Wrangler Custom Builds settings, so adding a `build.command` to the Wrangler file is not a substitute for setting the dashboard Build command. Saving changes applies them to the next build; retrying an old build uses the settings that existed when it ran.
+
 ## Workers Builds Preview command
 
 The repository Wrangler configuration includes a top-level `previews` block so the Cloudflare Workers Builds default preview command `npx wrangler preview` can create a preview deployment. This addresses the initial missing-`previews` error. The block also declares the Preview `AI` binding, the three Durable Object bindings used through `env`, and preview-specific runtime variables. Cloudflare provisions separate Preview Durable Object storage for these classes.
