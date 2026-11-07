@@ -10,7 +10,7 @@ This deployment keeps the existing Cloudflare Agents / Durable Objects architect
 | Chat history, task ledger, preferences, memory, private workspace files, token usage | SpaceAgent Durable Objects SQLite |
 | Expiring read-only chat share snapshots | One ChatShares Durable Object per random share token |
 | Text model | Cloudflare Workers AI `@cf/zai-org/glm-4.7-flash` |
-| Owner login | GitHub OAuth App |
+| Owner login | GitHub OAuth App; optional Google OAuth App |
 | Python/JavaScript execution | Temporary GitHub-hosted Actions runner + restricted Docker container |
 
 This avoids Cloudflare Zero Trust organization setup and Cloudflare Workers Paid Containers. It does not provide unlimited AI inference or unlimited runner capacity. The /ide page opens the official VS Code Web editor at github.dev in a separate browser tab.
@@ -126,7 +126,7 @@ The SpaceAgent SQLite database stores a private, app-level workspace. It is not 
 - Up to 128 KB per file and 2 MB total.
 - Relative paths only; hidden paths and sensitive config paths are rejected.
 - AI file tools can list, read, and create/update workspace files. File deletion always requires owner approval.
-- Files appear in chat with download links. They do not automatically appear in github.dev because the private Space workspace has not yet been synchronized with GitHub.
+- Files remain in Space's private Durable Object workspace. They are not synchronized to the GitHub repository opened by github.dev; these are separate storage locations. There is no automatic sync to GitHub or the user's device.
 - There is no automatic sync to GitHub or the user's device.
 
 The separate `/analytics` page shows provider-reported input/output token totals when the model provider includes usage metadata, retaining at most 200 recent responses. It also shows a 14-day daily aggregation and the latest 12 token-usage records. Workspace storage and rough file-token estimates appear in a separate section, never inside the `/ide` editor. Estimates use UTF-8 bytes divided by four and are not exact GLM tokenizer counts. This view does not calculate monetary cost or account-wide Cloudflare Neurons.
@@ -144,5 +144,5 @@ Adding the `ChatShares` Durable Object requires migration tag `v3`; Wrangler app
 - Cloudflare Worker authorization: https://developers.cloudflare.com/workers/authorization/
 - GitHub OAuth App creation: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app
 - GitHub Actions billing: https://docs.github.com/en/actions/concepts/billing-and-usage
-- Monaco Editor ESM/Vite integration: https://github.com/microsoft/monaco-editor/blob/main/docs/integrate-esm.md
+- VS Code for the Web: https://code.visualstudio.com/docs/remote/vscode-web
 - AI SDK streamText usage: https://ai-sdk.dev/docs/reference/ai-sdk-core/stream-text
