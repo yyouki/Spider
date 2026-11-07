@@ -3,7 +3,9 @@
   "name": "space-ai",
   "main": "src/server.ts",
   "compatibility_date": "2026-11-04",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "secrets": {
     "required": [
       "GITHUB_OAUTH_CLIENT_ID",
@@ -19,23 +21,78 @@
   "assets": {
     "directory": "./public",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/auth/*", "/agents/*", "/api/*", "/share/*"]
+    "run_worker_first": [
+      "/auth/*",
+      "/agents/*",
+      "/api/*",
+      "/share/*"
+    ]
   },
   "durable_objects": {
     "bindings": [
-      { "name": "SpaceAgent", "class_name": "SpaceAgent" },
-      { "name": "SandboxRunner", "class_name": "SandboxRunner" },
-      { "name": "ChatShares", "class_name": "ChatShares" }
+      {
+        "name": "SpaceAgent",
+        "class_name": "SpaceAgent"
+      },
+      {
+        "name": "SandboxRunner",
+        "class_name": "SandboxRunner"
+      },
+      {
+        "name": "ChatShares",
+        "class_name": "ChatShares"
+      }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["SpaceAgent"] },
-    { "tag": "v2", "new_sqlite_classes": ["SandboxRunner"] },
-    { "tag": "v3", "new_sqlite_classes": ["ChatShares"] }
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "SpaceAgent"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "SandboxRunner"
+      ]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [
+        "ChatShares"
+      ]
+    }
   ],
   "vars": {
     "DEPLOYMENT_ENV": "production",
     "GITHUB_OWNER_LOGIN": "yyouki",
     "APP_ORIGIN": "https://space-ai.yyouki.workers.dev"
+  },
+  "previews": {
+    "vars": {
+      "DEPLOYMENT_ENV": "preview",
+      "GITHUB_OWNER_LOGIN": "yyouki",
+      "APP_ORIGIN": "https://space-ai.yyouki.workers.dev"
+    },
+    "ai": {
+      "binding": "AI"
+    },
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "SpaceAgent",
+          "class_name": "SpaceAgent"
+        },
+        {
+          "name": "SandboxRunner",
+          "class_name": "SandboxRunner"
+        },
+        {
+          "name": "ChatShares",
+          "class_name": "ChatShares"
+        }
+      ]
+    }
   }
 }
