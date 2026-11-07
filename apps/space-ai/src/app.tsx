@@ -260,7 +260,14 @@ function SettingSelect<T extends string>({
   );
 }
 
-function Workspace({ onLogout }: { onLogout: () => void }) {
+type SessionProfile = {
+  provider: "github" | "google";
+  login: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+function Workspace({ onLogout, profile }: { onLogout: () => void; profile: SessionProfile | null }) {
   const [connected, setConnected] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
@@ -748,6 +755,15 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
         <span className={`connection ${connected ? "online" : "offline"}`}>
           <i /> {connected ? "Connected" : "Connecting"}
         </span>
+        <div className="account-profile" title={profile ? profile.login : "Account profile"}>
+          {profile?.avatarUrl
+            ? <img className="account-avatar" src={profile.avatarUrl} alt="" referrerPolicy="no-referrer" />
+            : <span className="account-avatar account-avatar-fallback">{(profile?.displayName || profile?.login || "U").slice(0, 1).toUpperCase()}</span>}
+          <span className="account-profile-copy">
+            <strong>{profile?.displayName || profile?.login || "Account"}</strong>
+            <small>{profile?.provider === "google" ? "Google account" : "GitHub account"}</small>
+          </span>
+        </div>
         <button className="text-button" type="button" onClick={onLogout}>Sign out</button>
       </div>
     </header>
@@ -1042,6 +1058,8 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
 type SessionResponse = {
   authenticated: boolean;
   login: string | null;
+  profile: SessionProfile | null;
+  googleAvailable: boolean;
 };
 
 export default function App() {
@@ -1076,7 +1094,7 @@ export default function App() {
       method: "POST",
       credentials: "same-origin"
     });
-    setSession({ authenticated: false, login: null });
+    setSession({ authenticated: false, login: null, profile: null, googleAvailable: session?.googleAvailable ?? false });
   };
 
   if (loading) {
@@ -1113,10 +1131,15 @@ export default function App() {
           <h1>Sign in to Space</h1>
           <p>Only the configured owner GitHub account can open this workspace.</p>
           <a className="auth-button" href="/auth/github">Continue with GitHub <span>↗</span></a>
+          {session.googleAvailable ? (
+            <a className="auth-button auth-button-google" href="/auth/google">Continue with Google <span>↗</span></a>
+          ) : (
+            <p className="auth-provider-note">Google sign-in is available after its OAuth credentials and owner email are configured.</p>
+          )}
         </section>
       </main>
     );
   }
 
-  return <Workspace onLogout={() => void logout()} />;
+  return <Workspace onLogout={() => void logout()} profile={session.profile} />;
 }
