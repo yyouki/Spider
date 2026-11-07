@@ -105,7 +105,8 @@ export default function VSCodeWebPage() {
             <li>Tap the code to place the text caret; press and drag the native selection handles to select text.</li>
             <li>For a visible mouse pointer, connect a Bluetooth or USB mouse. Space cannot draw a virtual pointer inside the separate github.dev tab.</li>
           </ul>
-          <p className="vscode-control-note">The official web editor supports mobile browsers, but some desktop workflows and shortcuts are limited on smaller screens.</p>
+          <p className="vscode-control-note">The official web editor supports mobile browsers, but some desktop workflows and shortcuts are limited on smaller screens. On Firefox, use F1 because Ctrl+Shift+P is reserved by the browser. On macOS, use Command instead of Ctrl.</p>
+          <a className="vscode-shortcut-reference" href="https://code.visualstudio.com/docs/reference/default-keybindings" target="_blank" rel="noreferrer">Full keyboard shortcut reference ↗</a>
         </article>
         <article className="surface-card vscode-support-card">
           <p className="eyebrow">KEYBOARD SHORTCUTS</p>
@@ -114,11 +115,16 @@ export default function VSCodeWebPage() {
             <div><span>Zoom in</span><kbd>Ctrl</kbd><b>+</b><kbd>=</kbd></div>
             <div><span>Zoom out</span><kbd>Ctrl</kbd><b>+</b><kbd>-</kbd></div>
             <div><span>Reset zoom</span><kbd>Ctrl</kbd><b>+</b><kbd>Numpad 0</kbd></div>
+            <div><span>Save file</span><kbd>Ctrl</kbd><b>+</b><kbd>S</kbd></div>
             <div><span>Command palette</span><kbd>Ctrl</kbd><b>+</b><kbd>Shift</kbd><b>+</b><kbd>P</kbd><small>or F1</small></div>
             <div><span>Quick Open</span><kbd>Ctrl</kbd><b>+</b><kbd>P</kbd></div>
+            <div><span>Explorer</span><kbd>Ctrl</kbd><b>+</b><kbd>Shift</kbd><b>+</b><kbd>E</kbd></div>
             <div><span>Toggle sidebar</span><kbd>Ctrl</kbd><b>+</b><kbd>B</kbd></div>
             <div><span>Search files</span><kbd>Ctrl</kbd><b>+</b><kbd>Shift</kbd><b>+</b><kbd>F</kbd></div>
             <div><span>Source control</span><kbd>Ctrl</kbd><b>+</b><kbd>Shift</kbd><b>+</b><kbd>G</kbd></div>
+            <div><span>Extensions</span><kbd>Ctrl</kbd><b>+</b><kbd>Shift</kbd><b>+</b><kbd>X</kbd></div>
+            <div><span>Start debugging</span><kbd>F5</kbd></div>
+            <div><span>Stop debugging</span><kbd>Shift</kbd><b>+</b><kbd>F5</kbd></div>
           </div>
         </article>
       </section>
