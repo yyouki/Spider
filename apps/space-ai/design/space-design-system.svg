@@ -1,0 +1,252 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1200" width="1440" height="1200" font-family='Inter,"Segoe UI",Helvetica,Arial,sans-serif' font-size="14" fill="#1C1D1F" xml:space="preserve" role="img" aria-label="Space design system, light and dark" xmlns:c2pa="http://c2pa.org/manifest"><metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYTpiNjI4ZTYyYy05ZmRjLTQyYzAtYWQxZi0xZWRmNWIxODY3YzkAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaHTbX63w0Gvg5k4M28UoG+0AAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDo2NWViMWVhOS0xYmNlLTQ0NWMtOTE3NS02NGE5NzdjYWJlOWZscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNofIL+qQAgFw/zah6ftXXPhQAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggB7QeFMHbtq/6bEamqWQUgg+KoWN1xDmrbkJWWsN9yuGkZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaBafynaILU3uGD85SSsUE+sAAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRMAAAAAAAAAAAAAAAAZGhhc2hYIHqsCLZbFyax9mJB74Su2KGxdU6gP2TWc3yOvNI40ML5ZG5hbWVuanVtYmYgbWFuaWZlc3RqZXhjbHVzaW9uc4GiZXN0YXJ0GQFDZmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOmI2MjhlNjJjLTlmZGMtNDJjMC1hZDFmLTFlZGY1YjE4NjdjOS9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOjAzZTJjY2M0LWJhOWItNDMwMS1iZjUxLWMzMDNhYzNmZjU3YnJjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCAHtB4Uwdu2r/psRqapZBSCD4qhY3XEOatuQlZaw33K4aJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFgg2TZ2PVeDu0EQZCtU9keO3ZX9RnNG5EkBUXHPLtnKre6iY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFggknrf8occ1b5VDKw7JDNoh2WNrtdSYIc2/gIe683Sxyl0Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQBjGhEKpHeun0a38p0l7hDiT9z/dHG+9ZNLAODYHjjfYD7UUT7+bi+x0ok3cDzjqAdXIjyNGQrSrWYwCSTNC3G0=</c2pa:manifest></metadata>
+<title>Space - Design System</title>
+<defs>
+<style>
+.mono{font-family:"JetBrains Mono",Menlo,Consolas,monospace}
+.m{fill:#6A6D72}
+.sm{font-size:12px}
+.b{font-weight:600}
+.c{text-anchor:middle}
+.e{text-anchor:end}
+.pn{fill:#FFFFFF;stroke:#E2E2DF}
+.bd{fill:#FFFFFF;stroke:#D6D6D2}
+.kb{fill:#F1F1EF;stroke:#D6D6D2}
+.kd{fill:#26282D;stroke:#3A3D43}
+.dk{fill:#1C1D1F}
+.w{fill:#FAFAF9}
+.ac{fill:#2F7D6D}
+.sk{fill:#E9E9E6}
+.dm{fill:#8A8E96}
+.cur{fill:#D6D8DC}
+.k{fill:#E08A6B}
+.f{fill:#8BB4F0}
+.ic{fill:none;stroke:#1C1D1F;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+</style>
+<filter id="sh1" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.14"/></filter>
+<filter id="sh2" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.22"/></filter>
+</defs>
+<rect width="1440" height="1200" fill="#FAFAF9"/>
+<text x="40" y="56" font-size="24" font-weight="600">Space design system</text>
+<text x="40" y="80" class="m">Tokens and components in light and dark. One accent, neutral surfaces, 1 px borders.</text>
+<g id="color">
+<text x="40" y="132" class="b">Color</text>
+<g stroke="#D6D6D2">
+<rect x="40" y="146" width="44" height="44" rx="6" fill="#FAFAF9"/>
+<rect x="90" y="146" width="44" height="44" rx="6" fill="#F1F1EF"/>
+<rect x="140" y="146" width="44" height="44" rx="6" fill="#E2E2DF"/>
+<rect x="190" y="146" width="44" height="44" rx="6" fill="#6A6D72"/>
+<rect x="240" y="146" width="44" height="44" rx="6" fill="#1C1D1F"/>
+<rect x="290" y="146" width="44" height="44" rx="6" fill="#2F7D6D"/>
+<rect x="340" y="146" width="44" height="44" rx="6" fill="#DCEBE6"/>
+<rect x="390" y="146" width="44" height="44" rx="6" fill="#C2413B"/>
+</g>
+<text y="206" font-size="10" class="m c"><tspan x="62">FAFAF9</tspan><tspan x="112">F1F1EF</tspan><tspan x="162">E2E2DF</tspan><tspan x="212">6A6D72</tspan><tspan x="262">1C1D1F</tspan><tspan x="312">2F7D6D</tspan><tspan x="362">DCEBE6</tspan><tspan x="412">C2413B</tspan></text>
+<text x="40" y="224" font-size="11" class="m">Surface, sidebar, border, muted, text, accent, accent soft, danger</text>
+<rect x="40" y="238" width="394" height="78" rx="8" fill="#131416"/>
+<g stroke="#3A3D43">
+<rect x="48" y="250" width="44" height="44" rx="6" fill="#1B1C1F"/>
+<rect x="95" y="250" width="44" height="44" rx="6" fill="#17181B"/>
+<rect x="142" y="250" width="44" height="44" rx="6" fill="#2A2C31"/>
+<rect x="189" y="250" width="44" height="44" rx="6" fill="#8A8E96"/>
+<rect x="236" y="250" width="44" height="44" rx="6" fill="#D6D8DC"/>
+<rect x="283" y="250" width="44" height="44" rx="6" fill="#4FB39C"/>
+<rect x="330" y="250" width="44" height="44" rx="6" fill="#1F4A41"/>
+<rect x="377" y="250" width="44" height="44" rx="6" fill="#E5645F"/>
+</g>
+<text y="308" font-size="10" class="dm c"><tspan x="70">1B1C1F</tspan><tspan x="117">17181B</tspan><tspan x="164">2A2C31</tspan><tspan x="211">8A8E96</tspan><tspan x="258">D6D8DC</tspan><tspan x="305">4FB39C</tspan><tspan x="352">1F4A41</tspan><tspan x="399">E5645F</tspan></text>
+</g>
+<g id="typography">
+<text x="40" y="354" class="b">Typography</text>
+<text x="40" y="392" font-size="24" font-weight="600">Space workspace</text>
+<text x="40" y="428" font-size="18" font-weight="600">Settings and usage</text>
+<text x="40" y="458">Messages, labels, and menus</text>
+<text x="40" y="484" class="sm">Hints, badges, and status text</text>
+<text x="40" y="514" class="mono" font-size="13">const token = readToken(req);</text>
+<text class="m sm e"><tspan x="434" y="392">Display 24/32 · 600</tspan><tspan x="434" y="428">Title 18/26 · 600</tspan><tspan x="434" y="458">Body 14/22 · 400</tspan><tspan x="434" y="484">Small 12/18 · 400</tspan><tspan x="434" y="514">Code 13/22 · Mono</tspan></text>
+<text x="40" y="548" class="m sm">Inter for the interface, JetBrains Mono for code, system fallbacks.</text>
+</g>
+<g id="spacing">
+<text x="40" y="590" class="b">Spacing</text>
+<rect class="ac" x="40" y="610" width="4" height="16"/>
+<rect class="ac" x="58" y="610" width="8" height="16"/>
+<rect class="ac" x="80" y="610" width="12" height="16"/>
+<rect class="ac" x="106" y="610" width="16" height="16"/>
+<rect class="ac" x="136" y="610" width="24" height="16"/>
+<rect class="ac" x="174" y="610" width="32" height="16"/>
+<rect class="ac" x="220" y="610" width="48" height="16"/>
+<text y="646" font-size="11" class="m c"><tspan x="42">4</tspan><tspan x="62">8</tspan><tspan x="86">12</tspan><tspan x="114">16</tspan><tspan x="148">24</tspan><tspan x="190">32</tspan><tspan x="244">48</tspan></text>
+<text x="40" y="668" class="m sm">4 px base unit, values in px.</text>
+</g>
+<g id="radius">
+<text x="40" y="704" class="b">Radius</text>
+<g class="kb">
+<rect x="40" y="720" width="56" height="56" rx="4"/>
+<rect x="116" y="720" width="56" height="56" rx="6"/>
+<rect x="192" y="720" width="56" height="56" rx="8"/>
+<rect x="268" y="720" width="56" height="56" rx="12"/>
+</g>
+<text y="796" font-size="11" class="m c"><tspan x="68">4 tags</tspan><tspan x="144">6 buttons</tspan><tspan x="220">8 inputs</tspan><tspan x="296">12 composer</tspan></text>
+</g>
+<g id="shadows">
+<text x="40" y="838" class="b">Shadow</text>
+<rect x="40" y="858" width="120" height="60" rx="8" fill="#FFFFFF" filter="url(#sh1)"/>
+<rect x="200" y="858" width="120" height="60" rx="8" fill="#FFFFFF" filter="url(#sh2)"/>
+<text x="40" y="946" class="m sm">Menu and tooltip</text>
+<text x="200" y="946" class="m sm">Modal and sheet</text>
+</g>
+<g id="icons">
+<text x="40" y="990" class="b">Icons</text>
+<path class="ic" transform="translate(40 1004)" d="M12 5v14M5 12h14"/>
+<path class="ic" transform="translate(84 1004)" d="M11 17a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM20 20l-4.2-4.2"/>
+<path class="ic" transform="translate(128 1004)" d="M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.2a1.7 1.7 0 0 1-2.4-2.4L15 7"/>
+<path class="ic" transform="translate(172 1004)" d="M9 9h11v11H9zM5 15V6a2 2 0 0 1 2-2h9"/>
+<path class="ic" transform="translate(216 1004)" d="M6 9l6 6 6-6"/>
+<path class="ic" transform="translate(260 1004)" d="M7 3h7l5 5v13H7zM14 3v5h5"/>
+<path class="ic" transform="translate(304 1004)" d="M4 17l6-5-6-5M12 19h8"/>
+<path class="ic" transform="translate(348 1004)" d="M5 12.5l4.5 4.5L19 7.5"/>
+<text x="40" y="1050" class="m sm">24 px grid, 1.75 px stroke, round caps and joins.</text>
+</g>
+<g id="buttons">
+<text x="500" y="132" class="b">Buttons</text>
+<rect class="dk" x="500" y="148" width="120" height="36" rx="6"/>
+<text x="560" y="171" font-weight="500" class="w c">Save changes</text>
+<rect class="bd" x="632" y="148" width="88" height="36" rx="6"/>
+<text x="676" y="171" font-weight="500" class="c">Cancel</text>
+<text x="764" y="171" font-weight="500" class="m c">Skip</text>
+<rect x="808" y="148" width="92" height="36" rx="6" fill="#FFFFFF" stroke="#C2413B"/>
+<text x="854" y="171" font-weight="500" fill="#C2413B" class="c">Delete</text>
+<rect class="ac" x="500" y="196" width="120" height="36" rx="6"/>
+<text x="560" y="219" font-weight="500" class="w c">Run tests</text>
+<rect class="dk" x="632" y="196" width="120" height="36" rx="6" opacity="0.35"/>
+<text x="692" y="219" font-weight="500" class="w c">Save changes</text>
+<rect class="bd" x="764" y="196" width="36" height="36" rx="6"/>
+<path class="ic" transform="translate(770 202)" d="M12 5v14M5 12h14"/>
+<text x="500" y="252" class="m sm">Primary, secondary, ghost, danger · accent, disabled, icon</text>
+</g>
+<g id="inputs">
+<text x="500" y="288" class="b">Inputs</text>
+<rect class="bd" x="500" y="304" width="200" height="36" rx="8"/>
+<text x="514" y="327" class="m">Search files</text>
+<rect x="713" y="301" width="210" height="42" rx="11" fill="none" stroke="#2F7D6D" stroke-width="3" opacity="0.25"/>
+<rect x="716" y="304" width="204" height="36" rx="8" fill="#FFFFFF" stroke="#2F7D6D" stroke-width="1.5"/>
+<text x="730" y="327">auth</text>
+<rect x="500" y="356" width="420" height="36" rx="8" fill="#FFFFFF" stroke="#C2413B"/>
+<text x="514" y="379">api server</text>
+<text x="500" y="410" class="sm" fill="#C2413B">Names cannot contain spaces.</text>
+</g>
+<g id="tabs">
+<text x="500" y="446" class="b">Tabs</text>
+<text x="500" y="484" font-weight="500">Terminal</text>
+<rect class="ac" x="500" y="492" width="58" height="2"/>
+<text x="580" y="484" class="m">Problems</text>
+<circle cx="660" cy="479" r="8" fill="#C2413B"/>
+<text x="660" y="483" font-size="10" font-weight="600" class="w c">2</text>
+<text x="684" y="484" class="m">Output</text>
+<path d="M500 494h420" fill="none" stroke="#E2E2DF"/>
+</g>
+<g id="menu-tooltip-keys">
+<text x="500" y="528" class="b">Menu, tooltip, shortcut badges</text>
+<rect x="500" y="544" width="190" height="116" rx="8" fill="#FFFFFF" stroke="#E2E2DF" filter="url(#sh1)"/>
+<rect x="506" y="578" width="178" height="28" rx="6" fill="#F1F1EF"/>
+<text x="518" y="569" font-size="13">Rename</text>
+<text x="676" y="569" font-size="12" class="m e">F2</text>
+<text x="518" y="597" font-size="13">Duplicate</text>
+<path d="M506 614h178" fill="none" stroke="#E2E2DF"/>
+<text x="518" y="641" font-size="13" fill="#C2413B">Delete</text>
+<rect class="dk" x="716" y="552" width="168" height="30" rx="6"/>
+<path class="dk" d="M796 582l6 6 6-6z"/>
+<text x="728" y="572" font-size="12" class="w">Run tests</text>
+<text x="872" y="572" font-size="11" class="e" fill="#9A9DA3">Ctrl+Enter</text>
+<rect class="kb" x="716" y="616" width="38" height="24" rx="4"/>
+<rect class="kb" x="760" y="616" width="24" height="24" rx="4"/>
+<rect class="kb" x="800" y="616" width="44" height="24" rx="4"/>
+<rect class="kb" x="850" y="616" width="24" height="24" rx="4"/>
+<text y="632" font-size="11" class="mono c"><tspan x="735">Ctrl</tspan><tspan x="772">K</tspan><tspan x="822">Shift</tspan><tspan x="862">P</tspan></text>
+</g>
+<g id="modal">
+<text x="500" y="700" class="b">Modal</text>
+<rect x="500" y="716" width="420" height="176" rx="12" fill="#FFFFFF" stroke="#E2E2DF" filter="url(#sh2)"/>
+<text x="524" y="752" font-size="16" font-weight="600">Delete conversation?</text>
+<text x="524" y="778" class="m">This removes the conversation and its attachments.</text>
+<text x="524" y="798" class="m">You cannot undo this action.</text>
+<rect class="bd" x="640" y="836" width="88" height="36" rx="6"/>
+<text x="684" y="859" font-weight="500" class="c">Cancel</text>
+<rect x="740" y="836" width="164" height="36" rx="6" fill="#C2413B"/>
+<text x="822" y="859" font-weight="500" class="w c">Delete conversation</text>
+</g>
+<g id="panel">
+<text x="500" y="930" class="b">Panel</text>
+<rect class="pn" x="500" y="946" width="420" height="110" rx="8"/>
+<rect x="501" y="947" width="418" height="32" fill="#F5F5F3"/>
+<rect x="690" y="944" width="40" height="4" rx="2" fill="#D6D6D2"/>
+<text x="516" y="968" class="sm b">Problems</text>
+<text x="516" y="1004" class="sm m">auth.ts  Property subject may be missing  15:36</text>
+<text x="516" y="1026" class="sm m">session.ts  Unused import  3:10</text>
+</g>
+<g id="toasts">
+<text x="960" y="132" class="b">Toast</text>
+<rect class="dk" x="960" y="148" width="440" height="52" rx="10"/>
+<circle class="ac" cx="984" cy="174" r="9"/>
+<path d="M979.500 174l3.500 3.500 6-7" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1004" y="179" font-weight="500" class="w">Changes saved</text>
+<text x="1376" y="179" font-weight="500" class="e" fill="#7CC4AE">Undo</text>
+<rect x="960" y="212" width="440" height="52" rx="10" fill="#FBEDEC" stroke="#E9B4B1"/>
+<circle cx="984" cy="238" r="9" fill="#C2413B"/>
+<text x="984" y="242" font-size="12" font-weight="700" class="w c">!</text>
+<text x="1004" y="243" font-weight="500" fill="#7A1F1B">Could not run tests</text>
+<text x="1376" y="243" font-weight="500" class="e" fill="#C2413B">Retry</text>
+</g>
+<g id="states">
+<text x="960" y="292" class="b">Empty, loading, and error states</text>
+<rect class="pn" x="960" y="306" width="440" height="108" rx="8"/>
+<text x="1180" y="346" font-weight="600" class="c">No conversations yet</text>
+<text x="1180" y="366" class="m sm c">Start a new chat and it will appear here.</text>
+<rect class="dk" x="1128" y="376" width="104" height="28" rx="6"/>
+<text x="1180" y="395" font-size="12" font-weight="500" class="w c">New chat</text>
+<rect class="pn" x="960" y="426" width="440" height="108" rx="8"/>
+<rect class="sk" x="984" y="450" width="260" height="10" rx="5"/>
+<rect class="sk" x="984" y="472" width="392" height="10" rx="5"/>
+<rect class="sk" x="984" y="494" width="180" height="10" rx="5"/>
+<circle cx="1370" cy="458" r="8" fill="none" stroke="#E2E2DF" stroke-width="2"/>
+<path d="M1370 450a8 8 0 0 1 8 8" fill="none" stroke="#2F7D6D" stroke-width="2" stroke-linecap="round"/>
+<text x="984" y="522" class="m sm">Loading conversation</text>
+<rect class="pn" x="960" y="546" width="440" height="108" rx="8"/>
+<circle cx="996" cy="580" r="12" fill="#FBEDEC" stroke="#E9B4B1"/>
+<text x="996" y="585" font-size="13" font-weight="700" fill="#C2413B" class="c">!</text>
+<text x="1018" y="585" font-weight="600">Message not sent</text>
+<text x="984" y="612" class="m sm">The connection dropped. Check your network and try again.</text>
+<rect class="bd" x="984" y="624" width="72" height="26" rx="6"/>
+<text x="1020" y="641" font-size="12" font-weight="500" class="c">Retry</text>
+</g>
+<g id="dark-theme">
+<text x="960" y="694" class="b">Dark theme</text>
+<rect x="960" y="706" width="440" height="372" rx="10" fill="#1B1C1F" stroke="#2A2C31"/>
+<rect x="984" y="730" width="120" height="36" rx="6" fill="#D6D8DC"/>
+<text x="1044" y="753" font-weight="500" fill="#1B1C1F" class="c">Save changes</text>
+<rect x="1116" y="730" width="88" height="36" rx="6" fill="none" stroke="#3A3D43"/>
+<text x="1160" y="753" font-weight="500" class="cur c">Cancel</text>
+<rect x="1216" y="730" width="100" height="36" rx="6" fill="#4FB39C"/>
+<text x="1266" y="753" font-weight="500" fill="#0E1F1B" class="c">Run tests</text>
+<rect x="984" y="786" width="200" height="36" rx="8" fill="#17181B" stroke="#2F3136"/>
+<text x="998" y="809" class="dm">Search files</text>
+<rect x="1196" y="786" width="180" height="36" rx="8" fill="#17181B" stroke="#4FB39C" stroke-width="1.5"/>
+<text x="1210" y="809" class="cur">auth</text>
+<text x="984" y="862" font-weight="500" class="cur">Terminal</text>
+<rect x="984" y="870" width="58" height="2" fill="#4FB39C"/>
+<text x="1064" y="862" class="dm">Problems</text>
+<text x="1148" y="862" class="dm">Output</text>
+<path d="M984 872h392" fill="none" stroke="#2A2C31"/>
+<rect x="984" y="892" width="392" height="64" rx="8" fill="#17181B" stroke="#2A2C31"/>
+<text class="mono" font-size="13"><tspan x="1000" y="918"><tspan class="k">const</tspan> token = <tspan class="f">readToken</tspan>(req);</tspan><tspan x="1000" y="940"><tspan class="k">if</tspan> (!token) <tspan class="k">return</tspan> res.<tspan class="f">end</tspan>();</tspan></text>
+<rect x="984" y="976" width="168" height="30" rx="6" fill="#D6D8DC"/>
+<text x="996" y="996" font-size="12" fill="#1B1C1F">Run tests</text>
+<text x="1140" y="996" font-size="11" class="e" fill="#5E626A">Ctrl+Enter</text>
+<rect class="kd" x="1180" y="979" width="38" height="24" rx="4"/>
+<rect class="kd" x="1224" y="979" width="24" height="24" rx="4"/>
+<text y="995" font-size="11" class="mono cur c"><tspan x="1199">Ctrl</tspan><tspan x="1236">K</tspan></text>
+<rect x="984" y="1020" width="392" height="44" rx="10" fill="#26282D" stroke="#3A3D43"/>
+<text x="1004" y="1047" font-weight="500" class="cur">Changes saved</text>
+<text x="1356" y="1047" font-weight="500" class="e" fill="#7CC4AE">Undo</text>
+</g>
+<text x="40" y="1160" class="m sm">Space design system · tokens shown in light and dark · all values are final for v1</text>
+</svg>
