@@ -1056,6 +1056,7 @@ type SessionResponse = {
   authenticated: boolean;
   login: string | null;
   profile: SessionProfile | null;
+  githubAvailable: boolean;
   googleAvailable: boolean;
 };
 
@@ -1091,7 +1092,7 @@ export default function App() {
       method: "POST",
       credentials: "same-origin"
     });
-    setSession({ authenticated: false, login: null, profile: null, googleAvailable: session?.googleAvailable ?? false });
+    setSession({ authenticated: false, login: null, profile: null, githubAvailable: session?.githubAvailable ?? false, googleAvailable: session?.googleAvailable ?? false });
   };
 
   if (loading) {
@@ -1124,7 +1125,11 @@ export default function App() {
           <p className="eyebrow">PRIVATE AI WORKSPACE</p>
           <h1>Sign in to Space</h1>
           <p>Only the configured owner account can open this workspace.</p>
-          <a className="auth-button" href="/auth/github">Continue with GitHub <span>↗</span></a>
+          {session?.githubAvailable ? (
+            <a className="auth-button" href="/auth/github">Continue with GitHub <span>↗</span></a>
+          ) : (
+            <p className="auth-provider-note">GitHub sign-in is not configured for this deployment.</p>
+          )}
           {session?.googleAvailable ? (
             <a className="auth-button auth-button-google" href="/auth/google">Continue with Google <span>↗</span></a>
           ) : (

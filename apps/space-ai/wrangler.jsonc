@@ -17,14 +17,6 @@
       "persist": true
     }
   },
-  "secrets": {
-    "required": [
-      "GITHUB_OAUTH_CLIENT_ID",
-      "GITHUB_OAUTH_CLIENT_SECRET",
-      "SESSION_SECRET",
-      "GITHUB_ACTIONS_TOKEN"
-    ]
-  },
   "ai": {
     "binding": "AI",
     "remote": true
