@@ -102,9 +102,11 @@ The workflow no longer builds or deploys a Cloudflare Container. It still uses y
 
 ## Workers Builds Preview command
 
-The repository Wrangler configuration includes a top-level empty `"previews": {}` block so the Cloudflare Workers Builds default preview command `npx wrangler preview` can create a preview deployment. This specifically addresses the error that says the Wrangler configuration is missing a `previews` block.
+The repository Wrangler configuration includes a top-level `previews` block so the Cloudflare Workers Builds default preview command `npx wrangler preview` can create a preview deployment. This addresses the initial missing-`previews` error. The block also declares the Preview `AI` binding, the three Durable Object bindings used through `env`, and preview-specific runtime variables. Cloudflare provisions separate Preview Durable Object storage for these classes.
 
-This config change does not guarantee that a preview will build successfully: dashboard-specific settings, bindings, build command, compatibility date, or secrets can still cause separate failures. Check the complete Workers Builds log for the specific build ID before treating a preview as available. Keep preview data separate from production data and do not use a preview to make production mutations.
+Preview settings do not inherit production secrets. In Cloudflare Workers → Settings → Variables and Secrets, configure the four required Worker secrets in **Previews Base** as well as Production: `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, `SESSION_SECRET`, and `GITHUB_ACTIONS_TOKEN`. Re-enter secrets manually; do not put values in Wrangler JSON or Git. Google login is optional and needs its three Google settings configured separately if it is to be tested.
+
+Preview URLs are public by default. Protect them with Cloudflare Access before using any sensitive test data. A successful GitHub Actions build is not proof that Cloudflare Workers Builds or a live Preview succeeded. Check the complete Workers Builds log for the specific build ID before treating a preview as available. Keep Preview storage separate from production data and do not use a Preview to make production mutations.
 
 ## 5. Verify the app and sandbox
 
