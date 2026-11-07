@@ -1,7 +1,6 @@
 import { basicSetup, EditorView } from "codemirror";
 import { LanguageDescription, defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
-import { languages } from "@codemirror/language-data";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type FormEvent } from "react";
 import type { SpaceAgentClient, SpaceConnectionIssue } from "./connection";
 import "./ide.css";
@@ -10,6 +9,64 @@ type WorkspaceEntry = { path: string; language: string; sizeBytes: number; updat
 type OpenFile = WorkspaceEntry & { content: string; dirty: boolean };
 type CursorPosition = { line: number; column: number };
 type ShortcutMap = Record<string, string>;
+
+/**
+ * Load only the language support needed by the active file.
+ * This prevents every CodeMirror parser from entering the initial IDE bundle.
+ */
+const editorLanguages: LanguageDescription[] = [
+  LanguageDescription.of({
+    name: "JavaScript",
+    alias: ["js", "mjs", "cjs"],
+    extensions: ["js", "mjs", "cjs"],
+    load: async () => (await import("@codemirror/lang-javascript")).javascript()
+  }),
+  LanguageDescription.of({
+    name: "TypeScript",
+    alias: ["ts", "mts", "cts"],
+    extensions: ["ts", "mts", "cts"],
+    load: async () => (await import("@codemirror/lang-javascript")).javascript({ typescript: true })
+  }),
+  LanguageDescription.of({
+    name: "JSX",
+    extensions: ["jsx"],
+    load: async () => (await import("@codemirror/lang-javascript")).javascript({ jsx: true })
+  }),
+  LanguageDescription.of({
+    name: "TSX",
+    extensions: ["tsx"],
+    load: async () => (await import("@codemirror/lang-javascript")).javascript({ jsx: true, typescript: true })
+  }),
+  LanguageDescription.of({
+    name: "Python",
+    alias: ["py"],
+    extensions: ["py", "pyw"],
+    load: async () => (await import("@codemirror/lang-python")).python()
+  }),
+  LanguageDescription.of({
+    name: "JSON",
+    alias: ["jsonc"],
+    extensions: ["json", "jsonc"],
+    load: async () => (await import("@codemirror/lang-json")).json()
+  }),
+  LanguageDescription.of({
+    name: "HTML",
+    alias: ["htm"],
+    extensions: ["html", "htm"],
+    load: async () => (await import("@codemirror/lang-html")).html()
+  }),
+  LanguageDescription.of({
+    name: "CSS",
+    extensions: ["css"],
+    load: async () => (await import("@codemirror/lang-css")).css()
+  }),
+  LanguageDescription.of({
+    name: "Markdown",
+    alias: ["md"],
+    extensions: ["md", "markdown"],
+    load: async () => (await import("@codemirror/lang-markdown")).markdown()
+  })
+];
 
 const DEFAULT_SHORTCUTS: ShortcutMap = {
   save: "Ctrl+S",
@@ -78,7 +135,7 @@ function CodeEditor({
 
     const mount = async () => {
       let language: Extension = [];
-      const description = LanguageDescription.matchFilename(languages, path);
+      const description = LanguageDescription.matchFilename(editorLanguages, path);
       if (description) {
         try { language = await description.load(); } catch { language = []; }
       }
