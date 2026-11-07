@@ -622,7 +622,8 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
     try {
       const result = await agent.stub.createChatShare();
       // Resolve the relative share route against the active host, including Preview deployments.
-      const shareInfo = resolveShareLinks(result, window.location.origin);
+      const shareUrls = resolveShareLinks(result, window.location.origin);
+      const shareInfo = { ...result, ...shareUrls };
       setShareInfo(shareInfo);
       setShareNotice("Tautan dibuat. Siapa pun yang memiliki tautan dapat membaca snapshot ini selama 7 hari.");
       try {
