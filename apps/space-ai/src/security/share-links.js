@@ -21,7 +21,7 @@ export function resolveShareLinks(share, origin) {
   if (
     url.origin !== base.origin ||
     jsonUrl.origin !== base.origin ||
-    !/^\\/share\\/[A-Za-z0-9_-]{43}$/.test(url.pathname) ||
+    !/^\/share\/[A-Za-z0-9_-]{43}$/.test(url.pathname) ||
     jsonUrl.pathname !== url.pathname + ".json" ||
     url.search || url.hash || jsonUrl.search || jsonUrl.hash
   ) {
