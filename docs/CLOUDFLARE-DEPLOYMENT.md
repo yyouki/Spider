@@ -13,7 +13,7 @@ This deployment keeps the existing Cloudflare Agents / Durable Objects architect
 | Owner login | GitHub OAuth App |
 | Python/JavaScript execution | Temporary GitHub-hosted Actions runner + restricted Docker container |
 
-This avoids Cloudflare Zero Trust organization setup and Cloudflare Workers Paid Containers. It does not provide unlimited AI inference or unlimited runner capacity. The browser IDE uses Monaco Editor, with the Vite worker modules bundled into the app rather than loaded from a third-party CDN.
+This avoids Cloudflare Zero Trust organization setup and Cloudflare Workers Paid Containers. It does not provide unlimited AI inference or unlimited runner capacity. The /ide page opens the official VS Code Web editor at github.dev in a separate browser tab.
 
 ## Cloudflare requirements
 
@@ -42,6 +42,19 @@ The OAuth callback must match the Worker hostname exactly. The Worker also uses 
 7. Register the app, then copy its Client ID and generate a Client Secret.
 
 Space requests only `read:user`, checks that the login matches the configured owner, and does not persist the OAuth access token. With GitHub's expiring user-token setting enabled, the access token expires after its short lifetime. The Worker stores a seven-day signed session cookie, not the OAuth token or a refresh token.
+
+
+## Optional: Configure owner-only Google sign-in
+
+Google sign-in is optional and does not enable public registration. It accepts only the email configured in `GOOGLE_OWNER_EMAIL`.
+
+1. Create an OAuth client in Google Cloud Console for a Web application.
+2. Add the exact authorized redirect URI `https://space-ai.YOUR-SUBDOMAIN.workers.dev/auth/google/callback`.
+3. Configure the Worker variables/secrets `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OWNER_EMAIL`.
+4. Use the exact verified Google email for the currently authorized owner account.
+5. Keep `SESSION_SECRET` at least 32 characters. Never paste OAuth secrets into chat or commit them to Git.
+
+The Worker requests OpenID Connect `openid email profile`, verifies the email with Google's userinfo endpoint, requires `email_verified=true`, and compares it with the configured owner email. Google access tokens are used only for that lookup and are not persisted. The profile name and avatar are stored as signed session claims. Until all three Google settings are configured, the Google sign-in option stays unavailable.
 
 ## 2. Create a limited GitHub Actions token
 
@@ -86,6 +99,13 @@ GitHub reserves secret names beginning with `GITHUB_`, so use the `SPACE_` names
 
 The workflow no longer builds or deploys a Cloudflare Container. It still uses your existing Cloudflare API token and Account ID. The API token must be permitted to deploy the existing or first Worker; if the first creation is denied, adjust the Cloudflare token's Worker scope as documented by Cloudflare.
 
+
+## Workers Builds Preview command
+
+The repository Wrangler configuration includes a top-level empty `"previews": {}` block so the Cloudflare Workers Builds default preview command `npx wrangler preview` can create a preview deployment. This specifically addresses the error that says the Wrangler configuration is missing a `previews` block.
+
+This config change does not guarantee that a preview will build successfully: dashboard-specific settings, bindings, build command, compatibility date, or secrets can still cause separate failures. Check the complete Workers Builds log for the specific build ID before treating a preview as available. Keep preview data separate from production data and do not use a preview to make production mutations.
+
 ## 5. Verify the app and sandbox
 
 After deployment:
@@ -104,7 +124,7 @@ The SpaceAgent SQLite database stores a private, app-level workspace. It is not 
 - Up to 128 KB per file and 2 MB total.
 - Relative paths only; hidden paths and sensitive config paths are rejected.
 - AI file tools can list, read, and create/update workspace files. File deletion always requires owner approval.
-- Files appear in the Monaco IDE Explorer after the tool write completes. Manual edits can be saved with **Save** or Ctrl/Cmd+S.
+- Files appear in chat with download links. They do not automatically appear in github.dev because the private Space workspace has not yet been synchronized with GitHub.
 - There is no automatic sync to GitHub or the user's device.
 
 The separate `/analytics` page shows provider-reported input/output token totals when the model provider includes usage metadata, retaining at most 200 recent responses. It also shows a 14-day daily aggregation and the latest 12 token-usage records. Workspace storage and rough file-token estimates appear in a separate section, never inside the `/ide` editor. Estimates use UTF-8 bytes divided by four and are not exact GLM tokenizer counts. This view does not calculate monetary cost or account-wide Cloudflare Neurons.
