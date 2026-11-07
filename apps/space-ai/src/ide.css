@@ -390,3 +390,17 @@
   .ide-shortcut-row { min-height: 47px; font-size: 10px; }
   .ide-shortcut-row button { min-width: 105px; }
 }
+
+.space-ide[data-code-font="system"] {
+  --ide-code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+.space-ide[data-line-numbers="false"] .ide-editor-host .cm-gutters {
+  display: none;
+}
+:root[data-density="compact"] .space-ide .ide-tab { min-width: 96px; }
+:root[data-reduce-motion="true"] .space-ide *,
+:root[data-reduce-motion="true"] .space-ide *::before,
+:root[data-reduce-motion="true"] .space-ide *::after {
+  animation: none !important;
+  transition: none !important;
+}

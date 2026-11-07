@@ -19,6 +19,43 @@ const DEFAULT_SETTINGS: AutonomySettings = {
   selfUpdate: "automatic_after_gates"
 };
 
+type AppearancePreferences = {
+  theme: "light" | "dark" | "system";
+  density: "comfortable" | "compact";
+  reduceMotion: boolean;
+  codeFont: "JetBrains Mono" | "System Mono";
+  lineNumbers: boolean;
+};
+
+const DEFAULT_APPEARANCE: AppearancePreferences = {
+  theme: "light",
+  density: "comfortable",
+  reduceMotion: false,
+  codeFont: "JetBrains Mono",
+  lineNumbers: true
+};
+
+/** Read local presentation preferences without allowing malformed storage to break the app. */
+function readAppearancePreferences(): AppearancePreferences {
+  if (typeof window === "undefined") return DEFAULT_APPEARANCE;
+
+  try {
+    const stored = window.localStorage.getItem("space-appearance");
+    if (!stored) return DEFAULT_APPEARANCE;
+    const value = JSON.parse(stored) as Partial<AppearancePreferences>;
+
+    return {
+      theme: value.theme === "dark" || value.theme === "system" ? value.theme : "light",
+      density: value.density === "compact" ? "compact" : "comfortable",
+      reduceMotion: value.reduceMotion === true,
+      codeFont: value.codeFont === "System Mono" ? "System Mono" : "JetBrains Mono",
+      lineNumbers: value.lineNumbers !== false
+    };
+  } catch {
+    return DEFAULT_APPEARANCE;
+  }
+}
+
 const NAV_ITEMS = [
   { href: "/", label: "Chat" },
   { href: "/ide", label: "IDE" },
@@ -273,6 +310,10 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   const [error, setError] = useState("");
   const [settings, setSettings] = useState<AutonomySettings>(DEFAULT_SETTINGS);
   const [settingsBusy, setSettingsBusy] = useState(false);
+  const [appearance, setAppearance] = useState<AppearancePreferences>(readAppearancePreferences);
+  const [systemPrefersDark, setSystemPrefersDark] = useState(
+    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches === true
+  );
   const [settingsNotice, setSettingsNotice] = useState("");
   const [shareInfo, setShareInfo] = useState<{ url: string; jsonUrl: string; token: string; expiresAt: string; messageCount: number } | null>(null);
   const [shareNotice, setShareNotice] = useState("");
@@ -305,12 +346,37 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
 
   const busy = status === "streaming" || status === "submitted";
   const currentPath = NAV_ITEMS.some((item) => item.href === pathname) ? pathname : "/";
+  const resolvedTheme = appearance.theme === "system"
+    ? (systemPrefersDark ? "dark" : "light")
+    : appearance.theme;
 
   useEffect(() => {
     const onPopState = () => setPathname(window.location.pathname);
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return;
+    const onChange = (event: MediaQueryListEvent) => setSystemPrefersDark(event.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = resolvedTheme;
+    root.dataset.density = appearance.density;
+    root.dataset.reduceMotion = String(appearance.reduceMotion);
+    root.dataset.codeFont = appearance.codeFont === "System Mono" ? "system" : "jetbrains";
+
+    try {
+      window.localStorage.setItem("space-appearance", JSON.stringify(appearance));
+    } catch {
+      // Preferences still work for the current session when browser storage is unavailable.
+    }
+  }, [appearance, resolvedTheme]);
 
   const navigate = (event: MouseEvent<HTMLAnchorElement>, path: string) => {
     event.preventDefault();
@@ -928,7 +994,16 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
 
   const vscodePage = (
     <Suspense fallback={<main className="page-container"><p>Opening Space IDE…</p></main>}>
-      <VSCodeWebPage agent={agent} connected={connected} connectionIssue={connectionIssue} onReconnect={reconnect} />
+      <VSCodeWebPage
+        agent={agent}
+        connected={connected}
+        connectionIssue={connectionIssue}
+        onReconnect={reconnect}
+        theme={resolvedTheme}
+        onThemeChange={(theme) => setAppearance((current) => ({ ...current, theme }))}
+        codeFont={appearance.codeFont === "System Mono" ? "system" : "jetbrains"}
+        lineNumbers={appearance.lineNumbers}
+      />
     </Suspense>
   );
 
@@ -942,6 +1017,68 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
         </div>
         <span className="meta-chip">Owner controls</span>
       </div>
+
+      <section className="surface-card settings-card appearance-settings-card">
+        <div className="section-title">
+          <div><h2>Appearance</h2><p>Choose how Space looks on this device. These preferences are saved locally.</p></div>
+          <span className="meta-chip">This device</span>
+        </div>
+        <SettingSelect
+          label="Theme"
+          description="Applies to Chat, IDE, Analytics, Settings, and the task console."
+          value={appearance.theme}
+          options={[
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
+            { value: "system", label: "System" }
+          ]}
+          onChange={(value) => setAppearance((current) => ({ ...current, theme: value }))}
+        />
+        <SettingSelect
+          label="Interface density"
+          description="Controls spacing in navigation, conversation lists, and panels."
+          value={appearance.density}
+          options={[
+            { value: "comfortable", label: "Comfortable" },
+            { value: "compact", label: "Compact" }
+          ]}
+          onChange={(value) => setAppearance((current) => ({ ...current, density: value }))}
+        />
+        <label className="setting-toggle-row">
+          <span><strong>Reduce motion</strong><small>Turns off most transitions and interface animations.</small></span>
+          <input
+            type="checkbox"
+            checked={appearance.reduceMotion}
+            onChange={(event) => setAppearance((current) => ({ ...current, reduceMotion: event.target.checked }))}
+          />
+        </label>
+      </section>
+
+      <section className="surface-card settings-card editor-settings-card">
+        <div className="section-title"><div><h2>Editor</h2><p>Configure the code editor and terminal appearance.</p></div></div>
+        <SettingSelect
+          label="Code font"
+          description="Used in the editor, terminal, and code blocks."
+          value={appearance.codeFont}
+          options={[
+            { value: "JetBrains Mono", label: "JetBrains Mono" },
+            { value: "System Mono", label: "System monospace" }
+          ]}
+          onChange={(value) => setAppearance((current) => ({ ...current, codeFont: value }))}
+        />
+        <label className="setting-toggle-row">
+          <span><strong>Line numbers</strong><small>Show line numbers in the browser IDE editor.</small></span>
+          <input
+            type="checkbox"
+            checked={appearance.lineNumbers}
+            onChange={(event) => setAppearance((current) => ({ ...current, lineNumbers: event.target.checked }))}
+          />
+        </label>
+        <div className="settings-preview">
+          <div><span className="eyebrow">PREVIEW</span><strong>const message = "Hello, Space";</strong></div>
+          <small>{appearance.codeFont} · {appearance.lineNumbers ? "Line numbers on" : "Line numbers off"}</small>
+        </div>
+      </section>
 
       <section className="surface-card settings-card">
         <div className="section-title"><div><h2>Autonomy preferences</h2><p>These choices are saved to the private Space agent. They do not activate tools that have not been implemented.</p></div></div>

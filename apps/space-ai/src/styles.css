@@ -1256,3 +1256,126 @@ button:disabled { cursor: not-allowed !important; opacity: .5; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+/* Appearance and editor controls from the Space design-system artboard. */
+.setting-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  min-height: 54px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.setting-toggle-row > span { min-width: 0; }
+.setting-toggle-row strong { display: block; color: var(--ink); font-size: 11px; font-weight: 620; }
+.setting-toggle-row small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.setting-toggle-row input {
+  width: 36px;
+  height: 20px;
+  flex: 0 0 36px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.settings-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+.settings-preview > div { display: grid; gap: 7px; min-width: 0; }
+.settings-preview strong { color: var(--ink-soft); font: 11px/1.6 var(--font-mono); overflow-wrap: anywhere; }
+.settings-preview > small { color: var(--muted); font-size: 9px; text-align: right; }
+.connection.offline i { background: #C69A58; }
+.file-approval-card { border-color: #D8DFD9; }
+.memory-settings-card .memory-list { border-bottom: 1px solid var(--line); }
+
+:root[data-density="compact"] .topbar { gap: 10px; padding-top: 16px; padding-bottom: 10px; }
+:root[data-density="compact"] .primary-nav { grid-auto-rows: 32px; gap: 2px; }
+:root[data-density="compact"] .conversation-item { padding: 5px; }
+:root[data-density="compact"] .chat-page { padding-top: 23px; }
+:root[data-density="compact"] .messages { gap: 15px; padding-top: 16px; padding-bottom: 18px; }
+:root[data-density="compact"] .setting-row { padding-top: 10px; padding-bottom: 10px; }
+:root[data-density="compact"] .settings-card { padding-top: 16px; padding-bottom: 16px; }
+:root[data-density="compact"] .ide-topbar { min-height: 43px; flex-basis: 43px; }
+:root[data-density="compact"] .ide-sidebar-heading { min-height: 34px; height: 34px; }
+:root[data-density="compact"] .ide-tree-row { height: 26px; }
+
+:root[data-reduce-motion="true"] *,
+:root[data-reduce-motion="true"] *::before,
+:root[data-reduce-motion="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+:root[data-code-font="system"] {
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+/* Full dark theme: preserve the same hierarchy with the dark design tokens. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #131416;
+  --surface: #1B1C1F;
+  --surface-soft: #17181B;
+  --surface-raised: #222428;
+  --ink: #D6D8DC;
+  --ink-soft: #B8BCC4;
+  --muted: #8A8E96;
+  --muted-soft: #5E626A;
+  --line: #2A2C31;
+  --line-strong: #3A3D43;
+  --accent: #4FB39C;
+  --accent-hover: #7CC4AE;
+  --accent-soft: #0E1F1B;
+  --accent-faint: #172420;
+  --danger: #E5645F;
+  --danger-soft: #2C1818;
+  --shadow-soft: 0 8px 26px rgba(0, 0, 0, .2);
+  --shadow-menu: 0 14px 40px rgba(0, 0, 0, .35);
+}
+:root[data-theme="dark"] .brand-mark { background: #D6D8DC; color: #1B1C1F; }
+:root[data-theme="dark"] .primary-nav a:hover,
+:root[data-theme="dark"] .conversation-history > summary span,
+:root[data-theme="dark"] .conversation-item:hover,
+:root[data-theme="dark"] .conversation-item.active {
+  background: #26282D;
+}
+:root[data-theme="dark"] .conversation-item.active { border-color: #30343A; }
+:root[data-theme="dark"] .conversation-search input { background: #1B1C1F; }
+:root[data-theme="dark"] .connection-banner { border-color: #65512D; background: #2A251A; }
+:root[data-theme="dark"] .connection-banner-copy strong { color: #E4C98F; }
+:root[data-theme="dark"] .connection-banner-copy p { color: #CDBB92; }
+:root[data-theme="dark"] .connection-banner button { border-color: #76613B; background: #332D20; color: #E4C98F; }
+:root[data-theme="dark"] .connection-banner.unauthenticated { border-color: #3D4A5E; background: #1B222D; }
+:root[data-theme="dark"] .connection-banner.unauthenticated .connection-banner-copy strong,
+:root[data-theme="dark"] .connection-banner.unauthenticated .connection-banner-copy p { color: #B7C6DA; }
+:root[data-theme="dark"] .connection-banner.workspace-unavailable,
+:root[data-theme="dark"] .connection-banner.forbidden { border-color: #663B39; background: #2C1818; }
+:root[data-theme="dark"] .connection-banner.workspace-unavailable .connection-banner-copy strong,
+:root[data-theme="dark"] .connection-banner.forbidden .connection-banner-copy strong { color: #F0A7A2; }
+:root[data-theme="dark"] .connection-banner.workspace-unavailable .connection-banner-copy p,
+:root[data-theme="dark"] .connection-banner.forbidden .connection-banner-copy p { color: #D59A95; }
+:root[data-theme="dark"] .approval-card { border-color: #39443E; background: #1A211D; }
+:root[data-theme="dark"] .editing-message-banner { border-color: #34463C; background: #19251F; color: var(--ink-soft); }
+:root[data-theme="dark"] .usage-table td { border-bottom-color: var(--line); }
+:root[data-theme="dark"] .auth-button-google { border-color: var(--line-strong); background: var(--surface); color: var(--ink); }
+:root[data-theme="dark"] .auth-button-google:hover { background: var(--surface-raised); }
+:root[data-theme="dark"] .settings-preview { background: #17181B; }
+:root[data-theme="dark"] .file-approval-card { border-color: #39443E; }
+:root[data-theme="dark"] .settings-card,
+:root[data-theme="dark"] .surface-card { box-shadow: none; }
+
+@media (max-width: 560px) {
+  .settings-preview { align-items: flex-start; flex-direction: column; }
+  .settings-preview > small { text-align: left; }
+  .setting-toggle-row { gap: 12px; }
+}

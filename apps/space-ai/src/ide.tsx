@@ -196,9 +196,22 @@ type SpaceIDEPageProps = {
   connected: boolean;
   connectionIssue: SpaceConnectionIssue | null;
   onReconnect: () => void;
+  theme: "dark" | "light";
+  onThemeChange: (theme: "dark" | "light") => void;
+  codeFont: "system" | "jetbrains";
+  lineNumbers: boolean;
 };
 
-export default function SpaceIDEPage({ agent, connected, connectionIssue, onReconnect }: SpaceIDEPageProps) {
+export default function SpaceIDEPage({
+  agent,
+  connected,
+  connectionIssue,
+  onReconnect,
+  theme,
+  onThemeChange,
+  codeFont,
+  lineNumbers
+}: SpaceIDEPageProps) {
   const [files, setFiles] = useState<WorkspaceEntry[]>([]);
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activePath, setActivePath] = useState("");
@@ -206,10 +219,6 @@ export default function SpaceIDEPage({ agent, connected, connectionIssue, onReco
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    try { return window.localStorage.getItem("space-ide-theme") === "light" ? "light" : "dark"; }
-    catch { return "dark"; }
-  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activity, setActivity] = useState<"explorer" | "search" | "source" | "extensions">("explorer");
   const [panel, setPanel] = useState<"terminal" | "problems" | "output">("terminal");
@@ -471,8 +480,8 @@ export default function SpaceIDEPage({ agent, connected, connectionIssue, onReco
     if (id === "explorer") { setActivity("explorer"); setSidebarOpen(true); }
     if (id === "search") { setActivity("search"); setSidebarOpen(true); }
     if (id === "shortcuts") setShortcutsOpen(true);
-    if (id === "theme") setTheme((current) => current === "dark" ? "light" : "dark");
-  }, [createFile, saveAll, saveFile]);
+    if (id === "theme") onThemeChange(theme === "dark" ? "light" : "dark");
+  }, [createFile, onThemeChange, saveAll, saveFile, theme]);
 
   const runShortcut = useCallback((id: string) => {
     if (id === "save") void saveFile();
@@ -537,14 +546,19 @@ export default function SpaceIDEPage({ agent, connected, connectionIssue, onReco
   };
 
   return (
-    <main className="space-ide" data-theme={theme}>
+    <main
+      className="space-ide"
+      data-theme={theme}
+      data-code-font={codeFont}
+      data-line-numbers={lineNumbers ? "true" : "false"}
+    >
       <header className="ide-topbar">
         <div className="ide-topbar-brand"><span className="ide-brand-mark">S</span><strong>Space</strong><span className="ide-brand-divider">/</span><span>IDE</span></div>
         <div className="ide-topbar-center"><span className="ide-workspace-chip">Private workspace</span><span className="ide-connection-state"><i className={connected ? "online" : ""} />{connected ? "Connected" : connectionIssue?.kind === "reconnecting" ? "Reconnecting" : "Offline"}</span></div>
         <div className="ide-topbar-actions">
           <button type="button" onClick={() => { setQuickOpen(true); setQuickQuery(""); }} title={"Quick open · " + shortcuts.quickOpen}>⌕ <span>Open file</span></button>
           <button type="button" onClick={() => setShortcutsOpen(true)} title="Keyboard shortcuts">⌨</button>
-          <button type="button" onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")} title="Toggle theme">{theme === "dark" ? "☼" : "◐"}</button>
+          <button type="button" onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")} title="Toggle theme">{theme === "dark" ? "☼" : "◐"}</button>
           {!connected && <button type="button" onClick={onReconnect} title="Reconnect workspace">↻ <span>Reconnect</span></button>}
         </div>
       </header>
