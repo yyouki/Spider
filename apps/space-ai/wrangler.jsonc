@@ -38,5 +38,22 @@
     "GITHUB_OWNER_LOGIN": "yyouki",
     "APP_ORIGIN": "https://space-ai.yyouki.workers.dev"
   },
-  "previews": {}
+  "previews": {
+    "vars": {
+      "DEPLOYMENT_ENV": "preview",
+      "GITHUB_OWNER_LOGIN": "yyouki",
+      "APP_ORIGIN": "https://space-ai.yyouki.workers.dev"
+    },
+    "ai": {
+      "binding": "AI",
+      "remote": true
+    },
+    "durable_objects": {
+      "bindings": [
+        { "name": "SpaceAgent", "class_name": "SpaceAgent" },
+        { "name": "SandboxRunner", "class_name": "SandboxRunner" },
+        { "name": "ChatShares", "class_name": "ChatShares" }
+      ]
+    }
+  }
 }
