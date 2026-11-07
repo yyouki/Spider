@@ -1,24 +1,24 @@
 :root {
-  --ide-code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --ide-code-font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 .space-ide {
-  --ide-bg: #101216;
-  --ide-panel-bg: #171a20;
-  --ide-editor-bg: #111419;
-  --ide-gutter-bg: #111419;
-  --ide-text: #e4e7ed;
-  --ide-muted: #89919e;
-  --ide-subtle: #606978;
-  --ide-border: #2a303a;
-  --ide-hover: #242a34;
-  --ide-active: #2a303a;
+  --ide-bg: #1B1C1F;
+  --ide-panel-bg: #17181B;
+  --ide-editor-bg: #1B1C1F;
+  --ide-gutter-bg: #17181B;
+  --ide-text: #D6D8DC;
+  --ide-muted: #8A8E96;
+  --ide-subtle: #5E626A;
+  --ide-border: #2A2C31;
+  --ide-hover: #26282D;
+  --ide-active: #2F3136;
   --ide-active-line: rgba(255,255,255,.035);
-  --ide-selection: rgba(84,132,190,.34);
-  --ide-accent: #9bb8d7;
-  --ide-accent-strong: #b4cee9;
-  --ide-status: #253d54;
-  height: calc(100dvh - 68px);
-  min-height: 580px;
+  --ide-selection: rgba(79,179,156,.22);
+  --ide-accent: #4FB39C;
+  --ide-accent-strong: #7CC4AE;
+  --ide-status: #1F4A41;
+  height: 100dvh;
+  min-height: 480px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -29,21 +29,21 @@
   border-top: 1px solid var(--ide-border);
 }
 .space-ide[data-theme="light"] {
-  --ide-bg: #f7f8fa;
-  --ide-panel-bg: #ffffff;
-  --ide-editor-bg: #ffffff;
-  --ide-gutter-bg: #fbfcfd;
-  --ide-text: #202631;
-  --ide-muted: #778190;
-  --ide-subtle: #9aa3ae;
-  --ide-border: #e1e5ea;
-  --ide-hover: #eef2f6;
-  --ide-active: #e7edf3;
-  --ide-active-line: rgba(35,55,80,.045);
-  --ide-selection: rgba(76,126,181,.2);
-  --ide-accent: #315f8b;
-  --ide-accent-strong: #214e7b;
-  --ide-status: #dce8f4;
+  --ide-bg: #FAFAF9;
+  --ide-panel-bg: #F1F1EF;
+  --ide-editor-bg: #FAFAF9;
+  --ide-gutter-bg: #F5F5F3;
+  --ide-text: #1C1D1F;
+  --ide-muted: #6A6D72;
+  --ide-subtle: #9A9DA3;
+  --ide-border: #E2E2DF;
+  --ide-hover: #F1F1EF;
+  --ide-active: #DCEBE6;
+  --ide-active-line: rgba(47,125,109,.045);
+  --ide-selection: rgba(47,125,109,.18);
+  --ide-accent: #2F7D6D;
+  --ide-accent-strong: #1F4A41;
+  --ide-status: #DCEBE6;
 }
 .space-ide button, .space-ide input { font: inherit; }
 .space-ide button { color: inherit; }
@@ -224,13 +224,13 @@
 .ide-shortcuts-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 9px; padding-top: 14px; color: var(--ide-muted); font-size: 9px; }
 .ide-shortcuts-footer button { padding: 6px 9px; border: 1px solid var(--ide-border); border-radius: 4px; background: var(--ide-hover); color: var(--ide-text); cursor: pointer; font-size: 10px; }
 @media (max-width: 850px) {
-  .space-ide { height: calc(100dvh - 62px); min-height: 520px; }
+  .space-ide { height: 100dvh; min-height: 480px; }
   .ide-sidebar { flex-basis: 210px; }
   .ide-topbar-center { display: none; }
   .ide-topbar-brand { min-width: 0; }
 }
 @media (max-width: 620px) {
-  .space-ide { height: calc(100dvh - 58px); min-height: 480px; }
+  .space-ide { height: calc(100dvh - 132px); min-height: 460px; }
   .ide-topbar { min-height: 44px; flex-basis: 44px; padding: 0 9px; }
   .ide-topbar-actions button span { display: none; }
   .ide-main { position: relative; }
@@ -249,4 +249,18 @@
   .ide-modal-backdrop { padding-top: 9vh; }
   .ide-shortcut-row { min-height: 47px; font-size: 10px; }
   .ide-shortcut-row button { min-width: 105px; }
+}
+
+
+/* Align the editor chrome with the shared neutral/teal tokens. */
+.space-ide { border-top: 0; }
+.space-ide .ide-brand-mark,
+.space-ide .ide-welcome-mark { border-radius: 6px; color: var(--ide-accent-strong); }
+.space-ide .ide-tab.active > button:first-child { border-top-color: var(--ide-accent); }
+.space-ide .ide-activity-bar button.active { border-left-color: var(--ide-accent); }
+.space-ide .ide-search-box input:focus,
+.space-ide .ide-modal-search:focus { border-color: var(--ide-accent); }
+.space-ide .ide-statusbar { background: var(--ide-status); }
+@media (max-width: 760px) {
+  .space-ide { height: calc(100dvh - 132px); min-height: 460px; }
 }
