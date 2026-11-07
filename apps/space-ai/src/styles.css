@@ -1370,3 +1370,135 @@ body { background: var(--canvas); color: var(--ink); }
   .vscode-info-card h3 { margin-top: 7px; }
   .vscode-sync-notice { padding: 13px; }
 }
+
+
+/* Provider profile and mobile editor guidance. */
+.account-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.account-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-soft, #f3f5f4);
+}
+.account-avatar-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 750;
+}
+.account-profile-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.account-profile-copy strong {
+  max-width: 124px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-profile-copy small {
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: capitalize;
+}
+.auth-button-google {
+  background: #fff;
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.auth-provider-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.vscode-support-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  max-width: 880px;
+  margin: 18px auto 0;
+}
+.vscode-support-card {
+  min-width: 0;
+  padding: 20px;
+}
+.vscode-support-card h2 {
+  margin: 7px 0 12px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -.025em;
+}
+.vscode-support-card ul {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted-strong);
+  font-size: 11px;
+  line-height: 1.65;
+}
+.vscode-control-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.vscode-shortcut-list {
+  display: grid;
+  gap: 8px;
+}
+.vscode-shortcut-list > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 25px;
+  color: var(--muted-strong);
+  font-size: 10px;
+}
+.vscode-shortcut-list > div > span {
+  flex: 1 1 130px;
+}
+.vscode-shortcut-list kbd {
+  padding: 3px 6px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 600 9px ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.vscode-shortcut-list b {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
+}
+.vscode-shortcut-list small {
+  color: var(--muted);
+  font-size: 9px;
+}
+@media (max-width: 760px) {
+  .vscode-support-grid { grid-template-columns: 1fr; }
+  .account-profile-copy { display: none; }
+  .topbar-actions { gap: 9px; }
+}
+@media (max-width: 520px) {
+  .vscode-page { width: calc(100% - 28px); padding-top: 24px; }
+  .vscode-support-card { padding: 16px; }
+  .vscode-shortcut-list > div > span { flex-basis: 110px; }
+}
