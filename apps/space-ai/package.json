@@ -21,7 +21,9 @@
     "fflate": "0.8.2",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "zod": "4.4.3"
+    "zod": "4.4.3",
+    "codemirror": "^6.0.2",
+    "@codemirror/language-data": "^6.5.2"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.67.0",

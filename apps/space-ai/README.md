@@ -18,7 +18,7 @@ A first, deliberately small implementation of the single-core space AI workspace
 - Optional owner-only Google OAuth login. It is exposed only when `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OWNER_EMAIL` are configured. The verified Google email must match the configured owner email; access tokens are not persisted.
 - Workers AI model: `@cf/zai-org/glm-4.7-flash`.
 - Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
-- A dedicated VS Code Web launcher page. It validates a GitHub owner/repository path and opens the selected repository at github.dev in a separate tab.
+- A Space-owned browser IDE with a CodeMirror editor, file explorer, multi-file tabs, private workspace persistence, command palette, customizable keyboard shortcuts, search, and an integrated task console.
 - Restricted Python/JavaScript snippet execution through the Chat code tool and temporary GitHub-hosted runner; no general shell or terminal is exposed in the web UI.
 - Persistent private workspace files created or updated by AI tools or the editor. Folder structure is inferred from file paths. Successful AI file writes show a downloadable file attachment in the conversation.
 - A separate Analytics page with provider-reported token usage, daily activity and workspace storage estimates.

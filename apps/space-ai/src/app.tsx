@@ -9,7 +9,7 @@ import type { TokenUsageSummary, WorkspaceFileMetadata } from "./analytics";
 
 const AnalyticsPage = lazy(() => import("./analytics"));
 
-const VSCodeWebPage = lazy(() => import("./vscode-web"));
+const VSCodeWebPage = lazy(() => import("./ide"));
 
 const DEFAULT_SETTINGS: AutonomySettings = {
   workspaceExecution: "autonomous_sandbox",
@@ -20,7 +20,7 @@ const DEFAULT_SETTINGS: AutonomySettings = {
 
 const NAV_ITEMS = [
   { href: "/", label: "Chat" },
-  { href: "/ide", label: "VS Code" },
+  { href: "/ide", label: "IDE" },
   { href: "/analytics", label: "Analytics" },
   { href: "/settings", label: "Settings" }
 ];
@@ -936,7 +936,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   );
 
   const vscodePage = (
-    <Suspense fallback={<main className="page-container"><p>Opening VS Code Web launcher…</p></main>}>
+    <Suspense fallback={<main className="page-container"><p>Opening Space IDE…</p></main>}>
       <VSCodeWebPage />
     </Suspense>
   );
