@@ -79,7 +79,17 @@ export function isGoogleOAuthReady(env: AuthEnvironment): boolean {
     env.GOOGLE_OAUTH_CLIENT_ID &&
     env.GOOGLE_OAUTH_CLIENT_SECRET &&
     env.GOOGLE_OWNER_EMAIL &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.GOOGLE_OWNER_EMAIL)
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.GOOGLE_OWNER_EMAIL) &&
+    env.SESSION_SECRET &&
+    env.SESSION_SECRET.length >= 32
+  );
+}
+
+function sessionSigningReady(env: AuthEnvironment): boolean {
+  return Boolean(
+    env.SESSION_SECRET &&
+    env.SESSION_SECRET.length >= 32 &&
+    (env.GITHUB_OWNER_LOGIN || env.GOOGLE_OWNER_EMAIL)
   );
 }
 
@@ -134,7 +144,7 @@ export async function getOwnerSession(
       avatarUrl: null
     };
   }
-  if (!oauthReady(env)) return null;
+  if (!sessionSigningReady(env)) return null;
 
   const token = cookieValue(request, SESSION_COOKIE);
   if (!token) return null;
@@ -169,9 +179,12 @@ export async function getOwnerSession(
     return null;
   }
 
+  const provider = payload.provider === "google" ? "google" : "github";
+  const expectedLogin = provider === "google" ? env.GOOGLE_OWNER_EMAIL : env.GITHUB_OWNER_LOGIN;
   if (
     typeof payload.login !== "string" ||
-    payload.login.toLowerCase() !== env.GITHUB_OWNER_LOGIN.toLowerCase() ||
+    !expectedLogin ||
+    payload.login.toLowerCase() !== expectedLogin.toLowerCase() ||
     typeof payload.expiresAt !== "number" ||
     payload.expiresAt <= Date.now()
   ) {
@@ -184,7 +197,7 @@ export async function getOwnerSession(
     login: payload.login,
     role: "owner",
     expiresAt: payload.expiresAt,
-    provider: payload.provider === "google" ? "google" : "github",
+    provider,
     displayName: typeof payload.displayName === "string" && payload.displayName.trim()
       ? payload.displayName.trim().slice(0, 100)
       : payload.login,
@@ -199,10 +212,10 @@ export async function requireOwnerAccess(
   const session = await getOwnerSession(request, env);
   if (session) return { ok: true, session };
 
-  if (!oauthReady(env)) {
+  if (!sessionSigningReady(env)) {
     return {
       ok: false,
-      response: Response.json({ error: "GitHub owner login is not configured." }, { status: 503 })
+      response: Response.json({ error: "No owner sign-in provider and session secret are configured." }, { status: 503 })
     };
   }
 
