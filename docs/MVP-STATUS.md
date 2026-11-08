@@ -4,10 +4,9 @@ Last implementation pass: November 8, 2026.
 
 ## Implemented in source
 
-| Evaluation and regression harness | Implemented in source | `apps/space-ai/evals/cases.json`, deterministic evaluator, CLI, and CI benchmark schema validation; recorded model outputs are required for scoring |
-
 | Capability | Status | Evidence |
 |---|---|---|
+| Evaluation and regression harness | Implemented in source | `apps/space-ai/evals/cases.json`, deterministic evaluator, CLI, and CI benchmark schema validation; recorded model outputs are required for scoring |
 | Single user-facing AI identity | Implemented in MVP | `apps/space-ai/src/server.ts` exports one `SpaceAgent` |
 | Streaming chat UI | Implemented in source | `src/app.tsx`, `useAgentChat` |
 | Persistent chat history | Implemented in source | SQLite-backed Durable Object with no fixed message-count cap; older context is summarized for subsequent turns |
