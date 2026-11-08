@@ -8,9 +8,10 @@
     "dev": "vite dev",
     "build": "vite build",
     "types": "wrangler types env.d.ts",
-    "test": "node --test src/security/tenant-routing.test.js src/security/connection-diagnosis.test.js src/security/share-links.test.js src/self-update/release-gate.test.js src/sandbox/execution-policy.test.js ../../scripts/sandbox-runtime.test.mjs",
-    "check": "npm run types && tsc --noEmit && npm test",
-    "deploy": "npm run check && vite build && wrangler deploy"
+    "test": "node --test src/security/tenant-routing.test.js src/security/connection-diagnosis.test.js src/security/share-links.test.js src/self-update/release-gate.test.js src/sandbox/execution-policy.test.js src/evals/evaluator.test.js ../../scripts/sandbox-runtime.test.mjs",
+    "check": "npm run types && tsc --noEmit && npm test && npm run eval:validate",
+    "deploy": "npm run check && vite build && wrangler deploy",
+    "eval:validate": "node scripts/evaluate.mjs --validate-only"
   },
   "dependencies": {
     "@ai-sdk/provider": "4.0.35",
