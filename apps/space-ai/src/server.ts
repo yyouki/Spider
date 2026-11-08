@@ -815,23 +815,23 @@ export class SpaceAgent extends AIChatAgent<Env> {
     const cooldownMs = 10 * 60 * 1000;
     const dailyWindowMs = 24 * 60 * 60 * 1000;
     const dailyRunLimit = 3;
-    const latest = this.sql<{ created_at: number }>\`
-      SELECT created_at FROM live_evaluation_runs ORDER BY created_at DESC LIMIT 1\`;
+    const latest = this.sql<{ created_at: number }>`
+      SELECT created_at FROM live_evaluation_runs ORDER BY created_at DESC LIMIT 1`;
     const remainingMs = latest[0] ? cooldownMs - (now - latest[0].created_at) : 0;
     if (remainingMs > 0) {
-      throw new Error(\`Live evaluation is rate limited. Try again in \${Math.ceil(remainingMs / 60_000)} minute(s).\`);
+      throw new Error(`Live evaluation is rate limited. Try again in ${Math.ceil(remainingMs / 60_000)} minute(s).`);
     }
 
-    const daily = this.sql<{ run_count: number }>\`
+    const daily = this.sql<{ run_count: number }>`
       SELECT COUNT(*) AS run_count FROM live_evaluation_runs
-      WHERE created_at >= \${now - dailyWindowMs}\`;
+      WHERE created_at >= ${now - dailyWindowMs}`;
     if ((daily[0]?.run_count ?? 0) >= dailyRunLimit) {
       throw new Error("The live evaluation limit is three runs per 24 hours.");
     }
 
     const runId = crypto.randomUUID();
-    this.sql\`INSERT INTO live_evaluation_runs (id, status, created_at)
-      VALUES (\${runId}, 'running', \${now})\`;
+    this.sql`INSERT INTO live_evaluation_runs (id, status, created_at)
+      VALUES (${runId}, 'running', ${now})`;
 
     const ai = createAI({ binding: this.env.AI });
     const records: Array<{ caseId: string; response: string }> = [];
@@ -869,15 +869,15 @@ export class SpaceAgent extends AIChatAgent<Env> {
 
       const status = errors.length === 0 ? "completed" : records.length > 0 ? "partial" : "failed";
       const completedAt = new Date().toISOString();
-      this.sql\`UPDATE live_evaluation_runs SET
-        status = \${status},
-        input_tokens = \${inputTokens},
-        output_tokens = \${outputTokens},
-        total_tokens = \${totalTokens}
-        WHERE id = \${runId}\`;
-      this.sql\`DELETE FROM live_evaluation_runs WHERE id NOT IN (
+      this.sql`UPDATE live_evaluation_runs SET
+        status = ${status},
+        input_tokens = ${inputTokens},
+        output_tokens = ${outputTokens},
+        total_tokens = ${totalTokens}
+        WHERE id = ${runId}`;
+      this.sql`DELETE FROM live_evaluation_runs WHERE id NOT IN (
         SELECT id FROM live_evaluation_runs ORDER BY created_at DESC LIMIT 20
-      )\`;
+      )`;
 
       return {
         model: "@cf/zai-org/glm-4.7-flash",
@@ -890,7 +890,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
         results: evaluation.results
       };
     } catch {
-      this.sql\`UPDATE live_evaluation_runs SET status = 'failed' WHERE id = \${runId}\`;
+      this.sql`UPDATE live_evaluation_runs SET status = 'failed' WHERE id = ${runId}`;
       throw new Error("Live evaluation could not finish. Check Workers AI availability and retry after the cooldown.");
     }
   }
