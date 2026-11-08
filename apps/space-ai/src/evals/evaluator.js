@@ -1,11 +1,3 @@
-const ARRAY_FIELDS = [
-  "expectedToolCalls",
-  "forbiddenToolCalls",
-  "requiredResponseGroups",
-  "forbiddenResponsePhrases",
-  "approvalRequiredTools"
-];
-
 function isStringArray(value) {
   return Array.isArray(value) && value.every((item) => typeof item === "string" && item.trim().length > 0);
 }
