@@ -1354,9 +1354,19 @@ export default function App() {
   if (!session?.authenticated) {
     return (
       <main className="auth-shell">
+        <section className="auth-intro" aria-label="About Spider">
+          <div className="auth-intro-mark"><img src="/spider-mark.svg" alt="" /><span>A calmer place to think and build</span></div>
+          <h2>One workspace for <span>every idea you build.</span></h2>
+          <p>Move from a thought to a plan, a conversation, or a working file without losing the thread.</p>
+          <div className="auth-features">
+            <span><i aria-hidden="true">◉</i> Conversations that keep context</span>
+            <span><i aria-hidden="true">⌘</i> A private code workspace</span>
+            <span><i aria-hidden="true">▥</i> Clear usage insights</span>
+          </div>
+        </section>
         <section className="auth-card">
           <div className="auth-brand"><img src="/spider-mark.svg" alt="" /><span>spider</span></div>
-          <p className="eyebrow">YOUR PRIVATE AI WORKSPACE</p>
+          <p className="eyebrow">Private AI workspace</p>
           <h1>Sign in to Spider</h1>
           <p>Only the configured owner account can open this workspace.</p>
           {session?.githubAvailable ? (
