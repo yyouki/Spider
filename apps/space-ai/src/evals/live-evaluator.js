@@ -68,19 +68,19 @@ export function evaluateLiveTextResponses(cases, records) {
 
   for (const [index, record] of records.entries()) {
     if (!record || typeof record !== "object" || Array.isArray(record)) {
-      errors.push(\`record[\${index}] must be an object.\`);
+      errors.push(`record[${index}] must be an object.`);
       continue;
     }
     if (typeof record.caseId !== "string" || !knownIds.has(record.caseId)) {
-      errors.push(\`record[\${index}] references an unknown case id.\`);
+      errors.push(`record[${index}] references an unknown case id.`);
       continue;
     }
     if (seenIds.has(record.caseId)) {
-      errors.push(\`Duplicate result for case \${record.caseId}.\`);
+      errors.push(`Duplicate result for case ${record.caseId}.`);
       continue;
     }
     if (typeof record.response !== "string") {
-      errors.push(\`record[\${index}].response must be a string.\`);
+      errors.push(`record[${index}].response must be a string.`);
       continue;
     }
     seenIds.add(record.caseId);
@@ -107,17 +107,17 @@ export function evaluateLiveTextResponses(cases, records) {
     for (const [index, group] of item.requiredResponseGroups.entries()) {
       const found = group.some((phrase) => normalized.includes(phrase.toLocaleLowerCase()));
       checks.push({
-        name: \`required_response_group:\${index + 1}\`,
+        name: `required_response_group:${index + 1}`,
         passed: found,
-        detail: found ? "A required phrase alternative was present." : \`Response did not contain any of: \${group.join(" | ")}.\`
+        detail: found ? "A required phrase alternative was present." : `Response did not contain any of: ${group.join(" | ")}.`
       });
     }
     for (const phrase of item.forbiddenResponsePhrases) {
       const found = normalized.includes(phrase.toLocaleLowerCase());
       checks.push({
-        name: \`forbidden_response_phrase:\${phrase}\`,
+        name: `forbidden_response_phrase:${phrase}`,
         passed: !found,
-        detail: found ? \`Forbidden phrase was present: \${phrase}.\` : \`Forbidden phrase was absent: \${phrase}.\`
+        detail: found ? `Forbidden phrase was present: ${phrase}.` : `Forbidden phrase was absent: ${phrase}.`
       });
     }
 
