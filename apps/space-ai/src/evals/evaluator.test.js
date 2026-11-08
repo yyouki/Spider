@@ -116,3 +116,34 @@ test("requires all alternative phrase groups to match at least one option", () =
   assert.ok(result.results[0].checks.some((check) => check.name === "required_response_group:1" && check.passed));
   assert.ok(result.results[0].checks.some((check) => check.name === "required_response_group:2" && check.passed));
 });
+
+test("enforces the order of dependent tool calls", () => {
+  const item = makeCase({
+    expectedToolCalls: ["listWorkspaceFiles", "readWorkspaceFile", "writeWorkspaceFile"],
+    forbiddenToolCalls: [],
+    requiredResponseGroups: [],
+    orderedToolSequence: ["listWorkspaceFiles", "readWorkspaceFile", "writeWorkspaceFile"]
+  });
+  const correct = evaluateResponses([item], [{
+    caseId: item.id,
+    response: "The file was reviewed and updated.",
+    toolCalls: [
+      { name: "listWorkspaceFiles" },
+      { name: "readWorkspaceFile" },
+      { name: "writeWorkspaceFile" }
+    ]
+  }]);
+  assert.equal(correct.results[0].status, "passed");
+
+  const incorrect = evaluateResponses([item], [{
+    caseId: item.id,
+    response: "The file was reviewed and updated.",
+    toolCalls: [
+      { name: "writeWorkspaceFile" },
+      { name: "readWorkspaceFile" },
+      { name: "listWorkspaceFiles" }
+    ]
+  }]);
+  assert.equal(incorrect.results[0].status, "failed");
+  assert.ok(incorrect.results[0].checks.some((check) => check.name === "ordered_tool_sequence" && !check.passed));
+});
