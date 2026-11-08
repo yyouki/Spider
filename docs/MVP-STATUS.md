@@ -1,11 +1,12 @@
 # space AI MVP status
 
-Last implementation pass: November 6, 2026.
+Last implementation pass: November 8, 2026.
 
 ## Implemented in source
 
 | Capability | Status | Evidence |
 |---|---|---|
+| Evaluation and regression harness | Implemented in source | `apps/space-ai/evals/cases.json`, deterministic evaluator, CLI, and CI benchmark schema validation; recorded model outputs are required for scoring |
 | Single user-facing AI identity | Implemented in MVP | `apps/space-ai/src/server.ts` exports one `SpaceAgent` |
 | Streaming chat UI | Implemented in source | `src/app.tsx`, `useAgentChat` |
 | Persistent chat history | Implemented in source | SQLite-backed Durable Object with no fixed message-count cap; older context is summarized for subsequent turns |
@@ -26,7 +27,7 @@ Last implementation pass: November 6, 2026.
 | Private owner access | Implemented in source | GitHub OAuth identity check, signed session cookie |
 | Session-routed Agent access | Implemented in current branch | The Worker checks the signed owner session and same-origin Origin header, then routes to the server-selected Durable Object; the owner's existing `default` Agent remains unchanged |
 | Python/JavaScript sandbox | Implemented in source; deployment-gated | GitHub Actions runner dispatch, encrypted source/result, restricted Docker runner |
-| CI build and test workflow | Added | `.github/workflows/space-ai-check.yml` |
+| CI build and test workflow | Added | `.github/workflows/space-ai-check.yml`; includes offline evaluation benchmark validation |
 | Manual free-tier deploy workflow | Added in branch | `.github/workflows/deploy-space-ai.yml` |
 
 ## Autonomy settings versus actual access
@@ -48,6 +49,8 @@ GitHub documents standard GitHub-hosted runner usage as free for public reposito
 The default model remains `@cf/zai-org/glm-4.7-flash`. It supports reasoning and function calling, and Cloudflare describes it as multilingual and suitable for multi-turn tool calling. This is a reasonable MVP starting point, not a guarantee that it will satisfy every long-horizon autonomous task. No custom model is being trained: custom training and inference still require compute, and there is no credible unlimited-free model-serving option.
 
 ## Not yet verified
+
+- The evaluation harness validates and scores recorded responses, but it does not yet invoke Workers AI or grade live model behavior. Human review remains required for semantic quality.
 
 - Workspace attachments, image generation/editing, context compaction, conversation history, and the VS Code Web launcher passed CI before the latest unverified branch updates; production deployment and browser-level runtime tests have not yet been performed.
 - Cloudflare deployment and owner-only GitHub OAuth sign-in.
