@@ -148,7 +148,7 @@ export default function AnalyticsPage({
             })}
           </div>
           {!usage?.requests && (
-            <div className="chart-empty">Usage will appear here after Space receives provider token metadata.</div>
+            <div className="chart-empty">Usage will appear here after Spider receives provider token metadata.</div>
           )}
           <div className="chart-footnote">The database retains at most 200 provider-reported responses. Missing provider metadata is not counted.</div>
         </section>
@@ -189,7 +189,7 @@ export default function AnalyticsPage({
         <div className="card-heading">
           <div>
             <h2>Recent model activity</h2>
-            <p>Latest provider-reported responses retained by Space.</p>
+            <p>Latest provider-reported responses retained by Spider.</p>
           </div>
           <span className="period-pill">{usage?.recent.length ?? 0} records</span>
         </div>
@@ -228,7 +228,7 @@ export default function AnalyticsPage({
       </section>
 
       <p className="analytics-disclaimer">
-        Token values are actual only when returned by the model provider. Space stores at most 200 such responses. Workspace estimates use file byte size divided by four and are not exact tokenizer counts. Exact monetary cost and account-wide Cloudflare neuron usage are not exposed by this workspace view.
+        Token values are actual only when returned by the model provider. Spider stores at most 200 such responses. Workspace estimates use file byte size divided by four and are not exact tokenizer counts. Exact monetary cost and account-wide Cloudflare neuron usage are not exposed by this workspace view.
       </p>
     </main>
   );

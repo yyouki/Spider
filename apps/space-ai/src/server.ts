@@ -14,7 +14,7 @@ export { SandboxRunner } from "./sandbox/runner";
 export { ChatShares } from "./chat-shares";
 
 const SYSTEM_PROMPT = [
-  "You are space, one persistent AI workspace and the single user-facing AI identity.",
+  "You are Spider, one persistent AI workspace and the single user-facing AI identity.",
   "",
   "Understand the user's intended outcome and constraints. Match the user's language.",
   "Be direct, concise, and strictly on-topic. Start with the answer or the next useful action; avoid generic greetings, filler, repeated conclusions, and unnecessary preambles.",
@@ -32,11 +32,11 @@ const SYSTEM_PROMPT = [
   "Image tools can create or edit PNG images using the connected FLUX model. This is not a guarantee of photorealism or exact preservation; report tool results honestly. Image understanding and detailed image description are not connected unless a vision model is explicitly added.",
   "Video link attachments currently provide validated HTTPS links for YouTube, TikTok, Vimeo, and Dailymotion. A link is not the video content: do not claim to have watched, transcribed, or analyzed it unless a connected video-processing tool returns evidence. Respect platform access controls, copyright, and privacy.",
   "Use calculate only when the user asks for arithmetic in natural language and is not asking to execute code. If the message is source code or asks to run a snippet (for example print(...), console.log(...), assignments, loops, imports, or a code block), use runCode even when the snippet performs simple arithmetic. Never substitute calculate for explicitly requested code execution.",
-  "The persistent private workspace file tree is connected. Use listWorkspaceFiles and readWorkspaceFile before editing an existing project file. Use writeWorkspaceFile to create or update files inside the isolated Space workspace; never claim a file was saved unless the tool confirms it.",
+  "The persistent private workspace file tree is connected. Use listWorkspaceFiles and readWorkspaceFile before editing an existing project file. Use writeWorkspaceFile to create or update files inside the isolated Spider workspace; never claim a file was saved unless the tool confirms it.",
   "If project file mode is review_changes, writeWorkspaceFile requires owner approval. Explain the proposed path and why it changes before approval; never try to bypass the review.",
   "The conversation history is retained without a fixed message-count cap. Older context is summarized automatically; use the durable summary as background and trust the newest messages for current instructions.",
   "When a user attaches an image, the UI includes its asset ID. Use editImage for an explicit request to modify it, and generateImage for a new image. Image operations return a separate downloadable asset; never claim success before the tool returns an asset ID.",
-  "When you create or update a workspace file, tell the user its exact relative path. The file appears in the IDE explorer and can be opened in the editor. Workspace files are private to this Space agent and are not automatically synced to GitHub or the user device.",
+  "When you create or update a workspace file, tell the user its exact relative path. The file appears in the IDE explorer and can be opened in the editor. Workspace files are private to this Spider agent and are not automatically synced to GitHub or the user device.",
   "Never write secrets, tokens, passwords, cookies, .env files, .dev.vars files, credentials, or private keys into the workspace.",
   "Use task-plan tools for multi-step requests. A saved plan is not evidence that its steps have been executed.",
   "For explicit small code tasks, use runCode: it runs only Python or JavaScript in a temporary GitHub-hosted Linux runner with an offline restricted Docker container and strict source, time, and output limits.",
@@ -177,7 +177,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
   override chatRecovery = {
     maxAttempts: 10,
     maxRecoveryWork: 10_000,
-    terminalMessage: "Space could not recover this interrupted response. The saved conversation is still available; try sending your request again."
+    terminalMessage: "Spider could not recover this interrupted response. The saved conversation is still available; try sending your request again."
   };
 
   onStart() {
@@ -734,7 +734,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
   @callable()
   async runWorkspaceFile(inputPath: string, timeoutSeconds = 10, ownerApproved = false) {
     if (this.getAutonomySettings().settings.workspaceExecution === "manual" && ownerApproved !== true) {
-      throw new Error("Workspace execution is set to manual. Confirm this run in the Space interface first.");
+      throw new Error("Workspace execution is set to manual. Confirm this run in the Spider interface first.");
     }
     const path = normalizeWorkspacePath(inputPath);
     const file = this.readWorkspaceFile(path);
@@ -1195,7 +1195,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
         }),
 
         getCapabilities: tool({
-          description: "Return the capabilities that are actually connected in this version of space.",
+          description: "Return the capabilities that are actually connected in this version of Spider.",
           inputSchema: z.object({}),
           execute: async () => ({
             available: [
@@ -1397,7 +1397,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
         }),
 
         listWorkspaceFiles: tool({
-          description: "List files currently saved in the private Space workspace. Folder structure is inferred from each relative file path.",
+          description: "List files currently saved in the private Spider workspace. Folder structure is inferred from each relative file path.",
           inputSchema: z.object({}),
           execute: async () => this.listWorkspaceFiles()
         }),
@@ -1409,7 +1409,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
         }),
 
         writeWorkspaceFile: tool({
-          description: "Create or update a text file in the private Space workspace. Use relative paths such as src/main.py. Never write credentials, .env files, tokens, passwords, cookies, or private keys.",
+          description: "Create or update a text file in the private Spider workspace. Use relative paths such as src/main.py. Never write credentials, .env files, tokens, passwords, cookies, or private keys.",
           inputSchema: z.object({ path: z.string().min(1).max(240), content: z.string().max(131072) }),
           needsApproval: this.getAutonomySettings().settings.projectFiles !== "selected_workspace",
           execute: async ({ path, content }) => this.writeWorkspaceFile(path, content)
@@ -1431,12 +1431,12 @@ export class SpaceAgent extends AIChatAgent<Env> {
           }),
           execute: async ({ prompt, width, height }) => {
             const image = await this.runFluxImage(prompt, width, height);
-            return this.saveGeneratedImage("space-image-" + Date.now() + ".png", prompt, image);
+            return this.saveGeneratedImage("spider-image-" + Date.now() + ".png", prompt, image);
           }
         }),
 
         editImage: tool({
-          description: "Edit an image previously uploaded to this Space conversation. Use the asset ID shown in the user's attachment. Describe the visual changes while preserving requested subject details. Reference images are resized by the client to no more than 512 by 512 pixels before upload. Return a new asset; never overwrite the original.",
+          description: "Edit an image previously uploaded to this Spider conversation. Use the asset ID shown in the user's attachment. Describe the visual changes while preserving requested subject details. Reference images are resized by the client to no more than 512 by 512 pixels before upload. Return a new asset; never overwrite the original.",
           inputSchema: z.object({
             assetId: z.string().uuid(),
             prompt: z.string().trim().min(8).max(1600)
@@ -1449,7 +1449,7 @@ export class SpaceAgent extends AIChatAgent<Env> {
               mimeType: original.mimeType,
               contentBase64: original.contentBase64
             });
-            return this.saveGeneratedImage("space-edited-" + Date.now() + ".png", prompt, image);
+            return this.saveGeneratedImage("spider-edited-" + Date.now() + ".png", prompt, image);
           }
         }),
 
@@ -1528,11 +1528,11 @@ export default {
       const serialized = htmlEscape(JSON.stringify(snapshot, null, 2));
       const html = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">" +
         "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
-        "<title>Shared Space conversation</title><style>" +
+        "<title>Shared Spider conversation</title><style>" +
         "body{margin:0;padding:32px;background:#0e1118;color:#e7eaf1;font:14px/1.6 ui-sans-serif,system-ui}" +
         "main{max-width:900px;margin:0 auto}h1{font-size:22px}p{color:#9ba4b7}" +
         "pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#171c27;border:1px solid #2a3140;border-radius:12px;padding:18px}" +
-        "</style></head><body><main><h1>Shared Space conversation</h1>" +
+        "</style></head><body><main><h1>Shared Spider conversation</h1>" +
         "<p>Read-only snapshot · expires " + htmlEscape(snapshot.expiresAt) + "</p>" +
         "<pre>" + serialized + "</pre></main></body></html>";
       return new Response(html, {

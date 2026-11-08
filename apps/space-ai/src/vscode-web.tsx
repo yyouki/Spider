@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-const DEFAULT_REPOSITORY = "yyouki/space";
+const DEFAULT_REPOSITORY = "yyouki/Spider";
 
 function normalizeRepository(value: string): string | null {
   const normalized = value.trim().replace(/^https?:\/\/(?:www\.)?github\.com\//i, "").replace(/\.git$/i, "").replace(/\/$/, "");
@@ -150,13 +150,13 @@ export default function VSCodeWebPage() {
       <section className="vscode-sync-notice" aria-label="Workspace synchronization status">
         <div className="vscode-sync-icon" aria-hidden="true">↔</div>
         <div>
-          <strong>Space workspace sync is not connected yet</strong>
-          <p>Files saved inside Space currently remain in its private workspace. Opening a GitHub repository here does not automatically import or synchronize those files. GitHub App authorization and repository publishing are the next integration step.</p>
+          <strong>Spider workspace sync is not connected yet</strong>
+          <p>Files saved inside Spider currently remain in its private workspace. Opening a GitHub repository here does not automatically import or synchronize those files. GitHub App authorization and repository publishing are the next integration step.</p>
         </div>
       </section>
 
       <p className="vscode-footnote">
-        VS Code Web is a separate official Microsoft/GitHub service. Space opens it in a new tab and does not embed or repackage its editor.
+        VS Code Web is a separate official Microsoft/GitHub service. Spider opens it in a new tab and does not embed or repackage its editor.
       </p>
     </main>
   );

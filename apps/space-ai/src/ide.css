@@ -404,3 +404,74 @@
   animation: none !important;
   transition: none !important;
 }
+
+
+/* Spider editor theme */
+.space-ide {
+  --ide-bg: #101620;
+  --ide-panel-bg: #141D29;
+  --ide-editor-bg: #101620;
+  --ide-gutter-bg: #141D29;
+  --ide-text: #E5ECF5;
+  --ide-muted: #94A2B5;
+  --ide-subtle: #718094;
+  --ide-border: #29384A;
+  --ide-hover: #1D2A3A;
+  --ide-active: #263446;
+  --ide-active-line: rgba(255,255,255,.045);
+  --ide-selection: rgba(240,122,96,.22);
+  --ide-accent: #F07A60;
+  --ide-accent-strong: #FF9A83;
+  --ide-status: #30201F;
+}
+.space-ide[data-theme="light"] {
+  --ide-bg: #F5F7FA;
+  --ide-panel-bg: #EDF1F6;
+  --ide-editor-bg: #F8FAFC;
+  --ide-gutter-bg: #EFF3F7;
+  --ide-text: #172235;
+  --ide-muted: #69778B;
+  --ide-subtle: #8995A6;
+  --ide-border: #DCE2EB;
+  --ide-hover: #E4EAF1;
+  --ide-active: #F9E8E4;
+  --ide-active-line: rgba(217,95,73,.06);
+  --ide-selection: rgba(217,95,73,.18);
+  --ide-accent: #D95F49;
+  --ide-accent-strong: #B94B39;
+  --ide-status: #F9E8E4;
+}
+.ide-topbar { min-height: 54px; flex-basis: 54px; padding: 0 19px; }
+.ide-brand-mark {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--ide-border);
+  border-radius: 9px;
+  background: var(--ide-bg);
+  object-fit: cover;
+}
+.ide-topbar-brand { gap: 10px; }
+.ide-topbar-brand strong { font-size: 13px; letter-spacing: -.045em; }
+.ide-topbar-actions button { min-height: 34px; border-radius: 8px; font-size: 12px; }
+.ide-activity-bar { flex-basis: 52px; padding-top: 12px; }
+.ide-activity-bar button { width: 44px; height: 44px; border-radius: 9px; }
+.ide-activity-bar button.active { border-left-color: var(--ide-accent); background: var(--ide-hover); }
+.ide-sidebar { flex-basis: 260px; }
+.ide-sidebar-heading { min-height: 44px; height: 44px; padding: 0 15px; }
+.ide-workspace-title { min-height: 38px; padding: 0 14px; }
+.ide-welcome-mark {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--ide-border);
+  border-radius: 13px;
+  background: var(--ide-bg);
+  object-fit: cover;
+}
+.ide-statusbar { background: var(--ide-status); }
+@media (max-width: 760px) {
+  .ide-topbar { gap: 8px; padding: 0 10px; }
+  .ide-topbar-brand { min-width: auto; }
+  .ide-topbar-center { gap: 8px; }
+  .ide-topbar-actions { gap: 2px; }
+  .ide-topbar-actions button { padding: 0 6px; }
+}
