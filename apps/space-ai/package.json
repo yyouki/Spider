@@ -11,7 +11,8 @@
     "test": "node --test src/security/tenant-routing.test.js src/security/connection-diagnosis.test.js src/security/share-links.test.js src/self-update/release-gate.test.js src/sandbox/execution-policy.test.js src/evals/evaluator.test.js src/evals/system-policy.test.js ../../scripts/sandbox-runtime.test.mjs",
     "check": "npm run types && tsc --noEmit && npm test && npm run eval:validate",
     "deploy": "npm run check && vite build && wrangler deploy",
-    "eval:validate": "node scripts/evaluate.mjs --validate-only"
+    "eval:validate": "node scripts/evaluate.mjs --validate-only",
+    "eval": "node scripts/evaluate.mjs"
   },
   "dependencies": {
     "@ai-sdk/provider": "4.0.35",
