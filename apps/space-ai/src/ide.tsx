@@ -606,7 +606,7 @@ export default function SpaceIDEPage({
 
             {activity === "extensions" && <>
               <div className="ide-sidebar-heading"><strong>LANGUAGES & TOOLS</strong></div>
-              <div className="ide-tool-list">{["JavaScript / TypeScript", "Python", "HTML", "CSS", "JSON", "Markdown", "SQL", "YAML", "Rust", "Go", "Java", "C / C++"].map((name) => <div key={name}><span className="ide-extension-check">✓</span><span>{name}</span><small>Syntax support</small></div>)}</div>
+              <div className="ide-tool-list">{["JavaScript / TypeScript", "Python", "HTML", "CSS", "JSON", "Markdown"].map((name) => <div key={name}><span className="ide-extension-check">✓</span><span>{name}</span><small>Syntax support</small></div>)}</div>
               <p className="ide-tool-note">External VS Code Marketplace extensions and language servers are not loaded in this browser IDE.</p>
             </>}
           </aside>
