@@ -12,7 +12,7 @@ npm run eval -- --input ./eval-records.json
 npm run eval -- --input ./eval-records.json --output ./eval-report.json --min-pass-rate 0.9
 ```
 
-The validation command checks the case schema and duplicate IDs. The evaluation command scores a JSON array of recorded outputs against `cases.json`. A case without a captured response is marked `not_run`, never passed. The default minimum automated pass rate is 100%; lower it explicitly only when a partial run is intentional.
+The validation command checks the case schema and duplicate IDs. The evaluation command scores a JSON array of recorded outputs against `cases.json`. A case without a captured response is marked `not_run`, never passed, and remains in the benchmark-wide pass-rate denominator. The default minimum automated pass rate is 100%; lower it explicitly only when a partial run is intentional.
 
 ## Recorded result format
 
