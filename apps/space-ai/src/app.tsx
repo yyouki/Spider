@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { parseSupportedVideoLink, type SupportedVideoLink } from "./video-links";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, type UIMessage } from "ai";
-import type { AutonomySettings } from "./server";
+import type { AutonomySettings, LiveTextEvaluationReport } from "./server";
 import type { MouseEvent } from "react";
 import type { TokenUsageSummary, WorkspaceFileMetadata } from "./analytics";
 import { useSpaceAgentConnection } from "./connection";
@@ -323,6 +323,9 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   const [conversationNotice, setConversationNotice] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [tokenUsage, setTokenUsage] = useState<TokenUsageSummary | null>(null);
+  const [liveEvaluation, setLiveEvaluation] = useState<LiveTextEvaluationReport | null>(null);
+  const [liveEvaluationBusy, setLiveEvaluationBusy] = useState(false);
+  const [liveEvaluationNotice, setLiveEvaluationNotice] = useState("");
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileMetadata[]>([]);
   const [savedMemories, setSavedMemories] = useState<SavedMemory[]>([]);
   const [memoriesBusy, setMemoriesBusy] = useState(false);
@@ -499,6 +502,28 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
       // Analytics is optional and must not block the conversation or IDE.
     }
   }, [agent]);
+
+  const runLiveEvaluation = async () => {
+    if (!connected || busy || liveEvaluationBusy) return;
+    const confirmed = window.confirm(
+      "Run six synthetic prompts against GLM-4.7-Flash? This uses up to six inference requests, stores no prompt or response text, and is limited to three runs per 24 hours."
+    );
+    if (!confirmed) return;
+
+    setLiveEvaluationBusy(true);
+    setLiveEvaluationNotice("Running six synthetic model checks…");
+    try {
+      const report = await agent.stub.runLiveTextEvaluation();
+      setLiveEvaluation(report);
+      setLiveEvaluationNotice(
+        `Completed: ${report.summary.passed} passed, ${report.summary.failed} failed, ${report.summary.notRun} not run. Human review is still required.`
+      );
+    } catch (value) {
+      setLiveEvaluationNotice(value instanceof Error ? value.message : "Live evaluation could not be started.");
+    } finally {
+      setLiveEvaluationBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (connected && !busy) void loadTokenUsage();
@@ -1157,6 +1182,68 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
           <span>Only use memory that is relevant to the current request.</span>
           <button type="button" className="button button-secondary" onClick={() => void clearSavedMemories()} disabled={!savedMemories.length || memoriesBusy}>Clear all memory</button>
         </div>
+      </section>
+
+      <section className="surface-card settings-card live-evaluation-card">
+        <div className="section-title">
+          <div>
+            <h2>Live model evaluation</h2>
+            <p>Run a bounded smoke test against the connected GLM-4.7-Flash model and current system prompt.</p>
+          </div>
+          <span className="meta-chip">6 synthetic prompts</span>
+        </div>
+        <p className="memory-empty">
+          This owner-only test does not read chats, saved memory, workspace files, or attachments. It has no tools and cannot change data. It uses up to six inference requests, with a ten-minute cooldown and a limit of three runs per 24 hours. Only run metadata and aggregate token counts are retained.
+        </p>
+        <div className="settings-footer">
+          <span role="status">{liveEvaluationNotice}</span>
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={() => void runLiveEvaluation()}
+            disabled={!connected || busy || liveEvaluationBusy}
+          >
+            {liveEvaluationBusy ? "Evaluating…" : "Run live evaluation"}
+          </button>
+        </div>
+        {liveEvaluation && (
+          <div className="live-evaluation-results">
+            <div className="policy-row">
+              <span className="policy-icon">{liveEvaluation.summary.passed}/{liveEvaluation.summary.caseCount}</span>
+              <div>
+                <strong>Automated phrase checks</strong>
+                <p>
+                  {liveEvaluation.summary.failed} failed · {liveEvaluation.summary.notRun} not run ·
+                  {" "}{liveEvaluation.usage.totalTokens.toLocaleString()} provider-reported tokens ·
+                  {" "}{new Date(liveEvaluation.completedAt).toLocaleString()}
+                </p>
+              </div>
+            </div>
+            {liveEvaluation.errors.map((item) => (
+              <p className="memory-notice" role="status" key={item.caseId}>{item.caseId}: {item.message}</p>
+            ))}
+            <div className="live-evaluation-list">
+              {liveEvaluation.results.map((item) => (
+                <details className="tool-event live-evaluation-result" key={item.caseId}>
+                  <summary>
+                    <span className="tool-event-dot" />
+                    {item.caseId}
+                    <span className="tool-event-state">{item.status}</span>
+                  </summary>
+                  <p>{item.humanReviewPrompt}</p>
+                  <pre>{item.response || "No response was returned for this case."}</pre>
+                  {item.checks.some((check) => !check.passed) && (
+                    <ul>
+                      {item.checks.filter((check) => !check.passed).map((check) => (
+                        <li key={check.name}>{check.detail}</li>
+                      ))}
+                    </ul>
+                  )}
+                </details>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="surface-card settings-card">

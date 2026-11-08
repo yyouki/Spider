@@ -7,6 +7,7 @@ import { getOwnerSession, handleAuthRequest, isGoogleOAuthReady, isGitHubOAuthRe
 import { getSpaceAgentName, isSameOriginAgentRequest } from "./security/tenant-routing.js";
 import { ChatShares, type SharedChatSnapshot } from "./chat-shares";
 import { languageForPath, normalizeWorkspacePath, type WorkspaceFile, type WorkspaceFileMetadata } from "./workspace";
+import { LIVE_TEXT_EVALUATION_CASES, evaluateLiveTextResponses, type LiveTextEvaluationResult } from "./evals/live-evaluator.js";
 
 // Expose the GitHub Actions-backed sandbox task ledger Durable Object.
 export { SandboxRunner } from "./sandbox/runner";
@@ -145,6 +146,23 @@ function htmlEscape(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
+export type LiveTextEvaluationReport = {
+  model: string;
+  completedAt: string;
+  cooldownMinutes: number;
+  dailyRunLimit: number;
+  summary: {
+    caseCount: number;
+    passed: number;
+    failed: number;
+    notRun: number;
+    automatedPassRate: number;
+  };
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+  errors: Array<{ caseId: string; message: string }>;
+  results: LiveTextEvaluationResult[];
+};
+
 type TaskPlanRow = {
   id: string;
   title: string;
@@ -213,6 +231,16 @@ export class SpaceAgent extends AIChatAgent<Env> {
       input_tokens INTEGER NOT NULL,
       output_tokens INTEGER NOT NULL,
       total_tokens INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )`;
+
+    // Persist only aggregate metadata for opt-in live evaluations; never store prompts or model responses.
+    this.sql`CREATE TABLE IF NOT EXISTS live_evaluation_runs (
+      id TEXT PRIMARY KEY,
+      status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'partial', 'failed')),
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
     )`;
 
@@ -779,6 +807,94 @@ export class SpaceAgent extends AIChatAgent<Env> {
     const namespace = this.env.ChatShares;
     const share = namespace.get(namespace.idFromName(token));
     return { revoked: await share.revokeShare(token) };
+  }
+
+  @callable()
+  async runLiveTextEvaluation(): Promise<LiveTextEvaluationReport> {
+    const now = Date.now();
+    const cooldownMs = 10 * 60 * 1000;
+    const dailyWindowMs = 24 * 60 * 60 * 1000;
+    const dailyRunLimit = 3;
+    const latest = this.sql<{ created_at: number }>`
+      SELECT created_at FROM live_evaluation_runs ORDER BY created_at DESC LIMIT 1`;
+    const remainingMs = latest[0] ? cooldownMs - (now - latest[0].created_at) : 0;
+    if (remainingMs > 0) {
+      throw new Error(`Live evaluation is rate limited. Try again in ${Math.ceil(remainingMs / 60_000)} minute(s).`);
+    }
+
+    const daily = this.sql<{ run_count: number }>`
+      SELECT COUNT(*) AS run_count FROM live_evaluation_runs
+      WHERE created_at >= ${now - dailyWindowMs}`;
+    if ((daily[0]?.run_count ?? 0) >= dailyRunLimit) {
+      throw new Error("The live evaluation limit is three runs per 24 hours.");
+    }
+
+    const runId = crypto.randomUUID();
+    this.sql`INSERT INTO live_evaluation_runs (id, status, created_at)
+      VALUES (${runId}, 'running', ${now})`;
+
+    const ai = createAI({ binding: this.env.AI });
+    const records: Array<{ caseId: string; response: string }> = [];
+    const errors: Array<{ caseId: string; message: string }> = [];
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let totalTokens = 0;
+
+    try {
+      // Run sequentially to avoid a burst of inference requests; this path deliberately exposes no tools.
+      for (const testCase of LIVE_TEXT_EVALUATION_CASES) {
+        try {
+          const generated = await generateText({
+            model: ai("@cf/zai-org/glm-4.7-flash"),
+            system: SYSTEM_PROMPT,
+            prompt: testCase.input,
+            maxOutputTokens: 160,
+            maxRetries: 0,
+            abortSignal: AbortSignal.timeout(25_000)
+          });
+          const requestInputTokens = generated.usage.inputTokens ?? 0;
+          const requestOutputTokens = generated.usage.outputTokens ?? 0;
+          inputTokens += requestInputTokens;
+          outputTokens += requestOutputTokens;
+          totalTokens += generated.usage.totalTokens ?? requestInputTokens + requestOutputTokens;
+          records.push({ caseId: testCase.id, response: generated.text.slice(0, 1600) });
+        } catch {
+          // Do not expose provider internals or store request/response text in the run ledger.
+          errors.push({ caseId: testCase.id, message: "Model inference request failed." });
+        }
+      }
+
+      const evaluation = evaluateLiveTextResponses(LIVE_TEXT_EVALUATION_CASES, records);
+      if (!evaluation.valid || !evaluation.summary) {
+        throw new Error("The live evaluation results could not be validated.");
+      }
+
+      const status = errors.length === 0 ? "completed" : records.length > 0 ? "partial" : "failed";
+      const completedAt = new Date().toISOString();
+      this.sql`UPDATE live_evaluation_runs SET
+        status = ${status},
+        input_tokens = ${inputTokens},
+        output_tokens = ${outputTokens},
+        total_tokens = ${totalTokens}
+        WHERE id = ${runId}`;
+      this.sql`DELETE FROM live_evaluation_runs WHERE id NOT IN (
+        SELECT id FROM live_evaluation_runs ORDER BY created_at DESC LIMIT 20
+      )`;
+
+      return {
+        model: "@cf/zai-org/glm-4.7-flash",
+        completedAt,
+        cooldownMinutes: 10,
+        dailyRunLimit,
+        summary: evaluation.summary,
+        usage: { inputTokens, outputTokens, totalTokens },
+        errors,
+        results: evaluation.results
+      };
+    } catch {
+      this.sql`UPDATE live_evaluation_runs SET status = 'failed' WHERE id = ${runId}`;
+      throw new Error("Live evaluation could not finish. Check Workers AI availability and retry after the cooldown.");
+    }
   }
 
   @callable()
