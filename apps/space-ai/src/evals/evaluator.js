@@ -39,6 +39,9 @@ export function validateEvaluationCases(cases) {
     for (const field of ["expectedToolCalls", "forbiddenToolCalls", "forbiddenResponsePhrases", "approvalRequiredTools"]) {
       if (!isStringArray(item[field])) errors.push(`${label}.${field} must be an array of non-empty strings.`);
     }
+    if (item.orderedToolSequence !== undefined && !isStringArray(item.orderedToolSequence)) {
+      errors.push(`${label}.orderedToolSequence must be an array of non-empty strings when provided.`);
+    }
 
     if (!Array.isArray(item.requiredResponseGroups) ||
         !item.requiredResponseGroups.every((group) => isStringArray(group))) {
@@ -136,6 +139,22 @@ export function evaluateResponses(cases, records) {
       addCheck(`approval_required:${name}`, approved, approved
         ? `Tool ${name} requested owner approval.`
         : `Tool ${name} was missing or did not request owner approval.`);
+    }
+
+    if (item.orderedToolSequence?.length) {
+      let previousIndex = -1;
+      let ordered = true;
+      for (const name of item.orderedToolSequence) {
+        const nextIndex = names.findIndex((toolName, index) => index > previousIndex && toolName === name);
+        if (nextIndex < 0) {
+          ordered = false;
+          break;
+        }
+        previousIndex = nextIndex;
+      }
+      addCheck("ordered_tool_sequence", ordered, ordered
+        ? "Required tool calls occurred in the expected order."
+        : `Tool calls did not follow this order: ${item.orderedToolSequence.join(" → ")}.`);
     }
 
     const normalized = record.response.toLocaleLowerCase();
