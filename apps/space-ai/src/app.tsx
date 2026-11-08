@@ -28,7 +28,7 @@ type AppearancePreferences = {
 };
 
 const DEFAULT_APPEARANCE: AppearancePreferences = {
-  theme: "light",
+  theme: "dark",
   density: "comfortable",
   reduceMotion: false,
   codeFont: "JetBrains Mono",
@@ -42,10 +42,13 @@ function readAppearancePreferences(): AppearancePreferences {
   try {
     const stored = window.localStorage.getItem("space-appearance");
     if (!stored) return DEFAULT_APPEARANCE;
-    const value = JSON.parse(stored) as Partial<AppearancePreferences>;
+    const value = JSON.parse(stored) as Partial<AppearancePreferences> & { version?: number };
+    const hasCurrentPreferenceVersion = value.version === 2;
 
     return {
-      theme: value.theme === "dark" || value.theme === "system" ? value.theme : "light",
+      // Migrate the old implicit light default to dark; keep explicit v2 light/system choices.
+      theme: value.theme === "dark" || value.theme === "system" ||
+        (hasCurrentPreferenceVersion && value.theme === "light") ? value.theme : "dark",
       density: value.density === "compact" ? "compact" : "comfortable",
       reduceMotion: value.reduceMotion === true,
       codeFont: value.codeFont === "System Mono" ? "System Mono" : "JetBrains Mono",
@@ -375,7 +378,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
     root.dataset.codeFont = appearance.codeFont === "System Mono" ? "system" : "jetbrains";
 
     try {
-      window.localStorage.setItem("space-appearance", JSON.stringify(appearance));
+      window.localStorage.setItem("space-appearance", JSON.stringify({ ...appearance, version: 2 }));
     } catch {
       // Preferences still work for the current session when browser storage is unavailable.
     }

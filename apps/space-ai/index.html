@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -9,6 +9,24 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Apply the theme before the app bundle loads to avoid a bright flash on first paint.
+      (() => {
+        try {
+          const raw = localStorage.getItem("space-appearance");
+          const saved = raw ? JSON.parse(raw) : {};
+          const isCurrentPreference = saved && saved.version === 2;
+          const preference = saved?.theme === "dark" || saved?.theme === "system" ||
+            (isCurrentPreference && saved?.theme === "light") ? saved.theme : "dark";
+          const resolved = preference === "system"
+            ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+            : preference;
+          document.documentElement.dataset.theme = resolved;
+        } catch {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
     <script type="module" src="/src/client.tsx"></script>
   </body>
 </html>
