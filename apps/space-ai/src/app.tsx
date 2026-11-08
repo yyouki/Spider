@@ -1332,7 +1332,7 @@ export default function App() {
     return (
       <main className="auth-shell">
         <section className="auth-card" aria-live="polite">
-          <div className="auth-brand" role="heading" aria-level="1"><img src="/spider-mark.svg" alt="" /><span>spider</span></div>
+          <div className="auth-brand" role="heading" aria-level={1}><img src="/spider-mark.svg" alt="" /><span>spider</span></div>
           <p>Checking your private workspace session…</p>
         </section>
       </main>
@@ -1343,7 +1343,7 @@ export default function App() {
     return (
       <main className="auth-shell">
         <section className="auth-card">
-          <div className="auth-brand" role="heading" aria-level="1"><img src="/spider-mark.svg" alt="" /><span>spider</span></div>
+          <div className="auth-brand" role="heading" aria-level={1}><img src="/spider-mark.svg" alt="" /><span>spider</span></div>
           <p role="alert">{sessionError}</p>
           <button type="button" className="button button-primary" onClick={() => window.location.reload()}>Retry</button>
         </section>
