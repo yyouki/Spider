@@ -42,6 +42,7 @@ The `approvalRequested` field records whether the UI/model stream showed an appr
 ## What is scored
 
 - required and forbidden tool calls;
+- optional ordering for dependent tool calls, such as listing and reading a file before writing it;
 - whether sensitive tools requested owner approval;
 - required response phrase groups (at least one alternative must appear in each group);
 - forbidden response phrases;
