@@ -42,7 +42,8 @@ Roadmap ini sengaja mengutamakan fondasi yang bisa diuji sebelum menambahkan OS 
 ## Tahap 4 — Memory dan learning
 - Project memory dan error memory.
 - Provenance, retention, export/delete.
-- Evaluation dataset dan regression runner.
+- [x] Evaluation dataset dan offline regression runner untuk recorded outputs.
+- [ ] Live model evaluation dan semantic grading dengan biaya/budget guard.
 - Versioned prompt/tool changes.
 
 **Acceptance:** kesalahan yang pernah diidentifikasi menjadi regression test; update tidak dirilis bila test gagal.
