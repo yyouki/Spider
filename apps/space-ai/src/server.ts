@@ -848,7 +848,9 @@ export class SpaceAgent extends AIChatAgent<Env> {
             model: ai("@cf/zai-org/glm-4.7-flash"),
             system: SYSTEM_PROMPT,
             prompt: testCase.input,
-            maxOutputTokens: 160
+            maxOutputTokens: 160,
+            maxRetries: 0,
+            abortSignal: AbortSignal.timeout(25_000)
           });
           const requestInputTokens = generated.usage.inputTokens ?? 0;
           const requestOutputTokens = generated.usage.outputTokens ?? 0;
