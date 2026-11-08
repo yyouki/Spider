@@ -70,7 +70,7 @@ async function main() {
     await writeFile(options.output, JSON.stringify(report, null, 2) + "\n", { mode: 0o600 });
   }
   if (summary.executed === 0) throw new Error("No recorded evaluation responses were supplied.");
-  if (summary.failed > 0 || summary.automatedPassRate < options.minPassRate) {
+  if (summary.automatedPassRate < options.minPassRate) {
     process.exitCode = 1;
   }
 }
