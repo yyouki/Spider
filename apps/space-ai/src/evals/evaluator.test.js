@@ -147,3 +147,16 @@ test("enforces the order of dependent tool calls", () => {
   assert.equal(incorrect.results[0].status, "failed");
   assert.ok(incorrect.results[0].checks.some((check) => check.name === "ordered_tool_sequence" && !check.passed));
 });
+
+test("counts unrun cases as not passed in the benchmark-wide score", () => {
+  const first = makeCase({ id: "case-first" });
+  const second = makeCase({ id: "case-second" });
+  const result = evaluateResponses([first, second], [{
+    caseId: first.id,
+    response: "The answer is 42.",
+    toolCalls: [{ name: "calculate" }]
+  }]);
+  assert.equal(result.summary.executed, 1);
+  assert.equal(result.summary.notRun, 1);
+  assert.equal(result.summary.automatedPassRate, 0.5);
+});
