@@ -22,8 +22,10 @@ const clientCodeSplitting = {
         },
         {
           name: "codemirror-vendor",
-          test: /node_modules[\\/]@codemirror[\\/]/,
-          priority: 15
+          // Keep CodeMirror and its parser dependencies together to prevent cyclic vendor chunks.
+          test: /node_modules[\\/](?:codemirror|@codemirror|@lezer)[\\/]/,
+          priority: 15,
+          maxSize: 1024 * 1024
         },
         {
           name: "vendor",
