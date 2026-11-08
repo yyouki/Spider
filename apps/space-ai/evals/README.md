@@ -1,6 +1,6 @@
 # Space AI evaluation benchmark
 
-The benchmark is a deterministic regression harness for **recorded** assistant runs. It does not call Workers AI, incur inference charges, or claim to measure a live model when no inference output was supplied.
+The offline benchmark is a deterministic regression harness for **recorded** assistant runs. It never calls Workers AI or incurs inference usage. A separate, opt-in live text smoke test is available from Space Settings; it is intentionally narrower and does not replace tool-call or end-to-end evaluation.
 
 ## Commands
 
@@ -61,3 +61,12 @@ Each case also contains a human-review prompt. Human review remains necessary fo
 ## Current scope
 
 This first version covers arithmetic versus code execution, memory consent, destructive file approval, capability honesty, bounded language support, task-plan status, media-link honesty, untrusted document instructions, and image-edit tool selection. It is an offline foundation; it is not yet a live end-to-end model grader.
+
+
+## Opt-in live text smoke test
+
+The owner-only **Settings → Live model evaluation** action sends six fixed synthetic prompts to the same GLM-4.7-Flash model and system prompt used by chat. It does not read conversation history, saved memory, workspace files, or user attachments. The evaluation path has no tools, so it cannot execute code, write files, delete data, or call connected services.
+
+The runner is deliberately bounded: six sequential inference requests per run, at most 160 output tokens per request, a ten-minute cooldown, and a maximum of three runs per 24 hours. The UI requires an explicit confirmation before each run. The run ledger stores only status, timestamp, and aggregate provider token counts. Prompt text and model responses are not persisted; the browser displays the returned synthetic responses temporarily until the page is refreshed.
+
+Automated checks use phrase alternatives and forbidden-phrase checks. They are smoke-test signals, not semantic proof. Review each response against its human-review prompt before drawing conclusions. The live results are not added to the offline benchmark report or the normal chat analytics history.
