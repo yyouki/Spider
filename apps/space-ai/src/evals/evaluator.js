@@ -198,7 +198,7 @@ export function evaluateResponses(cases, records) {
       passed,
       failed,
       notRun,
-      automatedPassRate: executed.length === 0 ? 0 : Number((passed / executed.length).toFixed(4)),
+      automatedPassRate: Number((passed / cases.length).toFixed(4)),
       humanReviewRequired: executed.length
     }
   };
