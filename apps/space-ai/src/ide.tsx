@@ -2,7 +2,7 @@ import { basicSetup, EditorView } from "codemirror";
 import { LanguageDescription, defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type FormEvent } from "react";
-import type { SpaceAgentClient, SpaceConnectionIssue } from "./connection";
+import type { SpaceAgentClient, SpaceConnectionBanner } from "./connection";
 import "./ide.css";
 
 type WorkspaceEntry = { path: string; language: string; sizeBytes: number; updatedAt: number };
@@ -194,7 +194,8 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 type SpaceIDEPageProps = {
   agent: SpaceAgentClient;
   connected: boolean;
-  connectionIssue: SpaceConnectionIssue | null;
+  connectionLabel: string;
+  connectionBanner: SpaceConnectionBanner | null;
   onReconnect: () => void;
   theme: "dark" | "light";
   onThemeChange: (theme: "dark" | "light") => void;
@@ -205,7 +206,8 @@ type SpaceIDEPageProps = {
 export default function SpaceIDEPage({
   agent,
   connected,
-  connectionIssue,
+  connectionLabel,
+  connectionBanner,
   onReconnect,
   theme,
   onThemeChange,
@@ -554,7 +556,7 @@ export default function SpaceIDEPage({
     >
       <header className="ide-topbar">
         <div className="ide-topbar-brand"><span className="ide-brand-mark">S</span><strong>Space</strong><span className="ide-brand-divider">/</span><span>IDE</span></div>
-        <div className="ide-topbar-center"><span className="ide-workspace-chip">Private workspace</span><span className="ide-connection-state"><i className={connected ? "online" : ""} />{connected ? "Connected" : connectionIssue?.kind === "reconnecting" ? "Reconnecting" : "Offline"}</span></div>
+        <div className="ide-topbar-center"><span className="ide-workspace-chip">Private workspace</span><span className="ide-connection-state"><i className={connected ? "online" : ""} />{connectionLabel}</span></div>
         <div className="ide-topbar-actions">
           <button type="button" onClick={() => { setQuickOpen(true); setQuickQuery(""); }} title={"Quick open · " + shortcuts.quickOpen}>⌕ <span>Open file</span></button>
           <button type="button" onClick={() => setShortcutsOpen(true)} title="Keyboard shortcuts">⌨</button>
@@ -646,7 +648,7 @@ export default function SpaceIDEPage({
       </div>
 
       {(notice || error) && <div className={"ide-toast" + (error ? " error" : "")} role="status"><span>{error || notice}</span><button type="button" onClick={() => { setNotice(""); setError(""); }}>×</button></div>}
-      {!connected && !error && <div className="ide-connection-note">{connectionIssue?.message ?? "Connecting to your private workspace…"}</div>}
+      {!connected && !error && <div className="ide-connection-note">{connectionBanner?.message ?? "Connecting to your private workspace…"}</div>}
 
       {paletteOpen && <Modal title="Command palette" onClose={() => setPaletteOpen(false)}>
         <input className="ide-modal-search" autoFocus value={paletteQuery} onChange={(event) => setPaletteQuery(event.target.value)} placeholder="Search commands…" />

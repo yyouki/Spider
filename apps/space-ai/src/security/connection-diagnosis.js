@@ -1,50 +1,154 @@
+export const SPACE_AGENT_BASE_PATH = "api/me";
+export const MAX_RECONNECT_ATTEMPTS = 8;
+export const BANNER_AFTER_ATTEMPTS = 2;
+
 /**
- * Translate HTTP health-check results into safe, user-facing connection states.
- * This deliberately avoids exposing Worker error text or request/session details.
- * @param {number} status
- * @returns {{kind: string, message: string}}
+ * @typedef {"connecting" | "connected" | "reconnecting" | "failed"} ConnectionPhase
+ * @typedef {"none" | "realtime" | "signed-out" | "access-denied" | "workspace-unavailable" | "network"} ConnectionCause
+ * @typedef {{ phase: ConnectionPhase, cause: ConnectionCause, attempt: number, closeCode: number | null }} ConnectionState
  */
-export function describeConnectionHealth(status) {
-  if (status === 200) {
-    return {
-      kind: "websocket-unavailable",
-      message: "Worker dan private workspace merespons. Koneksi realtime sedang tersambung ulang."
-    };
-  }
-  if (status === 401) {
-    return {
-      kind: "unauthenticated",
-      message: "Sesi masuk sudah tidak berlaku. Muat ulang halaman untuk masuk kembali."
-    };
-  }
-  if (status === 403) {
-    return {
-      kind: "forbidden",
-      message: "Worker menolak permintaan health check. Periksa domain dan konfigurasi origin aplikasi."
-    };
-  }
-  if (status === 503) {
-    return {
-      kind: "workspace-unavailable",
-      message: "Worker merespons, tetapi Durable Object atau penyimpanan workspace tidak dapat dijangkau."
-    };
-  }
-  if (status >= 500) {
-    return {
-      kind: "workspace-unavailable",
-      message: "Layanan Space mengembalikan error server. Coba sambungkan ulang setelah layanan pulih."
-    };
-  }
-  return {
-    kind: "websocket-unavailable",
-    message: "Pemeriksaan koneksi tidak berhasil. Coba sambungkan ulang."
-  };
+
+/** @returns {ConnectionState} */
+export function createInitialConnectionState() {
+  return { phase: "connecting", cause: "none", attempt: 0, closeCode: null };
 }
 
-/** @returns {{kind: string, message: string}} */
-export function describeConnectionNetworkFailure() {
+/**
+ * @param {number | null} status
+ * @returns {ConnectionCause}
+ */
+export function classifyHealthStatus(status) {
+  if (status === null) return "network";
+  if (status === 401) return "signed-out";
+  if (status === 403) return "access-denied";
+  if (status >= 500) return "workspace-unavailable";
+  return "realtime";
+}
+
+/**
+ * @param {ConnectionState} state
+ * @param {{ type: string, code?: number, status?: number | null }} event
+ * @returns {ConnectionState}
+ */
+export function reduceConnection(state, event) {
+  switch (event.type) {
+    case "open":
+      return { phase: "connected", cause: "none", attempt: 0, closeCode: null };
+    case "close":
+      if (state.phase === "failed") return state;
+      return {
+        ...state,
+        phase: "reconnecting",
+        attempt: state.attempt + 1,
+        closeCode: typeof event.code === "number" ? event.code : state.closeCode
+      };
+    case "terminal":
+      return {
+        ...state,
+        phase: "failed",
+        closeCode: typeof event.code === "number" ? event.code : state.closeCode
+      };
+    case "health":
+      if (state.phase === "connected") return state;
+      return { ...state, cause: classifyHealthStatus(event.status ?? null) };
+    case "manual-reconnect":
+      return { phase: "connecting", cause: "none", attempt: 0, closeCode: null };
+    default:
+      return state;
+  }
+}
+
+/**
+ * @param {ConnectionState} state
+ * @returns {{ label: string, banner: null | { tone: "info" | "warning" | "danger", title: string, message: string, action: "reconnect" | "reload", actionLabel: string } }}
+ */
+export function describeConnection(state) {
+  if (state.phase === "connected") return { label: "Connected", banner: null };
+  if (state.phase === "connecting" && state.attempt === 0) return { label: "Connecting", banner: null };
+
+  const failed = state.phase === "failed";
+  const label = failed ? "Offline" : "Reconnecting";
+  const codeNote = state.closeCode === null ? "" : " (close code " + state.closeCode + ")";
+
+  if (state.cause === "signed-out") {
+    return {
+      label,
+      banner: {
+        tone: "warning",
+        title: "Your session has expired",
+        message: "Sign in again to continue working in Spider.",
+        action: "reload",
+        actionLabel: "Sign in again"
+      }
+    };
+  }
+
+  if (state.cause === "access-denied") {
+    return {
+      label,
+      banner: {
+        tone: "danger",
+        title: "Access was rejected",
+        message: "The server refused this request. Reload the page. If it keeps happening, check that you are using the official Spider address.",
+        action: "reload",
+        actionLabel: "Reload page"
+      }
+    };
+  }
+
+  if (state.cause === "workspace-unavailable") {
+    return {
+      label,
+      banner: {
+        tone: "danger",
+        title: "Workspace unavailable",
+        message: failed
+          ? "The server responded, but your private workspace storage cannot be reached. Try again in a moment."
+          : "The server responded, but your private workspace storage cannot be reached. Spider keeps retrying.",
+        action: "reconnect",
+        actionLabel: "Try again"
+      }
+    };
+  }
+
+  if (state.cause === "network") {
+    return {
+      label,
+      banner: {
+        tone: "warning",
+        title: "Cannot reach Spider",
+        message: failed
+          ? "Check your internet connection. Spider reconnects when you are back online, or you can retry now."
+          : "Check your internet connection. Spider keeps retrying and reconnects when you are back online.",
+        action: "reconnect",
+        actionLabel: "Retry now"
+      }
+    };
+  }
+
+  if (failed) {
+    return {
+      label,
+      banner: {
+        tone: "danger",
+        title: "Live connection lost",
+        message: "The server is healthy, but the live channel could not be restored after " + MAX_RECONNECT_ATTEMPTS + " attempts" + codeNote + ".",
+        action: "reconnect",
+        actionLabel: "Reconnect"
+      }
+    };
+  }
+
+  if (state.attempt < BANNER_AFTER_ATTEMPTS) return { label, banner: null };
+
   return {
-    kind: "network",
-    message: "Browser tidak dapat menjangkau endpoint Space. Periksa alamat aplikasi, DNS, dan koneksi ke domain Worker."
+    label,
+    banner: {
+      tone: "info",
+      title: "Live connection interrupted",
+      message: "The server is healthy, but the live channel dropped. Reconnecting (attempt " + state.attempt + " of " + MAX_RECONNECT_ATTEMPTS + ")" + codeNote + ".",
+      action: "reconnect",
+      actionLabel: "Reconnect now"
+    }
   };
 }

@@ -339,7 +339,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "/" : window.location.pathname);
   const endRef = useRef<HTMLDivElement>(null);
 
-  const { agent, connected, connectionIssue, reconnect } = useSpaceAgentConnection();
+  const { agent, connected, connectionLabel, connectionBanner, reconnect } = useSpaceAgentConnection();
 
   const {
     messages,
@@ -837,7 +837,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
       )}
       <div className="topbar-actions">
         <span className={`connection ${connected ? "online" : "offline"}`}>
-          <i /> {connected ? "Connected" : connectionIssue?.kind === "reconnecting" ? "Reconnecting" : "Offline"}
+          <i /> {connectionLabel}
         </span>
         <div className="account-profile" title={profile ? profile.login : "Account profile"}>
           {profile?.avatarUrl
@@ -1025,7 +1025,8 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
       <VSCodeWebPage
         agent={agent}
         connected={connected}
-        connectionIssue={connectionIssue}
+        connectionLabel={connectionLabel}
+        connectionBanner={connectionBanner}
         onReconnect={reconnect}
         theme={resolvedTheme}
         onThemeChange={(theme) => setAppearance((current) => ({ ...current, theme }))}
@@ -1261,14 +1262,14 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   return (
     <div className="app-shell">
       {header}
-      {!connected && connectionIssue && (
-        <aside className={"connection-banner " + connectionIssue.kind} role="status">
+      {!connected && connectionBanner && (
+        <aside className={"connection-banner " + connectionBanner.tone} role="status" aria-live="polite">
           <div className="connection-banner-copy">
-            <strong>{connectionIssue.kind === "unauthenticated" ? "Sign-in required" : connectionIssue.kind === "workspace-unavailable" ? "Private workspace unavailable" : connectionIssue.kind === "websocket-unavailable" ? "Live connection interrupted" : connectionIssue.kind === "network" ? "Cannot reach Space" : connectionIssue.kind === "forbidden" ? "Access rejected" : "Reconnecting to Space"}</strong>
-            <p>{connectionIssue.message}</p>
+            <strong>{connectionBanner.title}</strong>
+            <p>{connectionBanner.message}</p>
           </div>
-          <button type="button" onClick={() => connectionIssue.kind === "unauthenticated" ? window.location.reload() : reconnect()}>
-            {connectionIssue.kind === "unauthenticated" ? "Reload sign-in" : "Reconnect"}
+          <button type="button" onClick={() => connectionBanner.action === "reload" ? window.location.reload() : reconnect()}>
+            {connectionBanner.actionLabel}
           </button>
         </aside>
       )}

@@ -4,7 +4,7 @@ import { createAI } from "agents/models/ai-sdk";
 import { convertToModelMessages, generateText, pruneMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
 import { getOwnerSession, handleAuthRequest, isGoogleOAuthReady, isGitHubOAuthReady, requireOwnerAccess } from "./security/access";
-import { getSpaceAgentName, isSameOriginAgentRequest } from "./security/tenant-routing.js";
+import { describeAgentRequestRejection, getSpaceAgentName, isSameOriginAgentRequest } from "./security/tenant-routing.js";
 import { ChatShares, type SharedChatSnapshot } from "./chat-shares";
 import { languageForPath, normalizeWorkspacePath, type WorkspaceFile, type WorkspaceFileMetadata } from "./workspace";
 import { LIVE_TEXT_EVALUATION_CASES, evaluateLiveTextResponses, type LiveTextEvaluationResult } from "./evals/live-evaluator.js";
@@ -1612,6 +1612,12 @@ export default {
       const access = await requireOwnerAccess(request, env);
       if (!access.ok) return access.response;
       if (!isSameOriginAgentRequest(request)) {
+        console.warn({
+          event: "space_agent_request_rejected",
+          reason: describeAgentRequestRejection(request),
+          method: request.method,
+          upgrade: request.headers.get("upgrade")?.toLowerCase() === "websocket"
+        });
         return Response.json({ error: "Invalid Agent request origin." }, { status: 403 });
       }
       const agentName = getSpaceAgentName({

@@ -1,19 +1,23 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useAgent } from "agents/react";
 import type { SpaceAgent } from "./server";
 import {
-  describeConnectionHealth,
-  describeConnectionNetworkFailure,
-  type SpaceConnectionIssue
+  MAX_RECONNECT_ATTEMPTS,
+  SPACE_AGENT_BASE_PATH,
+  createInitialConnectionState,
+  describeConnection,
+  reduceConnection,
+  type ConnectionBanner
 } from "./security/connection-diagnosis.js";
 
 export type SpaceAgentClient = ReturnType<typeof useAgent<SpaceAgent>>;
-export type { SpaceConnectionIssue };
+export type SpaceConnectionBanner = ConnectionBanner;
 
 export function useSpaceAgentConnection() {
-  const [connected, setConnected] = useState(false);
-  const [connectionIssue, setConnectionIssue] = useState<SpaceConnectionIssue | null>(null);
+  const [state, dispatch] = useReducer(reduceConnection, undefined, createInitialConnectionState);
   const diagnosisInFlight = useRef(false);
+  const phaseRef = useRef(state.phase);
+  phaseRef.current = state.phase;
 
   const diagnose = useCallback(async () => {
     if (diagnosisInFlight.current) return;
@@ -26,9 +30,9 @@ export function useSpaceAgentConnection() {
         cache: "no-store",
         headers: { Accept: "application/json" }
       });
-      setConnectionIssue(describeConnectionHealth(response.status));
+      dispatch({ type: "health", status: response.status });
     } catch {
-      setConnectionIssue(describeConnectionNetworkFailure());
+      dispatch({ type: "health", status: null });
     } finally {
       diagnosisInFlight.current = false;
     }
@@ -36,33 +40,48 @@ export function useSpaceAgentConnection() {
 
   const agent = useAgent<SpaceAgent>({
     agent: "SpaceAgent",
-    basePath: "/api/me",
+    basePath: SPACE_AGENT_BASE_PATH,
+    maxRetries: MAX_RECONNECT_ATTEMPTS,
     onOpen: useCallback(() => {
-      setConnected(true);
-      setConnectionIssue(null);
+      dispatch({ type: "open" });
     }, []),
-    onClose: useCallback(() => {
-      setConnected(false);
-      setConnectionIssue((current) => current ?? {
-        kind: "reconnecting",
-        message: "Koneksi realtime terputus. Space sedang mencoba menyambung kembali."
-      });
+    onClose: useCallback((event: CloseEvent) => {
+      dispatch({ type: "close", code: event.code });
       void diagnose();
     }, [diagnose]),
-    onError: useCallback((_event: Event) => {
-      setConnected(false);
+    onConnectionError: useCallback((error: { code: number }) => {
+      dispatch({ type: "terminal", code: error.code });
       void diagnose();
     }, [diagnose])
   });
 
   const reconnect = useCallback(() => {
-    setConnected(false);
-    setConnectionIssue({
-      kind: "reconnecting",
-      message: "Meminta SDK menyambungkan ulang ke private workspace…"
-    });
+    dispatch({ type: "manual-reconnect" });
     agent.reconnect();
   }, [agent]);
 
-  return { agent, connected, connectionIssue, reconnect };
+  useEffect(() => {
+    const resume = () => {
+      if (phaseRef.current === "failed") reconnect();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") resume();
+    };
+    window.addEventListener("online", resume);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", resume);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [reconnect]);
+
+  const view = describeConnection(state);
+
+  return {
+    agent,
+    connected: state.phase === "connected",
+    connectionLabel: view.label,
+    connectionBanner: view.banner,
+    reconnect
+  };
 }

@@ -25,11 +25,35 @@ export function getSpaceAgentName(session) {
 }
 
 /**
- * Agent WebSocket/RPC requests must originate from the Space site itself.
+ * Decide whether an Agent request comes from the Spider site itself.
+ * An Origin header, when present, must match exactly. Browsers omit Origin on
+ * same-origin GET and HEAD requests, so those are accepted only when the browser
+ * itself labels them same-origin. WebSocket upgrades and state-changing methods
+ * must always carry a matching Origin.
  * @param {Request} request
  * @returns {boolean}
  */
 export function isSameOriginAgentRequest(request) {
+  const expectedOrigin = new URL(request.url).origin;
   const origin = request.headers.get("origin");
-  return typeof origin === "string" && origin === new URL(request.url).origin;
+  if (origin !== null) return origin === expectedOrigin;
+
+  const method = request.method.toUpperCase();
+  const isSafeMethod = method === "GET" || method === "HEAD";
+  const isUpgrade = request.headers.get("upgrade")?.toLowerCase() === "websocket";
+  return isSafeMethod && !isUpgrade && request.headers.get("sec-fetch-site") === "same-origin";
+}
+
+/**
+ * Name the reason a request was rejected, for logs that must stay free of secrets.
+ * @param {Request} request
+ * @returns {"origin-mismatch" | "origin-missing-upgrade" | "origin-missing-unsafe-method" | "origin-missing-unverified"}
+ */
+export function describeAgentRequestRejection(request) {
+  const origin = request.headers.get("origin");
+  if (origin !== null) return "origin-mismatch";
+  if (request.headers.get("upgrade")?.toLowerCase() === "websocket") return "origin-missing-upgrade";
+  const method = request.method.toUpperCase();
+  if (method !== "GET" && method !== "HEAD") return "origin-missing-unsafe-method";
+  return "origin-missing-unverified";
 }
