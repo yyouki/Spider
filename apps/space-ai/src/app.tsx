@@ -1174,7 +1174,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
       {!connected && connectionIssue && (
         <aside className={"connection-banner " + connectionIssue.kind} role="status">
           <div className="connection-banner-copy">
-            <strong>{connectionIssue.kind === "unauthenticated" ? "Sign-in required" : connectionIssue.kind === "workspace-unavailable" ? "Private workspace unavailable" : connectionIssue.kind === "websocket-unavailable" ? "Live connection interrupted" : connectionIssue.kind === "network" ? "Cannot reach Space" : "Reconnecting to Space"}</strong>
+            <strong>{connectionIssue.kind === "unauthenticated" ? "Sign-in required" : connectionIssue.kind === "workspace-unavailable" ? "Private workspace unavailable" : connectionIssue.kind === "websocket-unavailable" ? "Live connection interrupted" : connectionIssue.kind === "network" ? "Cannot reach Space" : connectionIssue.kind === "forbidden" ? "Access rejected" : "Reconnecting to Space"}</strong>
             <p>{connectionIssue.message}</p>
           </div>
           <button type="button" onClick={() => connectionIssue.kind === "unauthenticated" ? window.location.reload() : reconnect()}>
