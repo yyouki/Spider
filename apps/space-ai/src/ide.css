@@ -404,3 +404,8 @@
   animation: none !important;
   transition: none !important;
 }
+
+.ide-brand-mark, .ide-welcome-mark { object-fit: cover; border-radius: 10px; }
+.ide-welcome-mark { width: 48px; height: 48px; border: 1px solid var(--ide-border); }
+.ide-topbar-brand { gap: 10px; }
+.ide-topbar-brand strong { font-size: 13px; letter-spacing: -.045em; }

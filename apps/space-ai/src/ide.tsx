@@ -228,7 +228,7 @@ export default function SpaceIDEPage({
   const [panelHeight, setPanelHeight] = useState(30);
   const [terminalInput, setTerminalInput] = useState("");
   const [terminalLines, setTerminalLines] = useState<string[]>([
-    "Space task console · private workspace",
+    "Spider task console · private workspace",
     "Type help to view the supported commands."
   ]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -420,7 +420,7 @@ export default function SpaceIDEPage({
     appendTerminal("$ " + input);
     if (command === "help") {
       appendTerminal([
-        "Space task-console commands:",
+        "Spider task-console commands:",
         "  help              Show supported commands",
         "  pwd               Show the private workspace root",
         "  ls                List files",
@@ -555,7 +555,7 @@ export default function SpaceIDEPage({
       data-line-numbers={lineNumbers ? "true" : "false"}
     >
       <header className="ide-topbar">
-        <div className="ide-topbar-brand"><span className="ide-brand-mark">S</span><strong>Space</strong><span className="ide-brand-divider">/</span><span>IDE</span></div>
+        <div className="ide-topbar-brand"><img className="ide-brand-mark" src="/spider-mark.svg" alt="" /><strong>Spider</strong><span className="ide-brand-divider">/</span><span>IDE</span></div>
         <div className="ide-topbar-center"><span className="ide-workspace-chip">Private workspace</span><span className="ide-connection-state"><i className={connected ? "online" : ""} />{connectionLabel}</span></div>
         <div className="ide-topbar-actions">
           <button type="button" onClick={() => { setQuickOpen(true); setQuickQuery(""); }} title={"Quick open · " + shortcuts.quickOpen}>⌕ <span>Open file</span></button>
@@ -579,7 +579,7 @@ export default function SpaceIDEPage({
           <aside className="ide-sidebar">
             {activity === "explorer" && <>
               <div className="ide-sidebar-heading"><strong>EXPLORER</strong><div><button type="button" onClick={() => void refreshFiles()} title="Refresh">↻</button><button type="button" onClick={() => void createFile()} title="New file">＋</button></div></div>
-              <div className="ide-workspace-title"><span>⌄</span><strong>SPACE WORKSPACE</strong><span className="ide-workspace-count">{files.length}</span></div>
+              <div className="ide-workspace-title"><span>⌄</span><strong>SPIDER WORKSPACE</strong><span className="ide-workspace-count">{files.length}</span></div>
               <div className="ide-tree-scroll">
                 {loading ? <p className="ide-sidebar-empty">Loading workspace…</p> : files.length ? files.map((file) => (
                   <div className={"ide-tree-file" + (file.path === activePath ? " active" : "")} key={file.path}>
@@ -603,7 +603,7 @@ export default function SpaceIDEPage({
 
             {activity === "source" && <>
               <div className="ide-sidebar-heading"><strong>SOURCE CONTROL</strong></div>
-              <div className="ide-tool-empty"><span>⑂</span><strong>Git is not connected</strong><p>The private Space workspace is separate from a GitHub repository. Cloning, branches, commits, and pushes require a Git integration.</p></div>
+              <div className="ide-tool-empty"><span>⑂</span><strong>Git is not connected</strong><p>The private Spider workspace is separate from a GitHub repository. Cloning, branches, commits, and pushes require a Git integration.</p></div>
             </>}
 
             {activity === "extensions" && <>
@@ -627,7 +627,7 @@ export default function SpaceIDEPage({
             <div className="ide-breadcrumbs"><span>workspace</span><span>/</span><span>{activeFile.path}</span></div>
             <div className="ide-editor-area"><CodeEditor key={activeFile.path} path={activeFile.path} value={activeFile.content} theme={theme} onChange={updateContent} onCursorChange={setCursor} /></div>
           </> : <div className="ide-welcome">
-            <div className="ide-welcome-mark">S</div><h1>Space IDE</h1><p>A focused development workspace, built into Space.</p>
+            <img className="ide-welcome-mark" src="/spider-mark.svg" alt="" /><h1>Spider IDE</h1><p>A focused development workspace, built into Spider.</p>
             <div className="ide-welcome-actions"><button type="button" onClick={() => void createFile()}>＋ New file</button><button type="button" onClick={() => { setQuickOpen(true); setQuickQuery(""); }}>Open a file</button><button type="button" onClick={() => { setPanel("terminal"); setPanelOpen(true); }}>Open task console</button></div>
             <div className="ide-welcome-shortcuts"><span><kbd>{shortcuts.commandPalette}</kbd> Command palette</span><span><kbd>{shortcuts.quickOpen}</kbd> Quick open</span><span><kbd>{shortcuts.save}</kbd> Save file</span></div>
           </div>}
@@ -643,7 +643,7 @@ export default function SpaceIDEPage({
             {panel === "output" && <div className="ide-panel-empty">Build and task output appears in the Terminal panel for the currently connected sandbox runner.</div>}
           </section>}
 
-          <footer className="ide-statusbar"><div><span>◌</span><span>Space workspace</span><span>{connected ? "● Online" : "○ Offline"}</span></div><div><span>Ln {cursor.line}, Col {cursor.column}</span><span>{activeFile?.language || "Plain Text"}</span><span>UTF-8</span><span>Spaces: 2</span></div></footer>
+          <footer className="ide-statusbar"><div><span>◌</span><span>Spider workspace</span><span>{connected ? "● Online" : "○ Offline"}</span></div><div><span>Ln {cursor.line}, Col {cursor.column}</span><span>{activeFile?.language || "Plain Text"}</span><span>UTF-8</span><span>Spaces: 2</span></div></footer>
         </section>
       </div>
 

@@ -1,26 +1,21 @@
-# Space UI design references
+# Spider interface direction
 
-These SVG artboards are the visual source of truth for the Space UI. The live app
-implements the layouts using React components and CSS; the artboards are not
-rendered as static screenshots.
+The live interface is implemented in React and CSS. Spider's current direction is defined by the implemented components and design tokens in `src/styles.css` and `src/ide.css`. The earlier Space artboards are historical exploration, not binding layout specifications.
 
-| Artboard | Live implementation |
-| --- | --- |
-| `space-chat.svg` | Chat workspace in `src/app.tsx` |
-| `space-ide-desktop.svg` | Desktop editor in `src/ide.tsx` |
-| `space-ide-mobile.svg` | Responsive editor layout in `src/ide.css` |
-| `space-analytics.svg` | Usage dashboard in `src/analytics.tsx` |
-| `space-settings.svg` | Preferences and privacy settings in `src/app.tsx` |
-| `space-design-system.svg` | Shared tokens used by `src/styles.css` and `src/ide.css` |
+## Design principles
 
-The previous layered CSS overrides have been replaced by a single implementation
-of the Space design language. The reference palette is:
+- A quiet, high-contrast workspace with a persistent navigation rail and an uncluttered work area.
+- A restrained warm accent for primary actions, active navigation, and meaningful status.
+- Comfortable reading sizes, consistent surfaces, and clear hierarchy across Chat, IDE, Analytics, Settings, and authentication.
+- Responsive desktop and mobile layouts, visible keyboard focus, and reduced-motion support.
+- Keep the full existing feature set and the user's persisted workspace/session data intact while the interface evolves.
 
-- Light surfaces: `#FAFAF9`, `#F1F1EF`, and `#E2E2DF`.
-- Interface text: `#1C1D1F`; accent: `#2F7D6D`.
-- IDE dark surfaces: `#1B1C1F`, `#17181B`, and `#2A2C31`; accent: `#4FB39C`.
-- Interface and code fonts use local/system fallbacks when the optional web font is unavailable.
+## Implementation
 
-The mobile chat layout is an adaptation of the desktop chat artboard because
-there is no separate mobile chat artboard. The existing IDE light theme uses the
-shared light palette; there is no separate light desktop IDE artboard.
+- Shared tokens and application shell: `src/styles.css`
+- Code workspace surfaces: `src/ide.css`
+- Chat and application flows: `src/app.tsx`
+- Analytics dashboard: `src/analytics.tsx`
+- Authentication and metadata: `index.html`
+
+The SVGs in this directory may be inspected for context, but the live app should follow the current implementation and accessibility/responsive requirements.

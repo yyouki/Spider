@@ -159,7 +159,7 @@ function WorkspaceImageAttachment({
   return (
     <div className="message-image-attachment">
       <img src={source} alt={asset.filename} loading="lazy" />
-      <div><span><strong>{asset.filename}</strong><small>{(asset.sizeBytes / 1024).toFixed(0)} KB · generated in Space</small></span>
+      <div><span><strong>{asset.filename}</strong><small>{(asset.sizeBytes / 1024).toFixed(0)} KB · generated in Spider</small></span>
         <button type="button" onClick={() => {
           const bytes = Uint8Array.from(atob(asset.contentBase64), (char) => char.charCodeAt(0));
           const buffer = new ArrayBuffer(bytes.byteLength);
@@ -186,7 +186,7 @@ function MessageParts({
     <div className={`message-row ${isUser ? "user" : "assistant"}`}>
       <div className="message-avatar">{isUser ? "Y" : "S"}</div>
       <div className="message-content">
-        <div className="message-meta">{isUser ? "You" : "Space"} <span>·</span> {isUser ? "Message" : "Assistant"}</div>
+        <div className="message-meta">{isUser ? "You" : "Spider"} <span>·</span> {isUser ? "Message" : "Assistant"}</div>
         <div className="message-bubble">
           {message.parts.map((part, index) => {
             if (part.type === "text" && part.text.trim()) {
@@ -249,8 +249,8 @@ function FileWriteApproval({
     return () => { active = false; };
   }, [onReadFile, path]);
 
-  const oldLines = previous?.content.split("\\n") ?? [];
-  const newLines = content.split("\\n");
+  const oldLines = previous?.content.split("\n") ?? [];
+  const newLines = content.split("\n");
   const changed = oldLines.length !== newLines.length || oldLines.some((line, index) => line !== newLines[index]);
   return (
     <section className="approval-card file-approval-card">
@@ -555,7 +555,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   }, [connected, currentPath, loadSavedMemories]);
 
   const deleteSavedMemory = async (key: string) => {
-    if (!window.confirm("Delete this saved memory? Space will no longer use it in future replies.")) return;
+    if (!window.confirm("Delete this saved memory? Spider will no longer use it in future replies.")) return;
     try {
       await agent.stub.deleteUserMemory(key);
       setMemoryNotice("Memory deleted.");
@@ -708,7 +708,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
   const shareChat = async () => {
     if (!messages.length || busy) return;
     const approved = window.confirm(
-      "Buat tautan read-only untuk percakapan ini? Siapa pun yang memiliki tautan dapat membaca teks pesan dan detail tool. Tautan berlaku 7 hari dan dapat dicabut."
+      "Create a read-only link for this conversation? Anyone with the link can read the messages and visible tool details, which may include workspace paths or file content. The link expires after 7 days and can be revoked."
     );
     if (!approved) return;
 
@@ -773,8 +773,9 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
 
   const header = (
     <header className="topbar">
-      <a className="brand" href="/" onClick={(event) => navigate(event, "/")} aria-label="Space home">
-        <span className="brand-copy"><strong>space</strong><small>AI workspace</small></span>
+      <a className="brand" href="/" onClick={(event) => navigate(event, "/")} aria-label="Spider home">
+        <img className="brand-icon" src="/spider-mark.svg" alt="" />
+        <span className="brand-copy"><strong>spider</strong><small>AI workspace</small></span>
       </a>
       <button
         type="button"
@@ -859,7 +860,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
         <div>
           <p className="eyebrow">YOUR PRIVATE WORKSPACE</p>
           <h1>What are we working on?</h1>
-          <p>Ask Space to plan, reason, write files, or run a bounded code task.</p>
+          <p>Ask Spider to plan, reason, write files, or run a bounded code task.</p>
         </div>
         <div className="chat-heading-actions">
           <button className="button button-secondary" type="button" onClick={() => void shareChat()} disabled={!messages.length || busy}>Share chat</button>
@@ -885,7 +886,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
 
       <section className="chat-card">
         <div className="chat-card-header">
-          <div><span className="chat-status-dot" /> <strong>{conversations.find((item) => item.id === activeConversationId)?.title ?? "Space"}</strong><span>Saved conversation</span></div>
+          <div><span className="chat-status-dot" /> <strong>{conversations.find((item) => item.id === activeConversationId)?.title ?? "Spider"}</strong><span>Saved conversation</span></div>
           <small>Persistent history · automatic context summaries</small>
         </div>
         <div className="messages" aria-live="polite">
@@ -951,7 +952,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
               })}
             </div>
           ))}
-          {busy && <div className="thinking"><span /> Space is working…</div>}
+          {busy && <div className="thinking"><span /> Spider is working…</div>}
           <div ref={endRef} />
         </div>
 
@@ -973,10 +974,10 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
                 send();
               }
             }}
-            placeholder="Message Space…"
+            placeholder="Message Spider…"
             rows={3}
             disabled={!connected || busy}
-            aria-label="Message Space"
+            aria-label="Message Spider"
           />
           {pendingImage && (
             <div className="pending-image-attachment">
@@ -1016,12 +1017,12 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
           </div>
         </form>
       </section>
-      <p className="page-footnote">Workspace files are private to this Space account. Sandbox runs use temporary, restricted GitHub-hosted containers.</p>
+      <p className="page-footnote">Workspace files are private to this Spider account. Sandbox runs use temporary, restricted GitHub-hosted containers.</p>
     </main>
   );
 
   const vscodePage = (
-    <Suspense fallback={<main className="page-container"><p>Opening Space IDE…</p></main>}>
+    <Suspense fallback={<main className="page-container"><p>Opening Spider IDE…</p></main>}>
       <VSCodeWebPage
         agent={agent}
         connected={connected}
@@ -1042,14 +1043,14 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
         <div>
           <p className="eyebrow">PREFERENCES & ACCESS</p>
           <h1>Settings</h1>
-          <p>Choose how Space should use the capabilities currently connected to this workspace.</p>
+          <p>Choose how Spider should use the capabilities currently connected to this workspace.</p>
         </div>
         <span className="meta-chip">Owner controls</span>
       </div>
 
       <section className="surface-card settings-card appearance-settings-card">
         <div className="section-title">
-          <div><h2>Appearance</h2><p>Choose how Space looks on this device. These preferences are saved locally.</p></div>
+          <div><h2>Appearance</h2><p>Choose how Spider looks on this device. These preferences are saved locally.</p></div>
           <span className="meta-chip">This device</span>
         </div>
         <SettingSelect
@@ -1104,13 +1105,13 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
           />
         </label>
         <div className="settings-preview">
-          <div><span className="eyebrow">PREVIEW</span><strong>const message = "Hello, Space";</strong></div>
+          <div><span className="eyebrow">PREVIEW</span><strong>const message = "Hello, Spider";</strong></div>
           <small>{appearance.codeFont} · {appearance.lineNumbers ? "Line numbers on" : "Line numbers off"}</small>
         </div>
       </section>
 
       <section className="surface-card settings-card">
-        <div className="section-title"><div><h2>Autonomy preferences</h2><p>These choices are saved to the private Space agent. They do not activate tools that have not been implemented.</p></div></div>
+        <div className="section-title"><div><h2>Autonomy preferences</h2><p>These choices are saved to the private Spider agent. They do not activate tools that have not been implemented.</p></div></div>
         <SettingSelect
           label="Workspace execution"
           description="Run bounded Python and JavaScript snippets on a temporary GitHub-hosted Linux runner in an offline container."
@@ -1133,7 +1134,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
         />
         <SettingSelect
           label="Project files"
-          description="Choose how Space applies file changes. Review mode presents the current and proposed file side by side."
+          description="Choose how Spider applies file changes. Review mode presents the current and proposed file side by side."
           value={settings.projectFiles}
           options={[
             { value: "ask_before_write", label: "Ask before every write" },
@@ -1162,7 +1163,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
 
       <section className="surface-card settings-card memory-settings-card">
         <div className="section-title">
-          <div><h2>Saved memory</h2><p>Space can use approved preferences and useful facts in future responses. Memory is only added when you explicitly ask and approve it.</p></div>
+          <div><h2>Saved memory</h2><p>Spider can use approved preferences and useful facts in future responses. Memory is only added when you explicitly ask and approve it.</p></div>
           <button type="button" className="button button-secondary" onClick={() => void loadSavedMemories()} disabled={!connected || memoriesBusy}>Refresh</button>
         </div>
         {memoryNotice && <p className="memory-notice" role="status">{memoryNotice}</p>}
@@ -1180,7 +1181,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
             ))}
           </div>
         ) : (
-          <p className="memory-empty">No saved memory yet. In chat, say “remember that…” to ask Space to save a non-sensitive fact.</p>
+          <p className="memory-empty">No saved memory yet. In chat, say “remember that…” to ask Spider to save a non-sensitive fact.</p>
         )}
         <div className="settings-footer">
           <span>Only use memory that is relevant to the current request.</span>
@@ -1252,7 +1253,7 @@ function Workspace({ onLogout, profile }: { onLogout: () => void; profile: Sessi
 
       <section className="surface-card settings-card">
         <div className="section-title"><div><h2>Privacy and permissions</h2><p>Controls that keep the workspace private and prevent unapproved external actions.</p></div></div>
-        <div className="policy-row"><span className="policy-icon">01</span><div><strong>Private workspace files</strong><p>Files live in Space's Durable Object storage. They are not automatically synced to GitHub or your device.</p></div></div>
+        <div className="policy-row"><span className="policy-icon">01</span><div><strong>Private workspace files</strong><p>Files live in Spider's Durable Object storage. They are not automatically synced to GitHub or your device.</p></div></div>
         <div className="policy-row"><span className="policy-icon">02</span><div><strong>External account access</strong><p>Third-party services require their own official OAuth consent. Never share passwords, one-time codes, or private keys.</p></div></div>
         <div className="policy-row"><span className="policy-icon">03</span><div><strong>Protected actions</strong><p>Publishing, sending, spending, destructive changes, and security-setting changes require owner confirmation.</p></div></div>
       </section>
@@ -1308,7 +1309,7 @@ export default function App() {
         if (active) setSession(value);
       })
       .catch(() => {
-        if (active) setSessionError("Could not connect to the private Space service.");
+        if (active) setSessionError("Could not connect to the private Spider service.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -1331,7 +1332,7 @@ export default function App() {
     return (
       <main className="auth-shell">
         <section className="auth-card" aria-live="polite">
-          <h1>space</h1>
+          <div className="auth-brand" role="heading" aria-level="1"><img src="/spider-mark.svg" alt="" /><span>spider</span></div>
           <p>Checking your private workspace session…</p>
         </section>
       </main>
@@ -1342,7 +1343,7 @@ export default function App() {
     return (
       <main className="auth-shell">
         <section className="auth-card">
-          <h1>space</h1>
+          <div className="auth-brand" role="heading" aria-level="1"><img src="/spider-mark.svg" alt="" /><span>spider</span></div>
           <p role="alert">{sessionError}</p>
           <button type="button" className="button button-primary" onClick={() => window.location.reload()}>Retry</button>
         </section>
@@ -1354,8 +1355,9 @@ export default function App() {
     return (
       <main className="auth-shell">
         <section className="auth-card">
-          <p className="eyebrow">PRIVATE AI WORKSPACE</p>
-          <h1>Sign in to Space</h1>
+          <div className="auth-brand"><img src="/spider-mark.svg" alt="" /><span>spider</span></div>
+          <p className="eyebrow">YOUR PRIVATE AI WORKSPACE</p>
+          <h1>Sign in to Spider</h1>
           <p>Only the configured owner account can open this workspace.</p>
           {session?.githubAvailable ? (
             <a className="auth-button" href="/auth/github">Continue with GitHub <span>↗</span></a>

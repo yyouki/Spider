@@ -1,6 +1,6 @@
-# space AI — MVP 0.5
+# Spider — Private AI Workspace
 
-A first, deliberately small implementation of the single-core space AI workspace.
+A first, deliberately small implementation of the single-core Spider AI workspace.
 
 ## Included now
 
@@ -14,11 +14,11 @@ A first, deliberately small implementation of the single-core space AI workspace
 - A calculator tool for exact basic arithmetic.
 - A capability-status tool that reports what is really connected.
 - Project notes and user-approved personal memory stored in the Agent's SQLite database. Memory can be listed and deleted from Settings; saving requires an explicit request and approval.
-- Owner-only GitHub OAuth login with provider-backed display name and avatar. The temporary read:user token is used only for the identity lookup and is not stored; Space stores only a signed session cookie. Keep the OAuth App's expiring user-token setting enabled.
+- Owner-only GitHub OAuth login with provider-backed display name and avatar. The temporary read:user token is used only for the identity lookup and is not stored; Spider stores only a signed session cookie. Keep the OAuth App's expiring user-token setting enabled.
 - Optional owner-only Google OAuth login. It is exposed only when `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OWNER_EMAIL` are configured. The verified Google email must match the configured owner email; access tokens are not persisted.
 - Workers AI model: `@cf/zai-org/glm-4.7-flash`.
 - Bounded Python/JavaScript execution through temporary GitHub-hosted Linux runners.
-- A Space-owned browser IDE with a CodeMirror editor, file explorer, multi-file tabs, private workspace persistence, command palette, customizable keyboard shortcuts, search, and an integrated task console.
+- A Spider-owned browser IDE with a CodeMirror editor, file explorer, multi-file tabs, private workspace persistence, command palette, customizable keyboard shortcuts, search, and an integrated task console.
 - Restricted Python/JavaScript snippet execution through the Chat code tool and temporary GitHub-hosted runner; no general shell or terminal is exposed in the web UI.
 - Persistent private workspace files created or updated by AI tools or the editor. Folder structure is inferred from file paths. Successful AI file writes show a downloadable file attachment in the conversation.
 - A separate Analytics page with provider-reported token usage, daily activity and workspace storage estimates.
@@ -32,17 +32,17 @@ Autonomous browser, GitHub repository sync, image understanding/OCR, audio/video
 
 The `/ide` route is a launcher for the official Visual Studio Code Web service at `https://github.dev/OWNER/REPOSITORY`. It validates the repository path and opens the editor in a new tab; Space does not embed or repackage Microsoft's editor. GitHub sign-in is handled by GitHub in that separate tab. The launcher includes touch-use guidance and common keyboard shortcuts. Pinch zoom depends on the mobile browser; a visible pointer can be provided by connecting a Bluetooth/USB mouse. Because github.dev is a separate origin and tab, Space cannot inject a virtual cursor or modifier-key events into it. VS Code Web is intended for repository browsing and lightweight edits, with browser sandbox limits. It does not include its own terminal, build VM, or full desktop extension runtime; use a separately configured Codespaces or remote compute environment when a project needs a terminal or runtime.
 
-The private Space workspace remains stored in the owning SpaceAgent Durable Object SQLite database. Limits are 200 files, 128 KB per file, and 2 MB total. The last 20 prior versions per file are retained when saved content changes. Hidden paths and sensitive config filenames such as `.env` and `.dev.vars` are rejected. AI-created files appear in chat with a direct Download action. Confirmed file and recursive folder deletion also clear the associated revisions. These files do not yet synchronize to GitHub, so edits made in VS Code Web affect the selected GitHub repository, not the private Space workspace, until the GitHub App publishing integration is implemented.
+The private Spider workspace remains stored in the owning SpaceAgent Durable Object SQLite database. Limits are 200 files, 128 KB per file, and 2 MB total. The last 20 prior versions per file are retained when saved content changes. Hidden paths and sensitive config filenames such as `.env` and `.dev.vars` are rejected. AI-created files appear in chat with a direct Download action. Confirmed file and recursive folder deletion also clear the associated revisions. These files do not yet synchronize to GitHub, so edits made in VS Code Web affect the selected GitHub repository, not the private Spider workspace, until the GitHub App publishing integration is implemented.
 
 The VS Code Web launcher is a separate browser tab and does not expose a terminal. When a project needs a terminal, build, or debugger, configure an explicitly selected compute environment such as a Codespace. Do not treat the browser editor as a compute host.
 
-User memory is separate from chat history and project notes. Space adds memory to future model context only when the owner explicitly asks to save it and approves the tool action. Settings displays saved memory entries and offers per-entry deletion or clearing all entries. The model is instructed to keep only low-sensitivity preferences and useful facts; do not use memory for credentials, private keys, authentication codes, or sensitive medical/financial information.
+User memory is separate from chat history and project notes. Spider adds memory to future model context only when the owner explicitly asks to save it and approves the tool action. Settings displays saved memory entries and offers per-entry deletion or clearing all entries. The model is instructed to keep only low-sensitivity preferences and useful facts; do not use memory for credentials, private keys, authentication codes, or sensitive medical/financial information.
 
 The separate **Analytics** page shows provider-reported input/output usage for at most the 200 most recent responses, a 14-day daily activity chart, and the latest 12 responses. The workspace section shows file count and storage size plus a clearly labeled rough token estimate using UTF-8 bytes divided by four. It is not an exact GLM tokenizer count or model usage. The dashboard does not estimate monetary cost or expose account-wide Cloudflare Neurons.
 
 ## Conversation share links
 
-The **Share chat** action asks for confirmation before creating a read-only snapshot. It includes up to the last 100 messages and visible tool call details. The random URL is a bearer link: anyone who has it can read the snapshot. Links expire after seven days, are served with no-store/noindex headers, and can be revoked from the workspace UI. The JSON endpoint is the same URL with `.json` appended. Do not share conversations containing sensitive information.
+The **Share chat** action asks for confirmation before creating a read-only snapshot. It includes up to the last 100 messages and visible tool call details, which may contain workspace paths or file content. The random URL is a bearer link: anyone who has it can read the snapshot. Links expire after seven days, are served with no-store/noindex headers, and can be revoked from the workspace UI. The JSON endpoint is the same URL with `.json` appended. Do not share conversations containing sensitive information.
 
 ## Offline sandbox contract
 
@@ -73,7 +73,7 @@ The default text model is `@cf/zai-org/glm-4.7-flash`; image generation and edit
 
 Image generation/editing is not image understanding: the current app does not yet provide general image description, OCR, audio, or video analysis. Image tasks consume Workers AI quota. Uploaded reference images are resized to at most 510×510 pixels for the connected editing model. Image storage is capped at 40 assets and 25 MB total, with a 1.35 MB per-image cap to stay below Durable Object SQLite row limits.
 
-Space can help explain and reason about many fields—including programming, mathematics, science, writing, design, automotive theory, business concepts, and personal-finance education—but it is not a licensed professional and does not connect to banks, brokerages, crypto exchanges, or trading accounts. It provides educational analysis, not trade execution or guaranteed investment results.
+Spider can help explain and reason about many fields—including programming, mathematics, science, writing, design, automotive theory, business concepts, and personal-finance education—but it is not a licensed professional and does not connect to banks, brokerages, crypto exchanges, or trading accounts. It provides educational analysis, not trade execution or guaranteed investment results.
 
 A custom model does not remove inference cost or quotas. Training and serving a capable model require compute. Keep the provider/model behind the AI SDK adapter so a later tested model can replace it without rewriting the workspace.
 
@@ -81,7 +81,7 @@ A custom model does not remove inference cost or quotas. Training and serving a 
 
 - Node.js 22 or a Node.js version supported by the pinned Vite/Wrangler toolchain.
 - A Cloudflare account with Workers, Workers AI, and Durable Objects access.
-- A GitHub account with write access to `yyouki/space`.
+- A GitHub account with write access to `yyouki/Spider`.
 - A GitHub OAuth App for owner-only sign-in.
 - Optional Google OAuth Web client. Register `https://YOUR_SPACE_HOST/auth/google/callback` as an authorized redirect URI, then set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OWNER_EMAIL` as Worker variables/secrets. Google sign-in remains unavailable until all three are present.
 - A fine-grained GitHub token limited to this repository with Actions read/write permission, stored as a Worker secret.
